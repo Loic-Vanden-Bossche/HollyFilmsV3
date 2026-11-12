@@ -1,0 +1,10 @@
+node_modules
+dist
+storybook-static
+.git
+.idea
+.env
+.env.*
+media
+server/generated
+*.log

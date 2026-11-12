@@ -1,0 +1,26 @@
+  [mcp_servers.webstorm]
+    url = "http://127.0.0.1:64542/stream"
+
+    [mcp_servers.webstorm.env_http_headers]
+      IJ_MCP_LAUNCH_ORIGIN = "IJ_MCP_LAUNCH_ORIGIN"
+
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+
+[mcp_servers.shadcn]
+command = "node"
+args = ["node_modules/shadcn/dist/index.js", "mcp"]
+
+[mcp_servers.21st-dev]
+url = "https://21st.dev/api/mcp"
+bearer_token_env_var = "API_KEY_21ST"
+
+[mcp_servers.playwright]
+command = "node"
+args = ["node_modules/@playwright/mcp/cli.js", "--headless", "--isolated"]
+
+[mcp_servers.motion]
+url = "https://mcp.motion.dev"
+
+[mcp_servers.storybook]
+url = "http://127.0.0.1:6006/mcp"
