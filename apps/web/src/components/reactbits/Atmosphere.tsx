@@ -1,0 +1,60 @@
+import { lazy, Suspense } from 'react'
+import { cinemaMotion, useEffectActivity } from './policy.ts'
+import './effects.css'
+const Aurora = lazy(() => import('./Aurora.tsx'))
+const LightRays = lazy(() => import('./LightRays.tsx'))
+export function Atmosphere({
+  kind,
+  paused = false,
+}: {
+  kind: 'aurora' | 'rays'
+  paused?: boolean
+}) {
+  const { ref, running, fine } = useEffectActivity(paused)
+  return (
+    <div
+      ref={ref}
+      className={`rb-atmosphere rb-atmosphere-${kind}`}
+      data-motion={running ? 'running' : 'paused'}
+      aria-hidden="true"
+    >
+      <div className="rb-atmosphere-fallback" />
+      {running && (
+        <Suspense fallback={null}>
+          {kind === 'aurora' ? (
+            <Aurora
+              colorStops={cinemaMotion.atmosphereColors}
+              speed={0.28}
+              amplitude={0.8}
+              height={0.45}
+              brightness={0.65}
+              glow={0.25}
+              layers={2}
+              opacity={0.55}
+              intro={false}
+              dpr={fine ? 1 : 0.8}
+              mouseInteraction={fine}
+            />
+          ) : (
+            <LightRays
+              raysOrigin="top-right"
+              raysColor="#7dded8"
+              raysSpeed={0.35}
+              lightSpread={0.65}
+              rayLength={1.8}
+              intensity={0.85}
+              haze={0.3}
+              glow={0.25}
+              followMouse={fine}
+              mouseInfluence={0.08}
+              cursorShadow={false}
+              clickPulse={false}
+              intro={false}
+              maxDevicePixelRatio={1}
+            />
+          )}
+        </Suspense>
+      )}
+    </div>
+  )
+}

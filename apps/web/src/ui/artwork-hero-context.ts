@@ -14,7 +14,7 @@ export function artworkIdentity(source?: LibraryImage | string) {
   return typeof source === 'string'
     ? source
     : source
-      ? `${source.itemId}/${source.type}/${source.tag}`
+      ? `${source.itemId}/${source.type}/${source.tag}${source.index == null ? '' : '/' + source.index}`
       : undefined
 }
 

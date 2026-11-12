@@ -9,7 +9,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "test": "prisma generate && node --test tests/accounts.test.ts"
+    "test": "prisma generate && node --test tests/accounts.test.ts",
+    "test:media": "prisma generate && node --test tests/media.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

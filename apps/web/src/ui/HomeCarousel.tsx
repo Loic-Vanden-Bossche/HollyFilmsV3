@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AnimatePresence,
   animate,
   motion,
   useInView,
+  useAnimate,
   useMotionValue,
   useReducedMotion,
 } from 'motion/react'
@@ -24,16 +33,42 @@ import { getHeroPreview } from '@hollyfilms/shared/library'
 import type { MediaItem } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { formatDuration } from '../format-duration.ts'
 import { HeroVideo } from './HeroVideo.tsx'
+import {
+  BlurText,
+  Magnet,
+  StarBorder,
+  ClickSpark,
+} from '../components/reactbits/Effects.tsx'
 import '../home-carousel.css'
 
 const ease = [0.22, 1, 0.36, 1] as const
+
+function subscribeViewport(notify: () => void) {
+  window.addEventListener('resize', notify)
+  return () => window.removeEventListener('resize', notify)
+}
+function backdropResolution() {
+  // Cover the zoomed hero at native display density, without decoding a 4K
+  // image on every small screen. Buckets keep resized images in the same cache.
+  return Math.min(
+    3840,
+    Math.max(
+      1280,
+      Math.ceil((window.innerWidth * window.devicePixelRatio * 1.08) / 640) *
+        640,
+    ),
+  )
+}
 
 export function HomeCarousel({
   items,
   session,
   userId,
   active = true,
+  entranceKey = 0,
+  skipEntrance = false,
   onSelect,
   onPlay,
   onFavorite,
@@ -42,11 +77,18 @@ export function HomeCarousel({
   session?: JellyfinSession
   userId?: string
   active?: boolean
+  entranceKey?: number
+  skipEntrance?: boolean
   onSelect: (item: MediaItem) => void
   onPlay?: (item: MediaItem, resume: boolean) => void
   onFavorite?: (item: MediaItem, favorite: boolean) => Promise<boolean>
 }) {
   const reduced = useReducedMotion()
+  const backdropWidth = useSyncExternalStore(
+    subscribeViewport,
+    backdropResolution,
+    () => 1920,
+  )
   const root = useRef<HTMLElement>(null)
   const inView = useInView(root, { amount: 0.3 })
   const [selectedId, setSelectedId] = useState<string>()
@@ -60,10 +102,11 @@ export function HomeCarousel({
     playing: boolean
   }>()
   const [saving, setSaving] = useState<string>()
+  const [burst, setBurst] = useState(0)
   const [favoriteError, setFavoriteError] = useState<string>()
   const [now, setNow] = useState(() => Date.now())
   const progress = useMotionValue(0)
-  const slides = items.slice(0, 20)
+  const slides = useMemo(() => items.slice(0, 20), [items])
   const found = slides.findIndex((item) => item.id === selectedId)
   const index = found < 0 ? 0 : found
   const item = slides[index]
@@ -129,6 +172,7 @@ export function HomeCarousel({
     setFavoriteError(undefined)
     try {
       await onFavorite(item, !favorite)
+      setBurst((value) => value + 1)
     } catch {
       setFavoriteError(id)
     } finally {
@@ -157,19 +201,21 @@ export function HomeCarousel({
       }}
     >
       <div className="home-hero-media" aria-hidden="true">
-        <AnimatePresence initial={false}>
+        <AnimatePresence>
           <motion.div
-            key={item.id}
+            key={`${item.id}:${entranceKey}`}
             className="hero-backdrop"
-            initial={{ opacity: 0, scale: reduced ? 1 : 1.045 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={
+              reduced ? false : { opacity: 0.35, transform: 'scale(1.08)' }
+            }
+            animate={{ opacity: 1, transform: 'scale(1)' }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0.15 : 1.1, ease }}
+            transition={{ duration: reduced ? 0 : 1.1, ease }}
           >
             <MediaArtwork
               source={item.backdrop ?? item.poster}
               session={session}
-              width={3840}
+              width={backdropWidth}
               eager
             />
           </motion.div>
@@ -188,18 +234,16 @@ export function HomeCarousel({
       </div>
       <div className="home-hero-shade" />
       <div className="home-hero-copy">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, y: reduced ? 0 : 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: reduced ? 0 : -10 }}
-            transition={{ duration: reduced ? 0.1 : 0.32, ease }}
+        <AnimatePresence mode="wait">
+          <HeroSlide
+            key={`${item.id}:${entranceKey}`}
+            reduced={Boolean(reduced)}
+            skipEntrance={skipEntrance}
           >
-            <p className="home-eyebrow">
+            <p data-hero-stage className="home-eyebrow">
               <span />À L’AFFICHE <span className="hero-kind">{item.kind}</span>
             </p>
-            <h1 className="hero-title" id="home-title">
+            <h1 data-hero-stage className="hero-title" id="home-title">
               <span className="sr-only">{item.title}</span>
               <MediaArtwork
                 source={item.logo}
@@ -207,10 +251,10 @@ export function HomeCarousel({
                 width={1600}
                 eager
                 className="hero-logo"
-                fallback={<span>{item.title}</span>}
+                fallback={<BlurText text={item.title} />}
               />
             </h1>
-            <div className="hero-metadata">
+            <div data-hero-stage className="hero-metadata">
               {item.rating != null && (
                 <span
                   className="hero-score"
@@ -229,12 +273,7 @@ export function HomeCarousel({
               )}
               {item.year && <span>{item.year}</span>}
               {item.classification && <span>{item.classification}</span>}
-              {item.minutes && (
-                <span>
-                  {Math.floor(item.minutes / 60)} h{' '}
-                  {String(item.minutes % 60).padStart(2, '0')}
-                </span>
-              )}
+              {item.minutes && <span>{formatDuration(item.minutes)}</span>}
               {finish && (
                 <span className="hero-finish">
                   <Clock3 size={13} />
@@ -243,26 +282,28 @@ export function HomeCarousel({
               )}
             </div>
             {item.genres.length > 0 && (
-              <p className="hero-genres">
+              <p data-hero-stage className="hero-genres">
                 {item.genres.slice(0, 3).join(' · ')}
               </p>
             )}
-            <p className="home-synopsis">
+            <p data-hero-stage className="home-synopsis">
               {item.overview ||
                 'Découvrez ce titre dans votre bibliothèque HollyFilms.'}
             </p>
-            <div className="home-hero-actions">
+            <div data-hero-stage className="home-hero-actions">
               {onPlay && (
-                <motion.button
-                  type="button"
-                  className="home-primary"
-                  whileHover={reduced ? undefined : { y: -3 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => onPlay(item, true)}
-                >
-                  <Play size={20} fill="currentColor" />
-                  {item.progress > 0 ? 'Reprendre' : 'Lire'}
-                </motion.button>
+                <StarBorder className="hero-play-border">
+                  <motion.button
+                    type="button"
+                    className="home-primary"
+                    whileHover={reduced ? undefined : { y: -3 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => onPlay(item, true)}
+                  >
+                    <Play size={20} fill="currentColor" />
+                    <Magnet>{item.progress > 0 ? 'Reprendre' : 'Lire'}</Magnet>
+                  </motion.button>
+                </StarBorder>
               )}
               <motion.button
                 type="button"
@@ -286,6 +327,7 @@ export function HomeCarousel({
                   whileTap={{ scale: 0.9 }}
                   onClick={() => void toggleFavorite()}
                 >
+                  <ClickSpark burst={burst} />
                   <Heart size={21} fill={favorite ? 'currentColor' : 'none'} />
                 </motion.button>
               )}
@@ -295,10 +337,15 @@ export function HomeCarousel({
                 Impossible de modifier les favoris. Réessayez.
               </p>
             )}
-          </motion.div>
+          </HeroSlide>
         </AnimatePresence>
       </div>
-      <div className="hero-preview-controls">
+      <motion.div
+        className="hero-preview-controls"
+        initial={reduced || skipEntrance ? false : { opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.2, ease }}
+      >
         <span className="hero-preview-label">
           {playingPreview && enabled
             ? 'BANDE-ANNONCE'
@@ -332,9 +379,12 @@ export function HomeCarousel({
             {paused ? <Play size={17} /> : <Pause size={17} />}
           </button>
         )}
-      </div>
+      </motion.div>
       {slides.length > 1 && (
-        <nav
+        <motion.nav
+          initial={reduced || skipEntrance ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35, ease }}
           className="hero-pagination"
           aria-label="Choisir un titre à l’affiche"
         >
@@ -379,7 +429,7 @@ export function HomeCarousel({
           <div className="hero-progress" aria-hidden="true">
             <motion.div style={{ scaleX: progress }} />
           </div>
-        </nav>
+        </motion.nav>
       )}
       <span
         className="sr-only"
@@ -389,5 +439,78 @@ export function HomeCarousel({
         {index + 1} sur {slides.length} : {item.title}
       </span>
     </section>
+  )
+}
+
+// Mounted per selection: staging runs when data arrives, independently of the page intro.
+function HeroSlide({
+  children,
+  reduced,
+  skipEntrance,
+}: {
+  children: ReactNode
+  reduced: boolean
+  skipEntrance: boolean
+}) {
+  const [skipAtMount] = useState(skipEntrance)
+  const instant = reduced || (skipEntrance && !skipAtMount)
+  const [scope, animateSlide] = useAnimate<HTMLDivElement>()
+  useLayoutEffect(() => {
+    const stages = Array.from(
+      scope.current.querySelectorAll<HTMLElement>('[data-hero-stage]'),
+    )
+    const controls = stages.map((node, index) =>
+      animateSlide(
+        node,
+        {
+          opacity: [0, 1],
+          transform: [
+            node.tagName === 'H1' ? 'translateY(30px)' : 'translateY(16px)',
+            'translateY(0px)',
+          ],
+          filter: ['blur(7px)', 'blur(0px)'],
+        },
+        {
+          duration: instant ? 0 : node.tagName === 'H1' ? 0.72 : 0.48,
+          delay: instant ? 0 : index * 0.075,
+          ease,
+        },
+      ),
+    )
+    const badgeElements = scope.current.querySelectorAll<HTMLElement>(
+      '.hero-metadata > span',
+    )
+    const badges = badgeElements.length
+      ? animateSlide(
+          badgeElements,
+          {
+            opacity: [0, 1],
+            transform: ['translateY(8px)', 'translateY(0px)'],
+          },
+          {
+            duration: instant ? 0 : 0.3,
+            delay: (i) => (instant ? 0 : 0.2 + i * 0.035),
+            ease,
+          },
+        )
+      : undefined
+    return () => {
+      controls.forEach((control) => {
+        control.complete()
+        control.stop()
+      })
+      badges?.complete()
+      badges?.stop()
+    }
+  }, [animateSlide, instant, scope])
+  return (
+    <motion.div
+      ref={scope}
+      initial={false}
+      exit={{ opacity: 0, y: instant ? 0 : -8 }}
+      transition={{ duration: instant ? 0 : 0.14 }}
+    >
+      {children}
+    </motion.div>
   )
 }

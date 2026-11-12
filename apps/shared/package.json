@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./media-details": "./src/media-details.ts",
     "./library": "./src/library.ts",
     "./showcase": "./src/showcase.ts",
     "./accounts": "./src/accounts.ts",

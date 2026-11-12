@@ -80,8 +80,6 @@ export default meta
 type Story = StoryObj<typeof meta>
 export const Connected: Story = {
   play: async ({ canvas, userEvent }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await userEvent.type(canvas.getByRole('searchbox'), 'Signal')
     await waitFor(() =>
       expect(mocked(getLibraryPage)).toHaveBeenLastCalledWith(
@@ -103,8 +101,10 @@ export const Connected: Story = {
 }
 export const CardActions: Story = {
   play: async ({ canvas, userEvent }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
+    const tile = await canvas.findByRole('button', {
+      name: 'Voir la fiche de ' + homeItems[0].title,
+    })
+    tile.scrollIntoView()
     const first = await canvas.findByRole('article', {
       name: homeItems[0].title,
     })

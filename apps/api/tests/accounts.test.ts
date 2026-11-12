@@ -357,6 +357,9 @@ test(
     if (googleLogin.status !== 'authenticated')
       throw new Error('Session Google attendue')
     assert.deepEqual(await getJellyfinUser(jellyfinUrl, googleLogin.session), {
+      id: (
+        await db.registration.findUniqueOrThrow({ where: { id: google.id } })
+      ).jellyfinId,
       name: google.username,
       isAdministrator: false,
     })

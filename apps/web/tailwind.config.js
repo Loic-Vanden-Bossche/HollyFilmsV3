@@ -1,9 +1,9 @@
 import colors from 'tailwindcss/colors'
 
 const background = '#080f1b'
-const foreground = '#ecf4fb'
-const card = '#101b2a'
-const border = '#283a4e'
+const foreground = '#f4f7fc'
+const card = '#0d1726'
+const border = '#233247'
 const ring = colors.sky[300]
 const brandStart = colors.green[400]
 const brandEnd = colors.blue[500]
@@ -14,13 +14,16 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        sans: ['DM Sans', 'sans-serif'],
         logo: ['HollyFilms', 'sans-serif'],
       },
+      borderRadius: { panel: '24px', card: '16px', control: '9999px' },
+      spacing: { stage: 'clamp(20px, 4vw, 64px)' },
       colors: {
         background,
         foreground,
         card: { DEFAULT: card, foreground },
-        popover: { DEFAULT: '#152235', foreground },
+        popover: { DEFAULT: '#132238', foreground },
         primary,
         secondary: { DEFAULT: '#1a2a3e', foreground },
         muted: { DEFAULT: '#142235', foreground: '#a4b6cb' },
@@ -31,10 +34,10 @@ export default {
         border,
         input: '#536b84',
         glass: {
-          DEFAULT: '#101b2aa8',
-          strong: '#101b2ad9',
-          control: '#142e3d80',
-          edge: '#b0f5e82e',
+          DEFAULT: '#0d1726d9',
+          strong: '#0d1726ed',
+          control: '#ecf4fb0a',
+          edge: '#ecf4fb1f',
         },
         ring,
         chart: {

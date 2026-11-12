@@ -1,29 +1,283 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { motion, useAnimate, useReducedMotion } from 'motion/react'
-import { X, Star, Play } from 'lucide-react'
-import type { MediaItem } from '@hollyfilms/shared/library'
+import {
+  X,
+  Star,
+  Play,
+  Heart,
+  Check,
+  ExternalLink,
+  Users,
+  Clock3,
+  Layers,
+  MoreHorizontal,
+} from 'lucide-react'
+import type { MediaItem, LibraryPage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { formatDuration } from '../format-duration.ts'
+import { AudioLanguages } from './AudioLanguages.tsx'
+import {
+  getMediaDetails,
+  getMediaRelations,
+  getRelatedPage,
+  mediaRequest,
+  safeExternalUrl,
+  type MediaDetailsData,
+  type MediaRelations,
+  type WatchProviders,
+  type ReviewPage,
+} from '@hollyfilms/shared/media-details'
+import { MediaRail } from './MediaRail.tsx'
+import { MediaCommunity } from './MediaCommunity.tsx'
+import { MediaTile } from './MediaTile.tsx'
+import { formatTime } from '../playback/format-time.ts'
+import './media-card.css'
 import '../home.css'
 import '../player.css'
+import './media-details.css'
 
 export function MediaDetails({
-  item,
+  item: summary,
   session,
+  userId,
+  detailsData,
+  relationsData,
+  providersData,
+  reviewsData,
+  loadRelatedPage,
   onClose,
   onPlay,
+  onSelect,
+  onFavorite,
+  onWatched,
 }: {
   item: MediaItem
   session?: JellyfinSession
-  onPlay?: (item: MediaItem, resume: boolean) => void
+  userId?: string
+  detailsData?: MediaDetailsData
+  relationsData?: MediaRelations
+  providersData?: WatchProviders
+  reviewsData?: ReviewPage
+  loadRelatedPage?: (
+    filter: { parentId?: string; personId?: string },
+    startIndex: number,
+    signal?: AbortSignal,
+  ) => Promise<LibraryPage>
+  onPlay?: (item: MediaItem, resume: boolean, queue?: MediaItem[]) => void
+  onSelect?: (item: MediaItem) => void
+  onFavorite?: (item: MediaItem, value: boolean) => Promise<boolean>
+  onWatched?: (item: MediaItem, value: boolean) => Promise<boolean>
   onClose: () => void
 }) {
   const [scope, animate] = useAnimate<HTMLDialogElement>()
   const reduced = useReducedMotion()
   const closing = useRef(false)
+  const collectionRequest = useRef<AbortController | null>(null)
   const outside = useRef(false)
+  const queryClient = useQueryClient()
+  const base = new URL('/jellyfin', window.location.origin).href
+  const enabled = !!session && !!userId
+  const key = ['media-details', session?.deviceId, userId, summary.id]
+  const details = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) =>
+      getMediaDetails(base, session!, userId!, summary.id, signal),
+    enabled: enabled && !detailsData,
+    staleTime: 60000,
+    retry: false,
+  })
+  const relations = useQuery({
+    queryKey: [...key, 'relations'],
+    queryFn: ({ signal }) =>
+      getMediaRelations(base, session!, userId!, summary.id, signal),
+    enabled: enabled && !relationsData,
+    staleTime: 60000,
+    retry: false,
+  })
+  const data = detailsData ?? details.data,
+    related = relationsData ?? relations.data
+  const [patch, setPatch] = useState<Partial<MediaItem>>({}),
+    [pending, setPending] = useState(''),
+    [actionError, setActionError] = useState('')
+  const [collectionPatches, setCollectionPatches] = useState<
+    Record<string, Partial<MediaItem>>
+  >({})
+  const item = { ...(data?.item ?? summary), ...patch }
+  const [region, setRegion] = useState(() => {
+    try {
+      const stored = localStorage.getItem(
+        'hollyfilms-region-' + (userId ?? 'preview'),
+      )
+      return stored && /^[A-Z]{2}$/.test(stored) ? stored : 'FR'
+    } catch {
+      return 'FR'
+    }
+  })
+  const [page, setPage] = useState(1)
+  const providers = useQuery({
+    queryKey: [...key, 'providers', region],
+    queryFn: ({ signal }) =>
+      mediaRequest<WatchProviders>(
+        session!,
+        summary.id + '/providers?region=' + region,
+        { signal },
+      ),
+    enabled: enabled && !providersData,
+    staleTime: 60000,
+    retry: false,
+  })
+  const reviews = useQuery({
+    queryKey: [...key, 'reviews', page],
+    queryFn: ({ signal }) =>
+      mediaRequest<ReviewPage>(session!, summary.id + '/reviews?page=' + page, {
+        signal,
+      }),
+    enabled: enabled && !reviewsData,
+    staleTime: 30000,
+    retry: false,
+  })
+  const [browsing, setBrowsing] = useState<{
+    id: string
+    title: string
+    type: 'collection' | 'person'
+  }>()
+  const browser = useRef<HTMLDivElement>(null)
+  const members = useInfiniteQuery({
+    queryKey: [...key, 'browse', browsing?.type, browsing?.id],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      loadRelatedPage
+        ? loadRelatedPage(
+            browsing?.type === 'person'
+              ? { personId: browsing.id }
+              : { parentId: browsing?.id },
+            pageParam,
+            signal,
+          )
+        : getRelatedPage(
+            base,
+            session!,
+            userId!,
+            browsing?.type === 'person'
+              ? { personId: browsing.id }
+              : { parentId: browsing?.id },
+            pageParam,
+            signal,
+          ),
+    getNextPageParam: (last, pages) =>
+      pages.reduce((n, p) => n + p.items.length, 0) < last.total
+        ? pages.reduce((n, p) => n + p.items.length, 0)
+        : undefined,
+    enabled: (enabled || !!loadRelatedPage) && !!browsing,
+    retry: false,
+  })
+  const memberItems = members.data?.pages.flatMap((p) => p.items) ?? []
+  useEffect(() => {
+    if (browsing)
+      browser.current?.scrollIntoView({
+        behavior: reduced ? 'instant' : 'smooth',
+        block: 'start',
+      })
+  }, [browsing, reduced])
+  async function update(
+    target: MediaItem,
+    kind: 'favorite' | 'watched',
+    value: boolean,
+  ) {
+    const fn = kind === 'favorite' ? onFavorite : onWatched
+    if (!fn) return value
+    const result = await fn(target, value)
+    setCollectionPatches((old) => ({
+      ...old,
+      [target.id]: { ...old[target.id], [kind]: result },
+    }))
+    if (target.id === item.id)
+      setPatch((p) => ({
+        ...p,
+        [kind]: result,
+        ...(kind === 'watched'
+          ? {
+              progress: result ? 1 : 0,
+              playbackPosition: 0,
+              remainingMinutes: undefined,
+            }
+          : {}),
+      }))
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: key, exact: true }),
+      queryClient.invalidateQueries({
+        queryKey: [...key, 'relations'],
+        exact: true,
+      }),
+      queryClient.invalidateQueries({ queryKey: [...key, 'browse'] }),
+    ])
+    return result
+  }
+  async function action(kind: 'favorite' | 'watched') {
+    setPending(kind)
+    setActionError('')
+    try {
+      await update(item, kind, !item[kind])
+    } catch {
+      setActionError('La modification n’a pas été enregistrée. Réessaie.')
+    } finally {
+      setPending('')
+    }
+  }
+  async function playCollection(collectionId = browsing?.id) {
+    if (!collectionId || (!loadRelatedPage && (!session || !userId))) return
+    collectionRequest.current?.abort()
+    const controller = new AbortController()
+    collectionRequest.current = controller
+    setPending('collection')
+    setActionError('')
+    try {
+      const current =
+        browsing?.type === 'collection' && browsing.id === collectionId
+      let queue = current ? [...memberItems] : [],
+        total = current ? members.data?.pages[0]?.total : undefined
+      while (total === undefined || queue.length < total) {
+        const next = loadRelatedPage
+          ? await loadRelatedPage(
+              { parentId: collectionId },
+              queue.length,
+              controller.signal,
+            )
+          : await getRelatedPage(
+              base,
+              session!,
+              userId!,
+              { parentId: collectionId },
+              queue.length,
+              controller.signal,
+            )
+        if (!next.items.length && next.total > queue.length)
+          throw new Error('Collection incomplète')
+        queue.push(...next.items)
+        total = next.total
+      }
+      if (!queue.length)
+        setActionError('Aucun titre accessible dans cette collection.')
+      if (queue.length && !controller.signal.aborted)
+        onPlay?.(queue[0], true, queue)
+    } catch {
+      if (!controller.signal.aborted)
+        setActionError('Impossible de charger la collection. Réessaie.')
+    } finally {
+      setPending('')
+    }
+  }
+  const navigate = onSelect ?? (() => {})
   useEffect(() => {
     const dialog = scope.current
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     dialog.showModal()
     const animation = animate(
       dialog,
@@ -33,13 +287,16 @@ export function MediaDetails({
       { duration: reduced ? 0 : 0.3 },
     )
     return () => {
+      collectionRequest.current?.abort()
       animation.stop()
       dialog.close()
+      document.body.style.overflow = overflow
     }
   }, [scope, animate, reduced])
   async function close() {
     if (closing.current) return
     closing.current = true
+    collectionRequest.current?.abort()
     await animate(
       scope.current,
       { opacity: 0 },
@@ -61,6 +318,21 @@ export function MediaDetails({
         event.preventDefault()
         void close()
       }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          const menu = scope.current.querySelector<HTMLDetailsElement>(
+            '.detail-card-menu[open]',
+          )
+          if (menu) {
+            menu.open = false
+            event.preventDefault()
+            event.stopPropagation()
+          } else {
+            event.preventDefault()
+            void close()
+          }
+        }
+      }}
       onPointerDown={(event) => {
         outside.current =
           event.button === 0 &&
@@ -71,6 +343,12 @@ export function MediaDetails({
         outside.current = false
       }}
       onClick={(event) => {
+        if (!(event.target as HTMLElement).closest('.detail-card-menu'))
+          scope.current
+            .querySelectorAll<HTMLDetailsElement>('.detail-card-menu[open]')
+            .forEach((menu) => {
+              menu.open = false
+            })
         const dismiss =
           outside.current &&
           event.target === event.currentTarget &&
@@ -79,23 +357,53 @@ export function MediaDetails({
         if (dismiss) void close()
       }}
     >
+      <div className="detail-toolbar">
+        <nav className="detail-section-nav" aria-label="Sections de la fiche">
+          {[
+            ['detail-overview', 'Présentation'],
+            ['detail-providers', 'Disponibilités'],
+            ['detail-reviews', 'Critiques'],
+            ['detail-cast', 'Distribution'],
+            ['detail-scenes', 'Scènes'],
+            ['detail-related', 'À découvrir'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() =>
+                scope.current.querySelector('#' + id)?.scrollIntoView({
+                  behavior: reduced ? 'instant' : 'smooth',
+                  block: 'start',
+                })
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <motion.button
+          className="media-detail-close glass-control"
+          aria-label="Fermer la fiche"
+          onClick={() => void close()}
+          whileTap={reduced ? undefined : { scale: 0.9 }}
+        >
+          <X size={20} />
+        </motion.button>
+      </div>
       <div className="media-detail-art">
         <MediaArtwork
           source={item.backdrop ?? item.poster}
           session={session}
-          width={1280}
+          width={2560}
           eager
         />
       </div>
-      <motion.button
-        className="media-detail-close glass-control"
-        aria-label="Fermer la fiche"
-        onClick={() => void close()}
-        whileTap={reduced ? undefined : { scale: 0.9 }}
+
+      <motion.div
+        className="media-detail-body"
+        initial={{ opacity: 0, y: reduced ? 0 : 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduced ? 0 : 0.35, delay: reduced ? 0 : 0.06 }}
       >
-        <X size={20} />
-      </motion.button>
-      <div className="media-detail-body">
         {item.poster && (
           <div className="media-detail-poster">
             <MediaArtwork
@@ -106,12 +414,12 @@ export function MediaDetails({
             />
           </div>
         )}
-        <p className="home-eyebrow">
+        <p id="detail-overview" className="home-eyebrow">
           {item.kind} {item.year && '· ' + item.year}
         </p>
         <h2 id="media-detail-title">{item.title}</h2>
         <div className="home-meta">
-          {item.minutes && <span>{item.minutes} min</span>}
+          {item.minutes && <span>{formatDuration(item.minutes)}</span>}
           {item.classification && (
             <span className="home-rating">{item.classification}</span>
           )}
@@ -121,6 +429,13 @@ export function MediaDetails({
               {item.rating.toFixed(1)}
             </span>
           )}
+          {item.criticRating != null && (
+            <span aria-label={`Rotten Tomatoes : ${item.criticRating} %`}>
+              <span aria-hidden="true">🍅</span>
+              {item.criticRating}%
+            </span>
+          )}
+          {item.watched && <span className="text-success">Déjà vu</span>}
         </div>
         {item.episode && <p className="media-detail-episode">{item.episode}</p>}
         <p className="media-detail-overview">
@@ -134,21 +449,23 @@ export function MediaDetails({
             ))}
           </div>
         )}
-        {onPlay && (
+        {(onPlay || onFavorite || onWatched) && (
           <div className="media-play-actions">
-            <motion.button
-              className="home-primary"
-              onClick={() => onPlay(item, true)}
-              whileTap={reduced ? undefined : { scale: 0.97 }}
-            >
-              <Play size={18} fill="currentColor" />{' '}
-              {item.progress > 0
-                ? 'Reprendre'
-                : item.kind === 'Série'
-                  ? 'Lire la série'
-                  : 'Lire'}
-            </motion.button>
-            {item.progress > 0 && (
+            {onPlay && (
+              <motion.button
+                className="home-primary"
+                onClick={() => onPlay(item, true)}
+                whileTap={reduced ? undefined : { scale: 0.97 }}
+              >
+                <Play size={18} fill="currentColor" />{' '}
+                {item.progress > 0
+                  ? 'Reprendre'
+                  : item.kind === 'Série'
+                    ? 'Lire la série'
+                    : 'Lire'}
+              </motion.button>
+            )}
+            {onPlay && item.progress > 0 && (
               <button
                 className="glass-control"
                 onClick={() => onPlay(item, false)}
@@ -156,16 +473,556 @@ export function MediaDetails({
                 Depuis le début
               </button>
             )}
+            {onFavorite && (
+              <button
+                className="glass-control"
+                aria-label={
+                  item.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'
+                }
+                aria-pressed={!!item.favorite}
+                disabled={!!pending}
+                onClick={() => void action('favorite')}
+              >
+                <Heart
+                  size={19}
+                  fill={item.favorite ? 'currentColor' : 'none'}
+                />
+              </button>
+            )}
+            {onWatched && (
+              <button
+                className="glass-control"
+                aria-label={
+                  item.watched ? 'Marquer comme non vu' : 'Marquer comme vu'
+                }
+                aria-pressed={!!item.watched}
+                disabled={!!pending}
+                onClick={() => void action('watched')}
+              >
+                <Check size={19} />
+              </button>
+            )}
+            {!!item.trailers?.length && (
+              <a
+                className="glass-control"
+                href={safeExternalUrl(
+                  item.trailers.find((t) => safeExternalUrl(t.url))?.url,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Bande-annonce <ExternalLink size={15} />
+              </a>
+            )}
           </div>
+        )}
+        {actionError && (
+          <p role="alert" className="detail-error">
+            {actionError}
+          </p>
         )}
         {item.progress > 0 && (
           <p className="media-detail-progress">
             {Math.round(item.progress * 100)} % visionné
             {item.remainingMinutes
-              ? ' · ' + item.remainingMinutes + ' min restantes'
+              ? ' · Encore ' + formatDuration(item.remainingMinutes)
               : ''}
           </p>
         )}
+        {item.quality ||
+        item.audioLanguages?.length ||
+        item.editions?.length ? (
+          <dl className="media-detail-specs">
+            {item.quality && (
+              <div>
+                <dt>Qualité disponible</dt>
+                <dd>{item.quality}</dd>
+              </div>
+            )}
+            {Boolean(item.audioLanguages?.length) && (
+              <div>
+                <dt>Langues audio</dt>
+                <dd>
+                  <AudioLanguages languages={item.audioLanguages!} />
+                </dd>
+              </div>
+            )}
+            {Boolean(item.editions?.length) && (
+              <div>
+                <dt>Éditions</dt>
+                <dd>{item.editions!.join(' · ')}</dd>
+              </div>
+            )}
+          </dl>
+        ) : null}
+        {enabled && details.isPending && (
+          <p role="status" className="detail-status">
+            Chargement de la fiche complète…
+          </p>
+        )}
+        {details.isError && (
+          <p role="alert" className="detail-status">
+            La fiche complète n’a pas pu être chargée.{' '}
+            <button onClick={() => void details.refetch()}>Réessayer</button>
+          </p>
+        )}
+        {!!data?.tags.length && (
+          <details className="detail-tags">
+            <summary>
+              Étiquettes <span>{data.tags.length}</span>
+            </summary>
+            <div>
+              {data.tags.map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+          </details>
+        )}
+        {!!data?.links.length && (
+          <div className="detail-external-links" aria-label="Liens externes">
+            {data.links.map((link) => (
+              <a
+                key={link.url}
+                href={safeExternalUrl(link.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {link.name}
+                <ExternalLink size={14} />
+              </a>
+            ))}
+          </div>
+        )}
+      </motion.div>
+      <div className="detail-sections">
+        <MediaCommunity
+          providers={providersData ?? providers.data}
+          providerLoading={enabled && providers.isPending}
+          providerError={providers.isError}
+          onRetryProviders={() => void providers.refetch()}
+          reviews={reviewsData ?? reviews.data}
+          reviewsLoading={enabled && reviews.isPending}
+          reviewsError={reviews.isError}
+          onRetryReviews={() => void reviews.refetch()}
+          region={region}
+          onRegion={(value) => {
+            setRegion(value)
+            try {
+              localStorage.setItem(
+                'hollyfilms-region-' + (userId ?? 'preview'),
+                value,
+              )
+            } catch {
+              /* Storage may be disabled. */
+            }
+          }}
+          page={page}
+          onPage={setPage}
+          onSave={
+            session
+              ? async (content, rating) => {
+                  await mediaRequest(session, summary.id + '/review', {
+                    method: 'PUT',
+                    body: { content, rating },
+                  })
+                  await queryClient.invalidateQueries({
+                    queryKey: [...key, 'reviews'],
+                  })
+                }
+              : undefined
+          }
+          onDelete={
+            session
+              ? async () => {
+                  await mediaRequest(session, summary.id + '/review', {
+                    method: 'DELETE',
+                  })
+                  await queryClient.invalidateQueries({
+                    queryKey: [...key, 'reviews'],
+                  })
+                }
+              : undefined
+          }
+        />
+        <dl className="detail-credits">
+          {[
+            ['Réalisation', data?.directors],
+            ['Scénario', data?.writers],
+            ['Studios', data?.studios],
+            ['Genres', item.genres],
+          ].map(([label, values]) =>
+            Array.isArray(values) && values.length ? (
+              <div key={String(label)}>
+                <dt>{label}</dt>
+                <dd>{values.join(', ')}</dd>
+              </div>
+            ) : null,
+          )}
+        </dl>
+        <div id="detail-cast">
+          <MediaRail
+            title="Distribution & équipe"
+            kind="person"
+            count={data?.people.length ?? 0}
+          >
+            {data?.people.map((person, index) => (
+              <button
+                key={person.id ?? index}
+                className="detail-person"
+                disabled={!person.id || (!enabled && !loadRelatedPage)}
+                onClick={() =>
+                  person.id &&
+                  setBrowsing({
+                    id: person.id,
+                    title: person.name,
+                    type: 'person',
+                  })
+                }
+              >
+                <div className="detail-person-art">
+                  <MediaArtwork
+                    source={person.image}
+                    session={session}
+                    width={300}
+                    fallback={<Users size={36} />}
+                  />
+                </div>
+                <strong>{person.name}</strong>
+                <span>{person.role}</span>
+              </button>
+            ))}
+          </MediaRail>
+          {!data?.people.length && (
+            <p className="detail-status">Distribution non renseignée.</p>
+          )}
+        </div>
+        {browsing && (
+          <div ref={browser} className="detail-browser">
+            <div className="detail-section-heading">
+              <h3>
+                {browsing.type === 'person' ? 'Avec ' : ''}
+                {browsing.title}
+              </h3>
+              <button
+                className="glass-control"
+                aria-label="Fermer cette sélection"
+                onClick={() => {
+                  collectionRequest.current?.abort()
+                  setBrowsing(undefined)
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {actionError && (
+              <p role="alert" className="detail-error">
+                {actionError}
+              </p>
+            )}
+            {members.isPending ? (
+              <p role="status">Chargement des titres…</p>
+            ) : members.isError ? (
+              <p role="alert">
+                Impossible de charger les titres.{' '}
+                <button onClick={() => void members.refetch()}>
+                  Réessayer
+                </button>
+              </p>
+            ) : (
+              <>
+                {browsing.type === 'collection' &&
+                  onPlay &&
+                  memberItems.length > 0 && (
+                    <button
+                      className="home-primary"
+                      disabled={!!pending}
+                      onClick={() => void playCollection()}
+                    >
+                      <Play size={16} />
+                      {pending === 'collection'
+                        ? 'Préparation…'
+                        : 'Lire la collection'}
+                    </button>
+                  )}
+                <MediaRail
+                  title="Dans votre bibliothèque"
+                  count={members.data?.pages[0]?.total}
+                >
+                  {memberItems.map((entry) => (
+                    <MediaTile
+                      key={entry.id}
+                      item={entry}
+                      session={session}
+                      onSelect={navigate}
+                      onPlay={onPlay}
+                      onFavorite={onFavorite}
+                      onWatched={onWatched}
+                    />
+                  ))}
+                </MediaRail>
+                {!memberItems.length && (
+                  <p className="detail-status">Aucun titre accessible.</p>
+                )}
+                {members.hasNextPage && (
+                  <button
+                    className="glass-control"
+                    disabled={members.isFetchingNextPage}
+                    onClick={() => void members.fetchNextPage()}
+                  >
+                    {members.isFetchingNextPage
+                      ? 'Chargement…'
+                      : 'Afficher plus de titres'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        <div id="detail-scenes">
+          <MediaRail
+            title="Scènes"
+            kind="scene"
+            count={data?.chapters.length ?? 0}
+          >
+            {data?.chapters.map((chapter, index) => (
+              <motion.button
+                key={index}
+                className="detail-chapter"
+                disabled={!onPlay}
+                whileHover={reduced ? undefined : { y: -3 }}
+                onClick={() =>
+                  onPlay?.(
+                    { ...item, playbackPosition: chapter.position },
+                    true,
+                  )
+                }
+                aria-label={`Lire ${chapter.name} à ${formatTime(chapter.position)}`}
+              >
+                <MediaArtwork
+                  source={chapter.image}
+                  session={session}
+                  width={480}
+                />
+                <span className="detail-chapter-play">
+                  <Play size={20} fill="currentColor" />
+                </span>
+                <span className="detail-chapter-caption">
+                  <strong>{chapter.name}</strong>
+                  <span>
+                    <Clock3 size={12} />
+                    {formatTime(chapter.position)}
+                  </span>
+                </span>
+              </motion.button>
+            ))}
+          </MediaRail>
+          {!data?.chapters.length && (
+            <p className="detail-status">
+              Aucune scène renseignée pour ce titre.
+            </p>
+          )}
+        </div>
+        <div id="detail-related">
+          <MediaRail
+            title="Collections"
+            count={related?.collections.length ?? 0}
+          >
+            {related?.collections.map((collection) => (
+              <div key={collection.id}>
+                <button
+                  className="detail-collection"
+                  disabled={!enabled && !loadRelatedPage}
+                  onClick={() =>
+                    setBrowsing({
+                      id: collection.id,
+                      title: collection.title,
+                      type: 'collection',
+                    })
+                  }
+                >
+                  <div className="detail-collection-art">
+                    <MediaArtwork
+                      source={collection.poster}
+                      session={session}
+                      width={400}
+                    />
+                    <span>
+                      <Layers size={14} />
+                      {collection.count ?? 'Collection'}
+                    </span>
+                  </div>
+                  <strong>{collection.title}</strong>
+                </button>
+                {collection.item && (
+                  <>
+                    <div className="detail-collection-meta">
+                      {collection.item.year && (
+                        <span>{collection.item.year}</span>
+                      )}
+                      {!!collection.item.audioLanguages?.length && (
+                        <AudioLanguages
+                          languages={collection.item.audioLanguages}
+                        />
+                      )}
+                    </div>
+                    <div className="detail-collection-actions">
+                      {(['favorite', 'watched'] as const).map((kind) => {
+                        const callback =
+                          kind === 'favorite' ? onFavorite : onWatched
+                        if (!callback) return null
+                        const value =
+                          collectionPatches[collection.id]?.[kind] ??
+                          collection.item?.[kind] ??
+                          false
+                        return (
+                          <button
+                            key={kind}
+                            className="glass-control"
+                            aria-pressed={value}
+                            disabled={!!pending}
+                            aria-label={`${kind === 'favorite' ? (value ? 'Retirer des favoris' : 'Ajouter aux favoris') : value ? 'Marquer comme non vu' : 'Marquer comme vu'} : ${collection.title}`}
+                            onClick={async () => {
+                              setPending('collection-action')
+                              setActionError('')
+                              try {
+                                await update(collection.item!, kind, !value)
+                              } catch {
+                                setActionError(
+                                  'La modification n’a pas été enregistrée. Réessaie.',
+                                )
+                              } finally {
+                                setPending('')
+                              }
+                            }}
+                          >
+                            {kind === 'favorite' ? (
+                              <Heart
+                                size={16}
+                                fill={value ? 'currentColor' : 'none'}
+                              />
+                            ) : (
+                              <Check size={16} />
+                            )}
+                          </button>
+                        )
+                      })}
+                      {onPlay && (
+                        <button
+                          className="glass-control"
+                          disabled={!!pending}
+                          aria-label={`Lire la collection : ${collection.title}`}
+                          onClick={() => void playCollection(collection.id)}
+                        >
+                          <Play size={16} />
+                        </button>
+                      )}
+                      <details className="detail-card-menu">
+                        <summary
+                          aria-label={`Plus d’actions : ${collection.title}`}
+                        >
+                          <MoreHorizontal size={16} />
+                        </summary>
+                        <div>
+                          <button
+                            onClick={() =>
+                              setBrowsing({
+                                id: collection.id,
+                                title: collection.title,
+                                type: 'collection',
+                              })
+                            }
+                          >
+                            Parcourir la collection
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </MediaRail>
+          {!related?.collections.length && (
+            <p className="detail-status">
+              Ce titre n’appartient à aucune collection renseignée.
+            </p>
+          )}
+        </div>
+        <MediaRail
+          title="Plus de ce genre"
+          count={related?.similar.length ?? 0}
+        >
+          {related?.similar.map((entry) => (
+            <div key={entry.id} className="detail-related-card">
+              <MediaTile
+                item={entry}
+                session={session}
+                onSelect={navigate}
+                onPlay={onPlay}
+                onFavorite={
+                  onFavorite ? (i, v) => update(i, 'favorite', v) : undefined
+                }
+                onWatched={
+                  onWatched ? (i, v) => update(i, 'watched', v) : undefined
+                }
+              />
+              <details className="detail-card-menu">
+                <summary aria-label={`Plus d’actions pour ${entry.title}`}>
+                  <MoreHorizontal size={18} />
+                </summary>
+                <div>
+                  <button onClick={() => navigate(entry)}>Voir la fiche</button>
+                  {onPlay && (
+                    <button onClick={() => onPlay(entry, false)}>
+                      Lire depuis le début
+                    </button>
+                  )}
+                </div>
+              </details>
+            </div>
+          ))}
+        </MediaRail>
+        {enabled && relations.isPending && (
+          <p role="status" className="detail-status">
+            Chargement des titres associés…
+          </p>
+        )}
+        {!!related?.errors.length && (
+          <p role="alert" className="detail-status">
+            {related.errors.join(' ')}{' '}
+            <button onClick={() => void relations.refetch()}>Réessayer</button>
+          </p>
+        )}
+        {!related?.similar.length && !relations.isPending && (
+          <p className="detail-status">Aucune recommandation disponible.</p>
+        )}
+        <footer className="detail-attribution">
+          <details>
+            <summary>Sources et crédits</summary>
+            <p>
+              Les fiches et images de votre bibliothèque proviennent de votre
+              serveur. Les critiques externes et disponibilités sont fournies
+              par TMDB ; les disponibilités proviennent de JustWatch.
+            </p>
+            <a
+              href="https://www.themoviedb.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                className="detail-tmdb-logo"
+                src="/tmdb.svg"
+                alt="TMDB"
+                width="185"
+                height="133"
+              />
+            </a>
+            <p>
+              This product uses the TMDB API but is not endorsed or certified by
+              TMDB.
+            </p>
+          </details>
+        </footer>
       </div>
     </dialog>
   )

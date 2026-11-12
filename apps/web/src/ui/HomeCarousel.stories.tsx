@@ -155,3 +155,16 @@ export const TwentyTitles: Story = {
     })),
   },
 }
+
+export const StagedEntrance: Story = {
+  name: 'À l’affiche — entrée en cascade',
+  play: async ({ canvasElement }) => {
+    const stages = canvasElement.querySelectorAll('[data-hero-stage]')
+    await expect(stages.length).toBeGreaterThanOrEqual(5)
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle({
+        opacity: '1',
+      }),
+    )
+  },
+}

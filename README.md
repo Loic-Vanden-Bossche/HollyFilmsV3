@@ -7,8 +7,13 @@ Frontend React, Vite et TypeScript pour Jellyfin 12, avec une API Fastify et Pos
 - `apps/web` (`@hollyfilms/web`) contient le frontend Vite, Storybook et shadcn/ui.
 - `apps/api` (`@hollyfilms/api`) contient l’API Fastify, le schéma et les migrations Prisma.
 - `apps/shared` (`@hollyfilms/shared`) contient les types et les fonctions Jellyfin utilisés par les deux apps.
+- `apps/infrastructure` (`@hollyfilms/infrastructure`) contient Terraform, les images de production et le script de déploiement CHBRX.
 
 Yarn Berry utilise un seul fichier `yarn.lock` à la racine. Les dépendances se déclarent dans le workspace qui les utilise, par exemple avec `yarn workspace @hollyfilms/web add <paquet>`.
+
+## Déployer sur CHBRX
+
+Pour la production sur `hollyfilms-v3.chbrx.com`, suivre le [guide d’infrastructure](apps/infrastructure/README.md). Après configuration, `corepack yarn deploy v1.0.0` construit les images web/API, les publie sur GHCR et prépare le plan Terraform. Le Jellyfin existant reste sur `hollyfilms.chbrx.com`.
 
 ## Démarrer en local
 
@@ -68,7 +73,7 @@ Les aperçus au survol utilisent les images Trickplay générées par le serveur
 
 La vitrine publique est accessible sur `/` et l’espace membre sur `/app`. Les accès à la connexion, à Google et à l’inscription utilisent les parcours existants. Les demandes attendent l’approbation d’un administrateur.
 
-La vitrine tient dans la hauteur de l’écran. Motion for React orchestre l’ouverture, la galerie d’affiches en perspective et le texte des fonctionnalités dans `apps/web/src/use-landing-motion.ts`. Le composant `ProjectorBackdrop` utilise God Rays de Paper Shaders, chargé à la demande : palette bleu nuit/vert/bleu, lumière en haut à gauche et résolution limitée à 1,5 million de pixels. Pause, formulaire ouvert et onglet masqué suspendent les animations. La préférence de mouvement réduit et l’absence de WebGL conservent une présentation statique. Les animations et ressources GPU sont libérées au démontage. Le catalogue reste non interactif et affiche les titres du serveur.
+La vitrine tient dans la hauteur de l’écran. Motion for React orchestre l’ouverture, la galerie d’affiches en perspective et le texte des fonctionnalités dans `apps/web/src/use-landing-motion.ts`. Le composant `ProjectorBackdrop` utilise React Bits Light Rays, chargé à la demande. Pause, formulaire ouvert et onglet masqué suspendent les animations. La préférence de mouvement réduit et l’absence de WebGL conservent une présentation statique. Les animations et ressources GPU sont libérées au démontage. Le catalogue reste non interactif et affiche les titres du serveur.
 
 `GET /api/showcase` présente jusqu’à 18 films et séries récemment ajoutés à Jellyfin, avec leur titre, leur année et leur affiche. Cette sélection est mise en cache pendant une minute. Les affiches sont relayées par le serveur pour les seuls éléments de cette sélection. Une bibliothèque vide affiche un message de préparation. Le test `corepack yarn workspace @hollyfilms/api node --test tests/showcase.test.ts` vérifie le contenu public et le filtrage des affiches.
 
@@ -103,6 +108,16 @@ Les serveurs MCP du projet sont déclarés dans `.codex/config.toml`. Après `ya
 - **Playwright** ouvre un navigateur sans fenêtre avec un profil isolé. Utiliser `http://localhost:5173` pour l’application ou `http://127.0.0.1:6006` pour Storybook. [Documentation Playwright MCP](https://github.com/microsoft/playwright-mcp)
 - **Motion** fournit le MCP de documentation et la bibliothèque React, importable depuis `motion/react`. [Documentation Motion](https://motion.dev/docs/ai-kit)
 - **Storybook** expose son MCP local sur `http://127.0.0.1:6006/mcp` avec `yarn storybook`.
+
+## Fiches médias, plateformes et critiques
+
+Les grandes fiches réunissent métadonnées, distribution, scènes, collections, recommandations et critiques. Voir l’[inventaire des fonctionnalités et des sources](docs/media-details.md). Cette intégration est indépendante des plugins de l’interface Jellyfin.
+
+Pour activer les disponibilités par pays et les critiques TMDB, récupérer le **API Read Access Token** dans les [paramètres API TMDB](https://www.themoviedb.org/settings/api), puis renseigner `TMDB_API_TOKEN` dans le `.env` à la racine et relancer `corepack yarn dev:api`. Il s’agit du jeton Bearer, pas de la clé API v3. Ne jamais le préfixer par `VITE_` : il reste dans Fastify. Le média doit avoir un identifiant fournisseur TMDB dans sa fiche serveur.
+
+Les avis des membres sont conservés dans PostgreSQL via Prisma, indépendamment de TMDB. La migration `20261112214000_media_reviews` est appliquée par le démarrage normal de l’API, ou avec `corepack yarn db:deploy`. Sans jeton TMDB, ces avis et les détails de la bibliothèque fonctionnent ; les sections externes indiquent leur indisponibilité.
+
+`corepack yarn test:media` vérifie droits d’accès, offres TMDB simulées, écritures concurrentes, persistance et isolation des avis. Appliquer les migrations à une **base PostgreSQL de test isolée**, puis renseigner `HOLLYFILMS_TEST_DATABASE_URL` vers celle-ci. Le test simule Jellyfin et TMDB ; il n’appelle aucun compte ou fournisseur réel.
 
 ## Vérifier le projet
 

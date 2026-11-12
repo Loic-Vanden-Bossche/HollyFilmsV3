@@ -1,101 +1,113 @@
-import { useEffect, useRef, useState } from 'react'
-import { useAnimate, useReducedMotion } from 'motion/react'
+import { useEffect, useRef } from 'react'
+import { useAnimate, useInView } from 'motion/react'
+import { useMotionPolicy } from '../components/reactbits/policy.ts'
 import './catalogue-backdrop.css'
 
 export function CatalogueBackdrop({ paused = false }: { paused?: boolean }) {
-  const reduced = useReducedMotion()
-  const [visible, setVisible] = useState(() => !document.hidden)
   const [scope, animate] = useAnimate<HTMLDivElement>()
+  const visible = useInView(scope)
+  const policy = useMotionPolicy(paused)
+  const running = policy.running && visible
   const animations = useRef<ReturnType<typeof animate>[]>([])
-  const running = !paused && !reduced && visible
 
   useEffect(() => {
-    const update = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', update)
-    return () => document.removeEventListener('visibilitychange', update)
-  }, [])
-
-  useEffect(() => {
-    if (reduced) return
-    const loop = { repeat: Infinity, ease: 'easeInOut' as const }
-    const controls = [
+    if (policy.reduced) return
+    const loops = [
       animate(
-        '.catalogue-aurora-mint',
+        '.catalogue-nebula-green',
         {
-          x: ['-6%', '9%', '-6%'],
-          y: ['-4%', '10%', '-4%'],
-          rotate: [-24, -9, -24],
-          scale: [1, 1.13, 1],
+          transform: [
+            'translate3d(-8%, -6%, 0) rotate(-18deg) scale(1)',
+            'translate3d(12%, 14%, 0) rotate(12deg) scale(1.18)',
+            'translate3d(-8%, -6%, 0) rotate(-18deg) scale(1)',
+          ],
         },
-        { ...loop, duration: 24 },
+        { duration: 24, repeat: Infinity, ease: 'easeInOut' },
       ),
       animate(
-        '.catalogue-aurora-blue',
+        '.catalogue-nebula-blue',
         {
-          x: ['8%', '-10%', '8%'],
-          y: ['6%', '-8%', '6%'],
-          rotate: [18, -6, 18],
-          scale: [1.1, 0.92, 1.1],
+          transform: [
+            'translate3d(8%, 5%, 0) scale(1)',
+            'translate3d(-15%, -12%, 0) scale(1.22)',
+            'translate3d(8%, 5%, 0) scale(1)',
+          ],
         },
-        { ...loop, duration: 31 },
+        { duration: 30, repeat: Infinity, ease: 'easeInOut' },
       ),
       animate(
-        '.catalogue-light-arcs',
+        '.catalogue-nebula-teal',
         {
-          rotate: [-16, -3, -16],
-          x: ['-3%', '5%', '-3%'],
-          scale: [1, 1.08, 1],
-          opacity: [0.45, 0.85, 0.45],
+          transform: [
+            'translate3d(-10%, 15%, 0) rotate(-30deg)',
+            'translate3d(15%, -14%, 0) rotate(5deg)',
+            'translate3d(-10%, 15%, 0) rotate(-30deg)',
+          ],
         },
-        { ...loop, duration: 28 },
+        { duration: 20, repeat: Infinity, ease: 'easeInOut' },
+      ),
+      ...[0, 1, 2].map((i) =>
+        animate(
+          '.catalogue-ribbon-' + i,
+          {
+            transform: [
+              `translate3d(-4%, 6%, 0) rotate(${-24 + i * 6}deg) scaleY(1)`,
+              `translate3d(5%, -10%, 0) rotate(${-12 + i * 5}deg) scaleY(1.25)`,
+              `translate3d(-4%, 6%, 0) rotate(${-24 + i * 6}deg) scaleY(1)`,
+            ],
+            opacity: [0.3, 0.8, 0.3],
+          },
+          { duration: 18 + i * 6, repeat: Infinity, ease: 'easeInOut' },
+        ),
       ),
       animate(
-        '.catalogue-dust',
+        '.catalogue-stardust',
         {
-          y: [0, -48, 0],
-          x: [0, 24, 0],
+          transform: [
+            'translate3d(0, 0, 0)',
+            'translate3d(2%, -3%, 0)',
+            'translate3d(0, 0, 0)',
+          ],
           opacity: [0.35, 0.7, 0.35],
         },
-        { ...loop, duration: 19 },
+        { duration: 16, repeat: Infinity, ease: 'easeInOut' },
       ),
     ]
-    controls.forEach((control) => control.pause())
-    animations.current = controls
+    loops.forEach((loop) => loop.pause())
+    animations.current = loops
     return () => {
-      controls.forEach((control) => control.cancel())
+      loops.forEach((loop) => loop.cancel())
       animations.current = []
     }
-  }, [animate, reduced])
+  }, [animate, policy.reduced])
 
   useEffect(() => {
-    animations.current.forEach((control) =>
-      running ? control.play() : control.pause(),
-    )
-  }, [running, reduced])
+    animations.current.forEach((loop) => (running ? loop.play() : loop.pause()))
+  }, [running, policy.reduced])
 
   return (
     <div
-      ref={scope}
       className="catalogue-backdrop"
       aria-hidden="true"
       data-motion={running ? 'running' : 'paused'}
     >
-      <div className="catalogue-atmosphere">
-        <div className="catalogue-aurora catalogue-aurora-mint" />
-        <div className="catalogue-aurora catalogue-aurora-blue" />
-        <div className="catalogue-light-arcs">
-          <i />
-          <i />
-          <i />
-        </div>
-        <div className="catalogue-dust">
-          {Array.from({ length: 28 }, (_, index) => (
+      <div ref={scope} className="catalogue-atmosphere">
+        <div className="catalogue-nebula catalogue-nebula-green" />
+        <div className="catalogue-nebula catalogue-nebula-blue" />
+        <div className="catalogue-nebula catalogue-nebula-teal" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`catalogue-ribbon catalogue-ribbon-${i}`} />
+        ))}
+        <div className="catalogue-stardust">
+          {Array.from({ length: 28 }, (_, i) => (
             <i
-              key={index}
+              key={i}
               style={{
-                left: `${(index * 37 + 9) % 100}%`,
-                top: `${(index * 61 + 13) % 100}%`,
-                opacity: 0.25 + (index % 4) * 0.18,
+                left: `${(i * 37 + 9) % 100}%`,
+                top: `${(i * 23 + 7) % 100}%`,
+                opacity: 0.25 + (i % 4) * 0.15,
+                width: i % 5 === 0 ? 3 : 2,
+                height: i % 5 === 0 ? 3 : 2,
               }}
             />
           ))}

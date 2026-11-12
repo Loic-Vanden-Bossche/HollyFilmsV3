@@ -1,0 +1,2 @@
+# Container scripts must remain executable by Linux sh after Windows checkout.
+*.sh text eol=lf

@@ -8,8 +8,9 @@ import { mediaMetadata } from './media-metadata.ts'
 
 export type LibraryImage = {
   itemId: string
-  type: 'Primary' | 'Backdrop' | 'Logo'
+  type: 'Primary' | 'Backdrop' | 'Logo' | 'Chapter'
   tag: string
+  index?: number
 }
 export type MediaItem = {
   id: string
@@ -198,7 +199,7 @@ export async function getLibraryImage(
       itemId: image.itemId,
       imageType: image.type,
       tag: image.tag,
-      imageIndex: 0,
+      imageIndex: image.index ?? 0,
       maxWidth: width,
       quality: image.type === 'Logo' ? 100 : 90,
       format: image.type === 'Logo' ? 'Png' : 'Jpg',

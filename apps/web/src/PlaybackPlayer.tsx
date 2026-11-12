@@ -1,11 +1,13 @@
+import { AnimatedList } from './components/reactbits/Effects.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { LoaderCircle, Play, X } from 'lucide-react'
+import { Play, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { toMediaItem, type MediaItem } from '@hollyfilms/shared/library'
 import { PlayerShell } from './ui/PlayerShell.tsx'
 import { PlayerControls } from './ui/PlayerControls.tsx'
+import { PlayerLoading } from './ui/PlayerLoading.tsx'
 import { timelinePreview } from './playback/timeline-preview.ts'
 import { formatTime } from './playback/format-time.ts'
 import { PlayerArtwork } from './ui/PlayerArtwork.tsx'
@@ -671,15 +673,21 @@ export function PlaybackPlayer({
             <p>Diffusion sur {devices.destination.label}</p>
           </div>
         )}
-        {(player.buffering || state === 'loading') && !devices.destination && (
-          <div
-            className="player-buffer-indicator"
-            role="status"
-            aria-label="Mise en mémoire tampon"
-          >
-            <LoaderCircle className="player-spinner" />
-          </div>
-        )}
+        <PlayerLoading
+          visible={
+            !devices.destination &&
+            state !== 'error' &&
+            state !== 'stopped' &&
+            (player.buffering || state === 'loading' || Boolean(media.seeking))
+          }
+          phase={player.loadingPhase}
+          complete={
+            !devices.destination &&
+            (state === 'playing' || state === 'ready') &&
+            !player.buffering &&
+            !media.seeking
+          }
+        />
         {statusVisible && activeSegment?.Type && (
           <motion.button
             initial={{ opacity: 0, y: reduced ? 0 : 12 }}
@@ -829,585 +837,601 @@ export function PlaybackPlayer({
                   <X size={18} />
                 </button>
               </header>
-              {menu === 'settings' && devices.destination && (
-                <div className="player-menu-actions">
-                  <button type="button" onClick={() => setMenu('devices')}>
-                    Diffusion
-                  </button>
-                </div>
-              )}
-              {menu === 'settings' && !devices.destination && (
-                <>
-                  <label>
-                    Qualité
-                    <select
-                      aria-label="Qualité"
-                      value={player.options.bitrate ?? 0}
-                      onChange={(event) => {
-                        const bitrate = Number(event.target.value)
-                        player.replaceStream({
-                          bitrate: bitrate || undefined,
-                          forceTranscode: Boolean(
-                            bitrate ||
-                            player.options.audio != null ||
-                            player.options.burnSubtitle,
-                          ),
-                          subtitle: primary,
-                        })
-                      }}
-                    >
-                      {qualities.map(([value, text]) => (
-                        <option key={value} value={value}>
-                          {text}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {audio.length > 0 && (
+              <AnimatedList>
+                {menu === 'settings' && devices.destination && (
+                  <div className="player-menu-actions">
+                    <button type="button" onClick={() => setMenu('devices')}>
+                      Diffusion
+                    </button>
+                  </div>
+                )}
+                {menu === 'settings' && !devices.destination && (
+                  <>
                     <label>
-                      Audio
+                      Qualité
                       <select
-                        aria-label="Audio"
-                        value={
-                          player.options.audio ??
-                          source?.DefaultAudioStreamIndex ??
-                          audio[0].Index
-                        }
+                        aria-label="Qualité"
+                        value={player.options.bitrate ?? 0}
+                        onChange={(event) => {
+                          const bitrate = Number(event.target.value)
+                          player.replaceStream({
+                            bitrate: bitrate || undefined,
+                            forceTranscode: Boolean(
+                              bitrate ||
+                              player.options.audio != null ||
+                              player.options.burnSubtitle,
+                            ),
+                            subtitle: primary,
+                          })
+                        }}
+                      >
+                        {qualities.map(([value, text]) => (
+                          <option key={value} value={value}>
+                            {text}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {audio.length > 0 && (
+                      <label>
+                        Audio
+                        <select
+                          aria-label="Audio"
+                          value={
+                            player.options.audio ??
+                            source?.DefaultAudioStreamIndex ??
+                            audio[0].Index
+                          }
+                          onChange={(event) =>
+                            audioSelect(Number(event.target.value))
+                          }
+                        >
+                          {audio.map((track) => (
+                            <option key={track.Index} value={track.Index}>
+                              {trackName(track)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {playback && playback.stream.sources.length > 1 && (
+                      <label>
+                        Version
+                        <select
+                          value={source?.Id}
+                          onChange={(event) => {
+                            setSelectedSubtitle(undefined)
+                            setSecondarySubtitle(-1)
+                            player.replaceStream({
+                              sourceId: event.target.value,
+                              audio: undefined,
+                              subtitle: undefined,
+                              burnSubtitle: false,
+                              forceTranscode: Boolean(player.options.bitrate),
+                            })
+                          }}
+                        >
+                          {playback.stream.sources
+                            .filter((version) => version.Id)
+                            .map((version) => (
+                              <option key={version.Id} value={version.Id!}>
+                                {version.Name ?? version.Container}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
+                    <label>
+                      Vitesse
+                      <select
+                        value={media.rate}
+                        onChange={(event) => {
+                          if (videoRef.current)
+                            videoRef.current.playbackRate = Number(
+                              event.target.value,
+                            )
+                        }}
+                      >
+                        {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                          <option key={rate} value={rate}>
+                            {rate}×
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Image
+                      <select
+                        value={fit}
                         onChange={(event) =>
-                          audioSelect(Number(event.target.value))
+                          setFit(event.target.value as typeof fit)
                         }
                       >
-                        {audio.map((track) => (
+                        <option value="contain">Originale</option>
+                        <option value="cover">Remplir</option>
+                        <option value="fill">Étirer</option>
+                      </select>
+                    </label>
+                    <label>
+                      Répéter
+                      <select
+                        value={repeat}
+                        onChange={(event) =>
+                          setRepeat(event.target.value as typeof repeat)
+                        }
+                      >
+                        <option value="RepeatNone">Désactivé</option>
+                        <option value="RepeatOne">Titre actuel</option>
+                        <option value="RepeatAll">Toute la file</option>
+                      </select>
+                    </label>
+                    <label>
+                      Lecture automatique
+                      <input
+                        type="checkbox"
+                        checked={autoNext}
+                        onChange={(event) => setAutoNext(event.target.checked)}
+                      />
+                    </label>
+                    <label>
+                      Confirmer après 3 épisodes
+                      <input
+                        type="checkbox"
+                        checked={askAfterEpisodes}
+                        onChange={(event) =>
+                          setAskAfterEpisodes(event.target.checked)
+                        }
+                      />
+                    </label>
+                    {currentQueue.length > 1 && (
+                      <label>
+                        Lecture aléatoire
+                        <input
+                          type="checkbox"
+                          checked={shuffle}
+                          onChange={(event) => setShuffle(event.target.checked)}
+                        />
+                      </label>
+                    )}
+                    <div className="player-menu-actions">
+                      {subtitles.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setMenu('subtitles')}
+                        >
+                          Sous-titres
+                        </button>
+                      )}
+                      {currentQueue.length > 1 && !sync.group && (
+                        <button type="button" onClick={() => setMenu('queue')}>
+                          File de lecture
+                        </button>
+                      )}
+                      {chapters.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setMenu('chapters')}
+                        >
+                          Chapitres
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setMenu('trailers')}>
+                        Bandes-annonces
+                      </button>
+                      <button type="button" onClick={() => setMenu('stats')}>
+                        Statistiques
+                      </button>
+                      {audioOnly && (
+                        <button type="button" onClick={() => setMenu('lyrics')}>
+                          Paroles
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenu('sync')
+                          void sync.list()
+                        }}
+                      >
+                        SyncPlay
+                      </button>
+                      {!sync.group && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenu('devices')
+                            void devices.list()
+                          }}
+                        >
+                          Diffusion
+                        </button>
+                      )}
+                      {video && 'webkitShowPlaybackTargetPicker' in video && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            (
+                              video as HTMLVideoElement & {
+                                webkitShowPlaybackTargetPicker: () => void
+                              }
+                            ).webkitShowPlaybackTargetPicker()
+                          }
+                        >
+                          AirPlay
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+                {menu === 'subtitles' && (
+                  <>
+                    <label>
+                      Langue
+                      <select
+                        aria-label="Langue"
+                        value={primary}
+                        onChange={(event) =>
+                          subtitle(Number(event.target.value))
+                        }
+                      >
+                        <option value={-1}>Désactivés</option>
+                        {subtitles.map((track) => (
                           <option key={track.Index} value={track.Index}>
                             {trackName(track)}
                           </option>
                         ))}
                       </select>
                     </label>
-                  )}
-                  {playback && playback.stream.sources.length > 1 && (
                     <label>
-                      Version
+                      Deuxième piste
                       <select
-                        value={source?.Id}
-                        onChange={(event) => {
-                          setSelectedSubtitle(undefined)
-                          setSecondarySubtitle(-1)
-                          player.replaceStream({
-                            sourceId: event.target.value,
-                            audio: undefined,
-                            subtitle: undefined,
-                            burnSubtitle: false,
-                            forceTranscode: Boolean(player.options.bitrate),
-                          })
-                        }}
+                        value={secondarySubtitle}
+                        onChange={(event) =>
+                          setSecondarySubtitle(Number(event.target.value))
+                        }
                       >
-                        {playback.stream.sources
-                          .filter((version) => version.Id)
-                          .map((version) => (
-                            <option key={version.Id} value={version.Id!}>
-                              {version.Name ?? version.Container}
+                        <option value={-1}>Désactivée</option>
+                        {subtitles
+                          .filter(
+                            (track) =>
+                              track.Index !== primary &&
+                              track.IsTextSubtitleStream,
+                          )
+                          .map((track) => (
+                            <option key={track.Index} value={track.Index}>
+                              {trackName(track)}
                             </option>
                           ))}
                       </select>
                     </label>
-                  )}
-                  <label>
-                    Vitesse
-                    <select
-                      value={media.rate}
-                      onChange={(event) => {
-                        if (videoRef.current)
-                          videoRef.current.playbackRate = Number(
-                            event.target.value,
-                          )
-                      }}
-                    >
-                      {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
-                        <option key={rate} value={rate}>
-                          {rate}×
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Image
-                    <select
-                      value={fit}
-                      onChange={(event) =>
-                        setFit(event.target.value as typeof fit)
-                      }
-                    >
-                      <option value="contain">Originale</option>
-                      <option value="cover">Remplir</option>
-                      <option value="fill">Étirer</option>
-                    </select>
-                  </label>
-                  <label>
-                    Répéter
-                    <select
-                      value={repeat}
-                      onChange={(event) =>
-                        setRepeat(event.target.value as typeof repeat)
-                      }
-                    >
-                      <option value="RepeatNone">Désactivé</option>
-                      <option value="RepeatOne">Titre actuel</option>
-                      <option value="RepeatAll">Toute la file</option>
-                    </select>
-                  </label>
-                  <label>
-                    Lecture automatique
-                    <input
-                      type="checkbox"
-                      checked={autoNext}
-                      onChange={(event) => setAutoNext(event.target.checked)}
-                    />
-                  </label>
-                  <label>
-                    Confirmer après 3 épisodes
-                    <input
-                      type="checkbox"
-                      checked={askAfterEpisodes}
-                      onChange={(event) =>
-                        setAskAfterEpisodes(event.target.checked)
-                      }
-                    />
-                  </label>
-                  {currentQueue.length > 1 && (
                     <label>
-                      Lecture aléatoire
+                      Décalage (s)
                       <input
-                        type="checkbox"
-                        checked={shuffle}
-                        onChange={(event) => setShuffle(event.target.checked)}
+                        type="number"
+                        step={0.1}
+                        min={-120}
+                        max={120}
+                        value={subtitleDelay}
+                        onChange={(event) =>
+                          setSubtitleDelay(Number(event.target.value))
+                        }
                       />
                     </label>
-                  )}
-                  <div className="player-menu-actions">
-                    {subtitles.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setMenu('subtitles')}
-                      >
-                        Sous-titres
-                      </button>
-                    )}
-                    {currentQueue.length > 1 && !sync.group && (
-                      <button type="button" onClick={() => setMenu('queue')}>
-                        File de lecture
-                      </button>
-                    )}
-                    {chapters.length > 0 && (
-                      <button type="button" onClick={() => setMenu('chapters')}>
-                        Chapitres
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setMenu('trailers')}>
-                      Bandes-annonces
-                    </button>
-                    <button type="button" onClick={() => setMenu('stats')}>
-                      Statistiques
-                    </button>
-                    {audioOnly && (
-                      <button type="button" onClick={() => setMenu('lyrics')}>
-                        Paroles
-                      </button>
-                    )}
+                    <label>
+                      Taille
+                      <input
+                        type="range"
+                        min={0.7}
+                        max={1.8}
+                        step={0.1}
+                        value={subtitleScale}
+                        onChange={(event) =>
+                          setSubtitleScale(Number(event.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Couleur
+                      <input
+                        type="color"
+                        value={subtitleColor}
+                        onChange={(event) =>
+                          setSubtitleColor(event.target.value)
+                        }
+                      />
+                    </label>
+                    {subtitleProblem && <p role="alert">{subtitleProblem}</p>}
+                    {primary >= 0 &&
+                      (subtitleProblem || player.options.burnSubtitle) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const burn = !player.options.burnSubtitle
+                            setSubtitleProblem('')
+                            player.replaceStream({
+                              subtitle: primary,
+                              burnSubtitle: burn,
+                              forceTranscode:
+                                burn ||
+                                Boolean(
+                                  player.options.audio != null ||
+                                  player.options.bitrate,
+                                ),
+                            })
+                          }}
+                        >
+                          {player.options.burnSubtitle
+                            ? 'Afficher dans le navigateur'
+                            : 'Incruster dans la vidéo'}
+                        </button>
+                      )}
+                  </>
+                )}
+                {menu === 'queue' &&
+                  currentQueue.map((entry) => (
                     <button
+                      className="player-menu-list"
                       type="button"
+                      key={entry.id}
+                      aria-current={entry.id === target?.id}
+                      onClick={() => open(entry)}
+                    >
+                      {entry.title}
+                    </button>
+                  ))}
+                {menu === 'chapters' &&
+                  chapters.map((chapter, chapterIndex) => (
+                    <button
+                      className="player-menu-list"
+                      type="button"
+                      key={chapterIndex}
                       onClick={() => {
-                        setMenu('sync')
-                        void sync.list()
+                        player.seek(
+                          (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
+                        )
+                        setMenu(undefined)
                       }}
                     >
-                      SyncPlay
-                    </button>
-                    {!sync.group && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenu('devices')
-                          void devices.list()
-                        }}
-                      >
-                        Diffusion
-                      </button>
-                    )}
-                    {video && 'webkitShowPlaybackTargetPicker' in video && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          (
-                            video as HTMLVideoElement & {
-                              webkitShowPlaybackTargetPicker: () => void
-                            }
-                          ).webkitShowPlaybackTargetPicker()
-                        }
-                      >
-                        AirPlay
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-              {menu === 'subtitles' && (
-                <>
-                  <label>
-                    Langue
-                    <select
-                      aria-label="Langue"
-                      value={primary}
-                      onChange={(event) => subtitle(Number(event.target.value))}
-                    >
-                      <option value={-1}>Désactivés</option>
-                      {subtitles.map((track) => (
-                        <option key={track.Index} value={track.Index}>
-                          {trackName(track)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Deuxième piste
-                    <select
-                      value={secondarySubtitle}
-                      onChange={(event) =>
-                        setSecondarySubtitle(Number(event.target.value))
-                      }
-                    >
-                      <option value={-1}>Désactivée</option>
-                      {subtitles
-                        .filter(
-                          (track) =>
-                            track.Index !== primary &&
-                            track.IsTextSubtitleStream,
-                        )
-                        .map((track) => (
-                          <option key={track.Index} value={track.Index}>
-                            {trackName(track)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label>
-                    Décalage (s)
-                    <input
-                      type="number"
-                      step={0.1}
-                      min={-120}
-                      max={120}
-                      value={subtitleDelay}
-                      onChange={(event) =>
-                        setSubtitleDelay(Number(event.target.value))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Taille
-                    <input
-                      type="range"
-                      min={0.7}
-                      max={1.8}
-                      step={0.1}
-                      value={subtitleScale}
-                      onChange={(event) =>
-                        setSubtitleScale(Number(event.target.value))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Couleur
-                    <input
-                      type="color"
-                      value={subtitleColor}
-                      onChange={(event) => setSubtitleColor(event.target.value)}
-                    />
-                  </label>
-                  {subtitleProblem && <p role="alert">{subtitleProblem}</p>}
-                  {primary >= 0 &&
-                    (subtitleProblem || player.options.burnSubtitle) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const burn = !player.options.burnSubtitle
-                          setSubtitleProblem('')
-                          player.replaceStream({
-                            subtitle: primary,
-                            burnSubtitle: burn,
-                            forceTranscode:
-                              burn ||
-                              Boolean(
-                                player.options.audio != null ||
-                                player.options.bitrate,
-                              ),
-                          })
-                        }}
-                      >
-                        {player.options.burnSubtitle
-                          ? 'Afficher dans le navigateur'
-                          : 'Incruster dans la vidéo'}
-                      </button>
-                    )}
-                </>
-              )}
-              {menu === 'queue' &&
-                currentQueue.map((entry) => (
-                  <button
-                    className="player-menu-list"
-                    type="button"
-                    key={entry.id}
-                    aria-current={entry.id === target?.id}
-                    onClick={() => open(entry)}
-                  >
-                    {entry.title}
-                  </button>
-                ))}
-              {menu === 'chapters' &&
-                chapters.map((chapter, chapterIndex) => (
-                  <button
-                    className="player-menu-list"
-                    type="button"
-                    key={chapterIndex}
-                    onClick={() => {
-                      player.seek(
+                      {formatTime(
                         (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
-                      )
-                      setMenu(undefined)
-                    }}
-                  >
-                    {formatTime(
-                      (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
-                    )}{' '}
-                    · {chapter.Name ?? 'Chapitre ' + (chapterIndex + 1)}
-                  </button>
-                ))}
-              {menu === 'trailers' && (
-                <>
-                  {trailers.isPending && <p>Chargement…</p>}
-                  {trailers.isError && (
-                    <p>Impossible de charger les bandes-annonces.</p>
-                  )}
-                  {trailers.data?.map((entry) => {
-                    const preview = itemTarget(entry)
-                    return (
-                      preview && (
-                        <button
-                          className="player-menu-list"
-                          type="button"
-                          key={preview.id}
-                          onClick={() => open(preview, 0)}
-                        >
-                          {preview.title}
-                        </button>
-                      )
-                    )
-                  })}
-                  {details.data?.RemoteTrailers?.filter(
-                    (entry) => entry.Url && /^https:\/\//i.test(entry.Url),
-                  ).map((entry) => (
-                    <a
-                      className="player-menu-list"
-                      key={entry.Url}
-                      href={entry.Url!}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {entry.Name ?? 'Bande-annonce'}
-                    </a>
+                      )}{' '}
+                      · {chapter.Name ?? 'Chapitre ' + (chapterIndex + 1)}
+                    </button>
                   ))}
-                  {!trailers.isPending &&
-                    !trailers.isError &&
-                    !trailers.data?.length &&
-                    !details.data?.RemoteTrailers?.length && (
-                      <p>Aucune bande-annonce disponible.</p>
+                {menu === 'trailers' && (
+                  <>
+                    {trailers.isPending && <p>Chargement…</p>}
+                    {trailers.isError && (
+                      <p>Impossible de charger les bandes-annonces.</p>
                     )}
-                </>
-              )}
-              {menu === 'sync' && (
-                <>
-                  {sync.group ? (
-                    <>
-                      <p>
-                        {sync.group.GroupName} ·{' '}
-                        {sync.group.Participants?.length ?? 1} participant(s)
-                      </p>
-                      <button type="button" onClick={() => void sync.leave()}>
-                        Quitter le groupe
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <label>
-                        Nom du groupe
-                        <input
-                          type="text"
-                          value={groupName}
-                          onChange={(event) => setGroupName(event.target.value)}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => void sync.create(groupName)}
-                      >
-                        Créer un groupe
-                      </button>
-                      {sync.groups
-                        .filter((group) => group.GroupId)
-                        .map((group) => (
+                    {trailers.data?.map((entry) => {
+                      const preview = itemTarget(entry)
+                      return (
+                        preview && (
                           <button
                             className="player-menu-list"
                             type="button"
-                            key={group.GroupId}
-                            onClick={() => void sync.join(group.GroupId!)}
+                            key={preview.id}
+                            onClick={() => open(preview, 0)}
                           >
-                            {group.GroupName}
+                            {preview.title}
+                          </button>
+                        )
+                      )
+                    })}
+                    {details.data?.RemoteTrailers?.filter(
+                      (entry) => entry.Url && /^https:\/\//i.test(entry.Url),
+                    ).map((entry) => (
+                      <a
+                        className="player-menu-list"
+                        key={entry.Url}
+                        href={entry.Url!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {entry.Name ?? 'Bande-annonce'}
+                      </a>
+                    ))}
+                    {!trailers.isPending &&
+                      !trailers.isError &&
+                      !trailers.data?.length &&
+                      !details.data?.RemoteTrailers?.length && (
+                        <p>Aucune bande-annonce disponible.</p>
+                      )}
+                  </>
+                )}
+                {menu === 'sync' && (
+                  <>
+                    {sync.group ? (
+                      <>
+                        <p>
+                          {sync.group.GroupName} ·{' '}
+                          {sync.group.Participants?.length ?? 1} participant(s)
+                        </p>
+                        <button type="button" onClick={() => void sync.leave()}>
+                          Quitter le groupe
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <label>
+                          Nom du groupe
+                          <input
+                            type="text"
+                            value={groupName}
+                            onChange={(event) =>
+                              setGroupName(event.target.value)
+                            }
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void sync.create(groupName)}
+                        >
+                          Créer un groupe
+                        </button>
+                        {sync.groups
+                          .filter((group) => group.GroupId)
+                          .map((group) => (
+                            <button
+                              className="player-menu-list"
+                              type="button"
+                              key={group.GroupId}
+                              onClick={() => void sync.join(group.GroupId!)}
+                            >
+                              {group.GroupName}
+                            </button>
+                          ))}
+                        <button type="button" onClick={() => void sync.list()}>
+                          Actualiser
+                        </button>
+                      </>
+                    )}
+                    {sync.error && <p role="alert">{sync.error}</p>}
+                  </>
+                )}
+                {menu === 'devices' && (
+                  <>
+                    {devices.destination ? (
+                      <>
+                        <p>{devices.destination.label}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const resume = devices.target
+                            const position = devices.status.position
+                            void devices.disconnect().then(() => {
+                              if (resume) open(resume, position)
+                            })
+                          }}
+                        >
+                          Reprendre ici
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {devices.devices.map((device) => (
+                          <button
+                            className="player-menu-list"
+                            type="button"
+                            key={device.Id}
+                            disabled={devices.pending || !target}
+                            onClick={() =>
+                              target &&
+                              devices.connect(
+                                device,
+                                { ...target, start: media.position },
+                                currentQueue,
+                                player.close,
+                              )
+                            }
+                          >
+                            {device.DeviceName ?? device.Client}
                           </button>
                         ))}
-                      <button type="button" onClick={() => void sync.list()}>
-                        Actualiser
-                      </button>
-                    </>
-                  )}
-                  {sync.error && <p role="alert">{sync.error}</p>}
-                </>
-              )}
-              {menu === 'devices' && (
-                <>
-                  {devices.destination ? (
-                    <>
-                      <p>{devices.destination.label}</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const resume = devices.target
-                          const position = devices.status.position
-                          void devices.disconnect().then(() => {
-                            if (resume) open(resume, position)
-                          })
-                        }}
-                      >
-                        Reprendre ici
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {devices.devices.map((device) => (
+                        {devices.canCast && (
+                          <button
+                            type="button"
+                            disabled={devices.pending || !target}
+                            onClick={() =>
+                              target &&
+                              videoRef.current &&
+                              devices.cast(
+                                videoRef.current,
+                                { ...target, start: media.position },
+                                player.close,
+                              )
+                            }
+                          >
+                            Google Cast
+                          </button>
+                        )}
+                        {!devices.devices.length && (
+                          <p>Aucun autre appareil connecté.</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void devices.list()}
+                        >
+                          Actualiser
+                        </button>
+                      </>
+                    )}
+                    {devices.error && <p role="alert">{devices.error}</p>}
+                  </>
+                )}
+                {menu === 'stats' && playback && (
+                  <dl className="player-stats">
+                    <div>
+                      <dt>Lecture</dt>
+                      <dd>
+                        {
+                          {
+                            DirectPlay: 'Directe',
+                            DirectStream: 'Remux',
+                            Transcode: 'Transcodage',
+                          }[playback.stream.method]
+                        }
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Flux</dt>
+                      <dd>{playback.stream.hls ? 'HLS' : source?.Container}</dd>
+                    </div>
+                    <div>
+                      <dt>Résolution</dt>
+                      <dd>
+                        {video?.videoWidth} × {video?.videoHeight}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Images perdues</dt>
+                      <dd>
+                        {video?.getVideoPlaybackQuality?.()
+                          .droppedVideoFrames ?? 0}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Tampon</dt>
+                      <dd>
+                        {Math.max(0, media.buffered - media.position).toFixed(
+                          1,
+                        )}{' '}
+                        s
+                      </dd>
+                    </div>
+                    {source?.Bitrate && (
+                      <div>
+                        <dt>Débit source</dt>
+                        <dd>{(source.Bitrate / 1_000_000).toFixed(1)} Mb/s</dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+                {menu === 'lyrics' && (
+                  <>
+                    {lyrics.isPending && <p>Chargement…</p>}
+                    {(lyrics.isError || lyrics.data?.length === 0) && (
+                      <p>Paroles indisponibles.</p>
+                    )}
+                    {lyrics.data?.map((line, index) =>
+                      line.Start != null ? (
                         <button
                           className="player-menu-list"
                           type="button"
-                          key={device.Id}
-                          disabled={devices.pending || !target}
-                          onClick={() =>
-                            target &&
-                            devices.connect(
-                              device,
-                              { ...target, start: media.position },
-                              currentQueue,
-                              player.close,
-                            )
-                          }
+                          key={index}
+                          aria-current={index === currentLyric}
+                          onClick={() => seek(line.Start! / ticksPerSecond)}
                         >
-                          {device.DeviceName ?? device.Client}
+                          {line.Text}
                         </button>
-                      ))}
-                      {devices.canCast && (
-                        <button
-                          type="button"
-                          disabled={devices.pending || !target}
-                          onClick={() =>
-                            target &&
-                            videoRef.current &&
-                            devices.cast(
-                              videoRef.current,
-                              { ...target, start: media.position },
-                              player.close,
-                            )
-                          }
-                        >
-                          Google Cast
-                        </button>
-                      )}
-                      {!devices.devices.length && (
-                        <p>Aucun autre appareil connecté.</p>
-                      )}
-                      <button type="button" onClick={() => void devices.list()}>
-                        Actualiser
-                      </button>
-                    </>
-                  )}
-                  {devices.error && <p role="alert">{devices.error}</p>}
-                </>
-              )}
-              {menu === 'stats' && playback && (
-                <dl className="player-stats">
-                  <div>
-                    <dt>Lecture</dt>
-                    <dd>
-                      {
-                        {
-                          DirectPlay: 'Directe',
-                          DirectStream: 'Remux',
-                          Transcode: 'Transcodage',
-                        }[playback.stream.method]
-                      }
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Flux</dt>
-                    <dd>{playback.stream.hls ? 'HLS' : source?.Container}</dd>
-                  </div>
-                  <div>
-                    <dt>Résolution</dt>
-                    <dd>
-                      {video?.videoWidth} × {video?.videoHeight}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Images perdues</dt>
-                    <dd>
-                      {video?.getVideoPlaybackQuality?.().droppedVideoFrames ??
-                        0}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Tampon</dt>
-                    <dd>
-                      {Math.max(0, media.buffered - media.position).toFixed(1)}{' '}
-                      s
-                    </dd>
-                  </div>
-                  {source?.Bitrate && (
-                    <div>
-                      <dt>Débit source</dt>
-                      <dd>{(source.Bitrate / 1_000_000).toFixed(1)} Mb/s</dd>
-                    </div>
-                  )}
-                </dl>
-              )}
-              {menu === 'lyrics' && (
-                <>
-                  {lyrics.isPending && <p>Chargement…</p>}
-                  {(lyrics.isError || lyrics.data?.length === 0) && (
-                    <p>Paroles indisponibles.</p>
-                  )}
-                  {lyrics.data?.map((line, index) =>
-                    line.Start != null ? (
-                      <button
-                        className="player-menu-list"
-                        type="button"
-                        key={index}
-                        aria-current={index === currentLyric}
-                        onClick={() => seek(line.Start! / ticksPerSecond)}
-                      >
-                        {line.Text}
-                      </button>
-                    ) : (
-                      <p key={index}>{line.Text}</p>
-                    ),
-                  )}
-                </>
-              )}
+                      ) : (
+                        <p key={index}>{line.Text}</p>
+                      ),
+                    )}
+                  </>
+                )}
+              </AnimatedList>
             </motion.section>
           )}
         </AnimatePresence>

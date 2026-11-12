@@ -5,6 +5,52 @@
 @config '../tailwind.config.js';
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Native scrollbars retain wheel, touch, keyboard and thumb dragging. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #338e9c #080f1b;
+}
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #080f1b;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid #080f1b;
+    border-radius: 100px;
+    background: linear-gradient(180deg, #4ade80aa, #3b82f6bb);
+    background-clip: padding-box;
+    min-height: 48px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #4ade80, #3b82f6);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-corner {
+    background: #080f1b;
+  }
+}
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: CanvasText;
+    border-color: Canvas;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: Canvas;
+  }
+}
+
 @font-face {
   font-family: 'HollyFilms';
   src: url('./assets/fonts/HollyFont.ttf') format('truetype');
@@ -16,10 +62,12 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --spacing-stage: theme('spacing.stage');
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: 'ss01' on;
   }
 
   :where(a, button, input, select, textarea):focus-visible {

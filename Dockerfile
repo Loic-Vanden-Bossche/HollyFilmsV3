@@ -9,6 +9,7 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
 COPY apps/shared/package.json ./apps/shared/
+COPY apps/infrastructure/package.json ./apps/infrastructure/
 RUN corepack yarn install --immutable
 
 COPY apps/api ./apps/api

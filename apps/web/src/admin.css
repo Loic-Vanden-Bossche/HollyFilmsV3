@@ -1,0 +1,181 @@
+@reference './index.css';
+
+.admin-page {
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+}
+.admin-back {
+  @apply text-muted-foreground;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 13px;
+}
+.admin-back:hover {
+  @apply text-link;
+}
+.admin-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin: 28px 0 36px;
+}
+.admin-eyebrow {
+  @apply text-link;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+}
+.admin-heading h2 {
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  margin-block: 12px 16px;
+}
+.admin-heading p:last-child {
+  @apply text-muted-foreground;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.admin-emblem {
+  @apply border border-glass-edge bg-accent/50 text-link;
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  flex: none;
+  border-radius: 24px;
+}
+.admin-inbox {
+  @apply border border-border/70 bg-card;
+  border-radius: 24px;
+  padding: 28px;
+}
+.admin-inbox-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.admin-inbox-heading h3 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.admin-inbox-heading > span {
+  @apply text-muted-foreground;
+  font-size: 12px;
+}
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 22px;
+}
+.admin-filters button {
+  @apply text-muted-foreground;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.admin-filters button[aria-pressed='true'] {
+  @apply bg-accent text-accent-foreground;
+}
+.admin-filters button:hover {
+  @apply text-foreground;
+}
+.admin-requests > li {
+  @apply border-t border-border/60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  padding-block: 24px;
+}
+.admin-request-avatar {
+  @apply bg-accent text-link;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  flex: none;
+}
+.admin-request-copy {
+  flex: 1;
+  min-width: min(200px, 100%);
+}
+.admin-request-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.admin-request-meta {
+  @apply text-muted-foreground;
+  font-size: 12px;
+  margin-block: 6px;
+}
+.admin-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-request-actions button {
+  font-size: 12px;
+}
+.admin-status {
+  @apply border border-border bg-background text-muted-foreground;
+  max-width: 220px;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 11px;
+}
+.admin-status[data-status='PENDING'],
+.admin-status[data-status='PROVISIONING'] {
+  @apply border-link/20 bg-link/5 text-link;
+}
+.admin-status[data-status='ACTIVE'],
+.admin-status[data-status='AWAITING_PASSWORD'] {
+  @apply border-success/20 bg-success/5 text-success;
+}
+.admin-status[data-status='REJECTED'] {
+  @apply text-destructive;
+}
+.admin-empty {
+  @apply text-muted-foreground;
+  padding: 48px 16px;
+  text-align: center;
+  font-size: 14px;
+}
+@media (max-width: 640px) {
+  .admin-emblem {
+    display: none;
+  }
+  .admin-inbox {
+    padding: 20px 16px;
+  }
+  .admin-inbox-heading {
+    align-items: start;
+  }
+  .admin-inbox-heading > span {
+    white-space: nowrap;
+  }
+  .admin-filters {
+    gap: 0;
+  }
+  .admin-filters button {
+    padding-inline: 12px;
+  }
+  .admin-request-actions {
+    width: 100%;
+  }
+}

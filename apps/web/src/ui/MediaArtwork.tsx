@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, useInView, useReducedMotion } from 'motion/react'
@@ -8,7 +8,7 @@ import type { LibraryImage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { useArtworkHero } from './artwork-hero-context.ts'
 
-export function MediaArtwork({
+export const MediaArtwork = memo(function MediaArtwork({
   source,
   session,
   width = 400,
@@ -36,6 +36,7 @@ export function MediaArtwork({
       remote?.type,
       remote?.tag,
       width,
+      remote?.index,
     ],
     queryFn: ({ signal }) =>
       getLibraryImage(
@@ -61,7 +62,10 @@ export function MediaArtwork({
                 remote.tag,
               ],
             })
-            .filter((entry) => entry[1] instanceof Blob)
+            .filter(
+              (entry) =>
+                entry[1] instanceof Blob && entry[0][6] === remote.index,
+            )
             .sort((a, b) => Number(b[0][5]) - Number(a[0][5]))[0]?.[1]
         : undefined,
   })
@@ -84,12 +88,7 @@ export function MediaArtwork({
         ? objectUrl?.url
         : undefined
   return (
-    <motion.div
-      ref={ref}
-      className={'media-artwork ' + className}
-      layout={!reduced}
-      transition={{ layout: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }}
-    >
+    <div ref={ref} className={'media-artwork ' + className}>
       {(!src || loadedSource !== src || failedSource === src) && (
         <div className="media-artwork-fallback" aria-hidden="true">
           {fallback ?? <Film strokeWidth={1} />}
@@ -108,6 +107,6 @@ export function MediaArtwork({
           onError={() => setFailedSource(src)}
         />
       )}
-    </motion.div>
+    </div>
   )
-}
+})

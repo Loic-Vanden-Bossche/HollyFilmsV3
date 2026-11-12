@@ -1,9 +1,10 @@
 import type { ComponentPropsWithoutRef } from 'react'
+import { Magnet } from '../components/reactbits/Effects.tsx'
 
 const variants = {
   primary:
-    'rounded-lg bg-primary bg-brand-gradient px-4 py-2.5 font-semibold text-primary-foreground shadow-glass-control enabled:hover:brightness-110 forced-colors:border',
-  secondary: 'glass-control rounded-lg px-4 py-2 text-sm font-medium',
+    'rounded-control bg-primary bg-brand-gradient px-6 py-3 text-sm font-semibold text-primary-foreground shadow-glass-control enabled:hover:brightness-110 forced-colors:border',
+  secondary: 'glass-control rounded-control px-5 py-3 text-sm font-medium',
   link: 'text-sm text-link underline underline-offset-4 enabled:hover:text-accent-foreground',
 }
 
@@ -15,15 +16,22 @@ export function Button({
   variant = 'secondary',
   type = 'button',
   className,
+  children,
   ...props
 }: ButtonProps) {
   return (
     <button
       {...props}
       type={type}
-      className={[variants[variant], 'disabled:opacity-50', className]
+      className={[
+        variants[variant],
+        'min-h-11 cursor-pointer transition duration-200 enabled:active:scale-[.98] disabled:cursor-wait disabled:opacity-50 motion-reduce:transform-none',
+        className,
+      ]
         .filter(Boolean)
         .join(' ')}
-    />
+    >
+      {variant === 'primary' ? <Magnet>{children}</Magnet> : children}
+    </button>
   )
 }

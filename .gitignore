@@ -31,3 +31,15 @@ storybook-static
 
 
 .playwright-mcp/
+
+# Infrastructure state, plans and credentials
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+**/crash.log
+**/crash.*.log
+apps/infrastructure/.artifacts/

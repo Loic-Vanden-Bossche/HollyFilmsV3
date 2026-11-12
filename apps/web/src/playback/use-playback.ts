@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ticksPerSecond } from './playback-api.ts'
+import { bufferedAhead, type LoadingPhase } from './loading-progress.ts'
 import type {
   PlaybackApi,
   PlaybackStream,
@@ -18,8 +19,10 @@ type Request = {
 
 type MediaState = {
   position: number
+  seeking?: boolean
   duration: number
   buffered: number
+  bufferedAhead?: number
   paused: boolean
   muted: boolean
   volume: number
@@ -28,8 +31,10 @@ type MediaState = {
 
 export const initialMediaState: MediaState = {
   position: 0,
+  seeking: false,
   duration: 0,
   buffered: 0,
+  bufferedAhead: 0,
   paused: true,
   muted: false,
   volume: 1,
@@ -60,6 +65,11 @@ export function usePlayback(
   })
   const settings = useRef(initialSettings)
   const report = useRef<() => void>(() => {})
+  // Keep the requested position visible while a seek or a new stream is pending.
+  // Reports still use the media element's actual position.
+  const pendingSeek = useRef<
+    { request: Request; position: number } | undefined
+  >(undefined)
   const [request, setRequest] = useState<Request>({
     target: initial,
     options: initialOptions,
@@ -77,6 +87,7 @@ export function usePlayback(
   const [ended, setEnded] = useState(false)
   const [buffering, setBuffering] = useState(false)
   const [hasFrame, setHasFrame] = useState(false)
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('source')
 
   useEffect(() => {
     const video = videoRef.current
@@ -97,6 +108,8 @@ export function usePlayback(
     // Each load owns its listeners, source, reports and teardown.
     // oxlint-disable-next-line react/set-state-in-effect
     setState('loading')
+    setLoadingPhase('source')
+    setMedia((current) => ({ ...current, bufferedAhead: 0 }))
     setHasFrame(false)
     setBuffering(false)
     setEnded(false)
@@ -149,12 +162,20 @@ export function usePlayback(
         ? video!.duration + stream.offset
         : (stream.source.RunTimeTicks ?? 0) / ticksPerSecond
       const ranges = video!.buffered
+      const pending = pendingSeek.current
+      // An outgoing stream must not overwrite the next request's timeline.
+      if (pending && pending.request !== request) return
       setMedia({
-        position: time,
+        position: pending?.position ?? time,
+        seeking: Boolean(pending || video!.seeking),
         duration,
         buffered: ranges.length
           ? ranges.end(ranges.length - 1) + stream.offset
           : 0,
+        bufferedAhead: bufferedAhead(
+          ranges,
+          (pending?.position ?? time) - stream.offset,
+        ),
         paused: video!.paused,
         muted: video!.muted,
         volume: video!.volume,
@@ -172,6 +193,10 @@ export function usePlayback(
     function fail(message: string) {
       if (finished || failure) return
       failure = true
+      if (pendingSeek.current?.request === request)
+        pendingSeek.current = undefined
+      update(true)
+      setMedia((current) => ({ ...current, seeking: false }))
       clearTimeout(startupTimer)
       video!.pause()
       setProblem(message)
@@ -180,15 +205,18 @@ export function usePlayback(
     function onMediaError() {
       if (finished || !stream) return
       if (stream.method !== 'Transcode' && !request.options.forceTranscode) {
-        setRequest({
-          target: { ...target, start: time },
+        const next = {
+          target: { ...target, start: pendingSeek.current?.position ?? time },
           options: {
             ...request.options,
             sourceId: stream.source.Id,
             forceTranscode: true,
           },
           paused: request.paused,
-        })
+        }
+        if (pendingSeek.current)
+          pendingSeek.current = { request: next, position: next.target.start }
+        setRequest(next)
       } else {
         fail('Le flux vidéo est indisponible ou ne peut pas être décodé.')
       }
@@ -211,6 +239,7 @@ export function usePlayback(
     }
     function onMetadata() {
       if (!stream || finished) return
+      setLoadingPhase('image')
       const position = target.start - stream.offset
       if (position > 0 && Number.isFinite(video!.duration)) {
         video!.currentTime = Math.min(
@@ -219,6 +248,8 @@ export function usePlayback(
         )
       }
       initialSeek = false
+      if (!video!.seeking && pendingSeek.current?.request === request)
+        pendingSeek.current = undefined
       update(true)
       if (request.paused) {
         clearTimeout(startupTimer)
@@ -243,6 +274,9 @@ export function usePlayback(
       }
     }
     function onWaiting() {
+      if (finished || failure) return
+      setLoadingPhase('buffer')
+      update(true)
       if (started && !video!.paused) setBuffering(true)
     }
     function onFrame() {
@@ -251,6 +285,13 @@ export function usePlayback(
     function onPause() {
       update(true)
       setBuffering(false)
+      sendProgress()
+    }
+    function onSeeked() {
+      if (initialSeek || video!.seeking || finished) return
+      if (pendingSeek.current?.request === request)
+        pendingSeek.current = undefined
+      update(true)
       sendProgress()
     }
     function onEnded() {
@@ -272,7 +313,14 @@ export function usePlayback(
       ['playing', onPlaying],
       ['waiting', onWaiting],
       ['pause', onPause],
-      ['seeked', sendProgress],
+      [
+        'seeking',
+        () => {
+          setLoadingPhase('buffer')
+          update(true)
+        },
+      ],
+      ['seeked', onSeeked],
       ['ended', onEnded],
       ['error', onMediaError],
       ['timeupdate', () => update()],
@@ -330,6 +378,8 @@ export function usePlayback(
     void (async () => {
       try {
         target = await api.resolve(target, abort.signal)
+        if (finished) return
+        setLoadingPhase('stream')
         time = target.start
         const negotiated = await api.stream(
           video,
@@ -353,6 +403,7 @@ export function usePlayback(
         ]
         versions.current = { id: target.id, sources }
         stream = { ...negotiated, sources }
+        setLoadingPhase('buffer')
         active.current = { target, stream }
         setPlayback(active.current)
         video.volume = settings.current.volume
@@ -392,32 +443,59 @@ export function usePlayback(
     const video = videoRef.current
     if (!active.current || !video) return
     const { target, stream } = active.current
-    setRequest({
-      target: { ...target, start: video.currentTime + stream.offset },
+    const next = {
+      target: {
+        ...target,
+        start:
+          pendingSeek.current?.position ?? video.currentTime + stream.offset,
+      },
       options: { ...request.options, sourceId: stream.source.Id, ...options },
       paused: video.paused,
-    })
+    }
+    if (pendingSeek.current)
+      pendingSeek.current = { request: next, position: next.target.start }
+    setRequest(next)
   }
   function seek(seconds: number) {
     const video = videoRef.current
     if (
       !video ||
-      !active.current ||
-      !Number.isFinite(video.duration) ||
+      (!active.current && !pendingSeek.current) ||
       !Number.isFinite(seconds)
     )
       return
-    const position = Math.max(0, seconds)
-    const offset = active.current.stream.offset
-    if (position < offset) {
-      setRequest({
-        ...request,
-        target: { ...active.current.target, start: position },
-        paused: video.paused,
-      })
+    const position = Math.max(0, Math.min(media.duration || Infinity, seconds))
+    const offset = active.current?.stream.offset ?? 0
+    if (
+      !active.current ||
+      !Number.isFinite(video.duration) ||
+      position < offset ||
+      (pendingSeek.current && pendingSeek.current.request !== request)
+    ) {
+      const current = pendingSeek.current?.request ?? request
+      const next = {
+        ...current,
+        target: {
+          ...(active.current?.target ?? current.target),
+          start: position,
+        },
+        paused: pendingSeek.current?.request.paused ?? video.paused,
+      }
+      pendingSeek.current = { request: next, position }
+      setRequest(next)
     } else {
+      pendingSeek.current = { request, position }
       video.currentTime = Math.min(video.duration, position - offset)
+      // Browsers need not emit seeked when seeking to the current position.
+      if (!video.seeking) pendingSeek.current = undefined
     }
+    setMedia((current) => ({
+      ...current,
+      position,
+      seeking: Boolean(pendingSeek.current),
+      bufferedAhead: 0,
+    }))
+    setEnded(false)
   }
   function toggle() {
     const video = videoRef.current
@@ -435,6 +513,7 @@ export function usePlayback(
     ended,
     buffering,
     hasFrame,
+    loadingPhase,
     preferences,
     report,
     options: request.options,
@@ -442,6 +521,7 @@ export function usePlayback(
     toggle,
     replaceStream,
     open(target: PlaybackTarget, paused = false) {
+      pendingSeek.current = undefined
       setRequest({
         target,
         paused,

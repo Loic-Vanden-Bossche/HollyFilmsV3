@@ -9,7 +9,7 @@ const meta = {
   args: { onSignIn: fn(async () => {}) },
   decorators: [
     (Story) => (
-      <div className="member-shell mx-auto max-w-md">
+      <div className="member-shell mx-auto max-w-4xl">
         <Story />
       </div>
     ),

@@ -4,6 +4,7 @@ export type ServerConfig = {
   jellyfinApiKey: string
   publicOrigin: string
   trustProxy?: string
+  tmdbToken?: string
   google?: { clientId: string; clientSecret: string; passwordKey: Buffer }
 }
 
@@ -45,6 +46,7 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
     jellyfinApiKey,
     publicOrigin: publicUrl.origin,
     trustProxy: env.TRUST_PROXY || undefined,
+    tmdbToken: env.TMDB_API_TOKEN?.trim() || undefined,
     google,
   }
 }

@@ -1,11 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ArrowLeft, Check, Clock3, ShieldCheck, Users } from 'lucide-react'
 import type {
   JellyfinSession,
   RegistrationSummary,
 } from '@hollyfilms/shared/accounts'
 import { decideRegistration, listRegistrations } from './account-api.ts'
 import { Button } from './ui/Button.tsx'
-import { GlassPanel } from './ui/GlassPanel.tsx'
+import {
+  AnimatedList,
+  BlurText,
+  ClickSpark,
+  CountUp,
+  MagicBento,
+} from './components/reactbits/Effects.tsx'
+import './admin.css'
 
 const statuses: Record<RegistrationSummary['status'], string> = {
   PENDING: 'En attente',
@@ -21,6 +31,11 @@ const date = new Intl.DateTimeFormat('fr-FR', {
 })
 
 export function AdminPage({ session }: { session: JellyfinSession }) {
+  const [filter, setFilter] = useState<
+    'all' | 'pending' | 'approved' | 'rejected'
+  >('all')
+  const reduced = useReducedMotion()
+  const [success, setSuccess] = useState({ id: '', burst: 0 })
   const cache = useQueryClient()
   const queryKey = ['registrations', session.deviceId]
   const registrations = useQuery({
@@ -37,103 +52,213 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
       id: string
       action: 'approve' | 'reject'
     }) => decideRegistration(session, id, action),
+    onSuccess: (_data, variables) => {
+      if (variables.action === 'approve')
+        setSuccess((value) => ({ id: variables.id, burst: value.burst + 1 }))
+    },
     onSettled: () => cache.invalidateQueries({ queryKey }),
   })
 
+  const requests = registrations.data ?? []
+  const pending = requests.filter(
+    (request) =>
+      request.status === 'PENDING' || request.status === 'PROVISIONING',
+  )
+  const approved = requests.filter(
+    (request) =>
+      request.status === 'ACTIVE' || request.status === 'AWAITING_PASSWORD',
+  )
+  const visible =
+    filter === 'pending'
+      ? pending
+      : filter === 'approved'
+        ? approved
+        : filter === 'rejected'
+          ? requests.filter((request) => request.status === 'REJECTED')
+          : requests
+
   return (
-    <GlassPanel aria-labelledby="admin-heading">
-      <a
-        href="/app"
-        className="text-sm text-link underline underline-offset-4 hover:text-accent-foreground"
-      >
-        Retour au compte
+    <section className="admin-page" aria-labelledby="admin-heading">
+      <a href="/app" className="admin-back">
+        <ArrowLeft size={16} /> Retour à la bibliothèque
       </a>
-      <h2 id="admin-heading" className="mt-3 text-2xl font-medium">
-        Demandes d’inscription
-      </h2>
-      {registrations.isPending && (
-        <p role="status" className="mt-4">
-          Chargement…
-        </p>
-      )}
-      {registrations.isError && (
-        <p role="alert" className="mt-4 text-destructive">
-          {registrations.error.message}
-        </p>
-      )}
-      {registrations.data?.length === 0 && (
-        <p className="mt-4 text-muted-foreground">
-          Aucune demande pour le moment.
-        </p>
-      )}
-      {decision.isError && (
-        <p role="alert" className="mt-4 text-destructive">
-          {decision.error.message}
-        </p>
-      )}
-      {registrations.data && registrations.data.length > 0 && (
-        <ul className="mt-4 divide-y divide-border">
-          {registrations.data.map((registration) => (
-            <li key={registration.id} className="space-y-2 py-4">
-              <p className="font-medium break-words">
-                {registration.googleEmail ?? registration.username}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {registration.method === 'GOOGLE' ? 'Google' : 'Mot de passe'} ·{' '}
-                {statuses[registration.status]} ·{' '}
-                {date.format(new Date(registration.createdAt))}
-              </p>
-              {registration.decidedAt && registration.decidedBy && (
-                <p className="text-xs break-words text-muted-foreground">
-                  Décision du {date.format(new Date(registration.decidedAt))} ·
-                  Admin {registration.decidedBy}
-                </p>
-              )}
-              {registration.lastError && (
-                <p className="text-sm text-destructive">
-                  {registration.lastError.replace(
-                    /\bjellyfin\b/gi,
-                    'HollyFilms',
-                  )}
-                </p>
-              )}
-              {(registration.status === 'PENDING' ||
-                registration.status === 'PROVISIONING') && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="primary"
-                    disabled={decision.isPending}
-                    onClick={() =>
-                      decision.mutate({
-                        id: registration.id,
-                        action: 'approve',
-                      })
-                    }
-                  >
-                    {registration.status === 'PENDING'
-                      ? 'Approuver'
-                      : 'Réessayer'}
-                  </Button>
-                  {registration.status === 'PENDING' && (
-                    <Button
-                      className="text-destructive"
-                      disabled={decision.isPending}
-                      onClick={() =>
-                        decision.mutate({
-                          id: registration.id,
-                          action: 'reject',
-                        })
-                      }
-                    >
-                      Refuser
-                    </Button>
-                  )}
-                </div>
-              )}
-            </li>
+      <header className="admin-heading">
+        <div>
+          <p className="admin-eyebrow">ESPACE ADMINISTRATEUR</p>
+          <h2 id="admin-heading">
+            <BlurText text="Inscriptions & accès." />
+          </h2>
+          <p>
+            Gérez les inscriptions et choisissez qui rejoint votre bibliothèque.
+          </p>
+        </div>
+        <div className="admin-emblem" aria-hidden="true">
+          <ShieldCheck size={32} />
+        </div>
+      </header>
+      <MagicBento>
+        {[
+          { label: 'Demandes reçues', value: requests.length, Icon: Users },
+          { label: 'À traiter', value: pending.length, Icon: Clock3 },
+          { label: 'Comptes approuvés', value: approved.length, Icon: Check },
+        ].map(({ label, value, Icon }) => (
+          <dl key={label}>
+            <dt>
+              <Icon size={18} />
+              {label}
+            </dt>
+            <dd>{registrations.isSuccess ? <CountUp value={value} /> : '—'}</dd>
+          </dl>
+        ))}
+      </MagicBento>
+      <div className="admin-inbox">
+        <div className="admin-inbox-heading">
+          <h3>Demandes d’inscription</h3>
+          <span>
+            {registrations.isSuccess
+              ? `${requests.length} au total`
+              : 'Synchronisation'}
+          </span>
+        </div>
+        <div
+          className="admin-filters"
+          role="group"
+          aria-label="Filtrer les demandes"
+        >
+          {(
+            [
+              ['all', 'Toutes'],
+              ['pending', 'À traiter'],
+              ['approved', 'Approuvées'],
+              ['rejected', 'Refusées'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
           ))}
-        </ul>
-      )}
-    </GlassPanel>
+        </div>
+        {registrations.isPending && (
+          <p role="status" className="mt-4">
+            Chargement…
+          </p>
+        )}
+        {registrations.isError && (
+          <p role="alert" className="mt-4 text-destructive">
+            {registrations.error.message}
+          </p>
+        )}
+        {registrations.isSuccess && visible.length === 0 && (
+          <p className="admin-empty" role="status">
+            {requests.length === 0
+              ? 'Aucune demande pour le moment.'
+              : 'Aucune demande dans cette catégorie.'}
+          </p>
+        )}
+        {decision.isError && (
+          <p role="alert" className="mt-4 text-destructive">
+            {decision.error.message}
+          </p>
+        )}
+        {registrations.isSuccess && (
+          <AnimatedList
+            as="ul"
+            className="admin-requests"
+            label="Demandes d’inscription"
+          >
+            <AnimatePresence initial={false}>
+              {visible.map((registration) => (
+                <motion.li
+                  key={registration.id}
+                  layout={!reduced}
+                  initial={{ opacity: 0, y: reduced ? 0 : 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reduced ? 0.1 : 0.25 }}
+                >
+                  <div className="admin-request-avatar" aria-hidden="true">
+                    <ClickSpark
+                      burst={success.id === registration.id ? success.burst : 0}
+                    />
+                    {(registration.googleEmail ?? registration.username)
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </div>
+                  <div className="admin-request-copy">
+                    <p className="admin-request-name">
+                      {registration.googleEmail ?? registration.username}
+                    </p>
+                    <p className="admin-request-meta">
+                      {registration.method === 'GOOGLE'
+                        ? 'Google'
+                        : 'Mot de passe'}{' '}
+                      · {date.format(new Date(registration.createdAt))}
+                    </p>
+                    {registration.decidedAt && registration.decidedBy && (
+                      <p className="text-xs break-words text-muted-foreground">
+                        Décision du{' '}
+                        {date.format(new Date(registration.decidedAt))} · Admin{' '}
+                        {registration.decidedBy}
+                      </p>
+                    )}
+                    {registration.lastError && (
+                      <p className="text-sm text-destructive">
+                        {registration.lastError.replace(
+                          /\bjellyfin\b/gi,
+                          'HollyFilms',
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className="admin-status"
+                    data-status={registration.status}
+                  >
+                    {statuses[registration.status]}
+                  </span>
+                  {(registration.status === 'PENDING' ||
+                    registration.status === 'PROVISIONING') && (
+                    <div className="admin-request-actions">
+                      <Button
+                        variant="primary"
+                        disabled={decision.isPending}
+                        onClick={() =>
+                          decision.mutate({
+                            id: registration.id,
+                            action: 'approve',
+                          })
+                        }
+                      >
+                        {registration.status === 'PENDING'
+                          ? 'Approuver'
+                          : 'Réessayer'}
+                      </Button>
+                      {registration.status === 'PENDING' && (
+                        <Button
+                          className="text-destructive"
+                          disabled={decision.isPending}
+                          onClick={() =>
+                            decision.mutate({
+                              id: registration.id,
+                              action: 'reject',
+                            })
+                          }
+                        >
+                          Refuser
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </AnimatedList>
+        )}
+      </div>
+    </section>
   )
 }

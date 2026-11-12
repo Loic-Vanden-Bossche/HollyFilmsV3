@@ -104,6 +104,13 @@ const afterPaint = () =>
   )
 const reducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const waitForDialogReveal = async (dialog: HTMLElement) => {
+  await waitFor(() => {
+    if (getComputedStyle(dialog).opacity === '0')
+      throw new Error('La fiche commence son apparition')
+  })
+  await expect(dialog).toBeVisible()
+}
 
 export const SharedArtwork: Story = {
   name: 'Fiches sans transition partagée',
@@ -132,7 +139,7 @@ export const SharedArtwork: Story = {
         name: /Voir la fiche de/,
       })) {
         await userEvent.click(card)
-        await expect(await canvas.findByRole('dialog')).toBeVisible()
+        await waitForDialogReveal(await canvas.findByRole('dialog'))
         await afterPaint()
         await expect(
           document.querySelector('[data-artwork-flight]'),
@@ -163,7 +170,7 @@ export const FastPlayback: Story = {
     await userEvent.click(
       canvas.getAllByRole('button', { name: /Voir la fiche de/ })[1],
     )
-    await expect(await canvas.findByRole('dialog')).toBeVisible()
+    await waitForDialogReveal(await canvas.findByRole('dialog'))
     await afterPaint()
     await expect(
       document.querySelector('[data-artwork-flight]'),
@@ -205,7 +212,7 @@ export const PlayerRoundTrip: Story = {
     await userEvent.click(
       canvas.getAllByRole('button', { name: /Voir la fiche de/ })[1],
     )
-    await expect(await canvas.findByRole('dialog')).toBeVisible()
+    await waitForDialogReveal(await canvas.findByRole('dialog'))
     await waitFor(() =>
       expect(
         canvasElement.querySelector<HTMLImageElement>('dialog img')

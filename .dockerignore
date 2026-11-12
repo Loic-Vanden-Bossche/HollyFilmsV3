@@ -10,3 +10,13 @@ apps/api/src/generated
 .yarn
 *.log
 .playwright-mcp
+**/.env
+**/.env.*
+**/.terraform
+**/*.tfstate*
+**/*.tfvars*
+**/*.tfplan
+apps/infrastructure/.artifacts
+.agents
+.codex
+docs

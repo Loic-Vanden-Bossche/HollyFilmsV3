@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { mocked } from 'storybook/test'
+import { expect, mocked, waitFor } from 'storybook/test'
 import type { RegistrationSummary } from '@hollyfilms/shared/accounts'
 import { decideRegistration, listRegistrations } from './account-api.ts'
 import { AdminPage } from './AdminPage.tsx'
@@ -22,7 +22,7 @@ const meta = {
   decorators: [
     (Story, { id }) => (
       <QueryProvider key={id}>
-        <div className="member-shell mx-auto max-w-xl">
+        <div className="member-shell mx-auto max-w-7xl p-6">
           <Story />
         </div>
       </QueryProvider>
@@ -88,6 +88,45 @@ export const Empty: Story = {
   name: 'Aucune demande',
   beforeEach: () => {
     mocked(listRegistrations).mockResolvedValue([])
+  },
+}
+
+export const ApproveAndFilter: Story = {
+  name: 'Approuver et filtrer les demandes',
+  beforeEach: Requests.beforeEach,
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByText('Camille')
+    await userEvent.click(canvas.getByRole('button', { name: 'À traiter' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Approuver' }))
+    await waitFor(() =>
+      expect(canvas.queryByText('Camille')).not.toBeInTheDocument(),
+    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Approuvées' }))
+    await expect(await canvas.findByText('Camille')).toBeVisible()
+    await expect(
+      canvas.getByText('Approuvée · Première connexion requise'),
+    ).toBeVisible()
+    await expect(canvas.queryByText('jo@example.com')).not.toBeInTheDocument()
+  },
+}
+
+export const RejectAndRetry: Story = {
+  name: 'Refuser et reprendre une création',
+  beforeEach: Requests.beforeEach,
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByText('Camille')
+    await userEvent.click(canvas.getByRole('button', { name: 'Refuser' }))
+    await waitFor(() => expect(canvas.getByText('Refusée')).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
+    await waitFor(() => expect(canvas.getByText('Active')).toBeVisible())
+    await expect(
+      canvas.queryByText('Impossible de consulter les comptes.'),
+    ).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Refusées' }))
+    await expect(canvas.getByText('Camille')).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.queryByText('jo@example.com')).not.toBeInTheDocument(),
+    )
   },
 }
 

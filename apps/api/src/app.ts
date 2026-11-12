@@ -10,6 +10,7 @@ import { PrismaClient } from './generated/prisma/client.ts'
 import { addGoogleRoutes } from './google.ts'
 import type { GoogleProvider } from './google.ts'
 import { addShowcaseRoutes } from './showcase.ts'
+import { addMediaRoutes } from './media.ts'
 
 type Credentials = { username: string; password: string }
 type RegistrationParams = { id: string }
@@ -63,7 +64,7 @@ export async function createApp(config: ServerConfig, google?: GoogleProvider) {
       .header('Cache-Control', 'no-store')
       .header('Referrer-Policy', 'no-referrer')
     if (
-      request.method === 'POST' &&
+      ['POST', 'PUT', 'DELETE'].includes(request.method) &&
       request.headers.origin &&
       !acceptedOrigins.has(request.headers.origin)
     ) {
@@ -119,6 +120,7 @@ export async function createApp(config: ServerConfig, google?: GoogleProvider) {
   })
 
   addShowcaseRoutes(app, config)
+  addMediaRoutes(app, db, config)
 
   app.get('/api/auth/options', async () => ({
     googleStartUrl: config.google

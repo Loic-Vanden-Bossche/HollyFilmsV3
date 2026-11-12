@@ -170,9 +170,14 @@ export function HomeScreen({
   return (
     <>
       <HomePage
-        onPlay={(item, resume) => {
+        onPlay={(item, resume, queue) => {
           setRemoteCommand(undefined)
-          setPlayback({ item, resume, openedAt: Date.now() })
+          setPlayback({
+            item,
+            resume,
+            openedAt: Date.now(),
+            queue: queue?.map(toTarget),
+          })
         }}
         username={user.name}
         isAdmin={user.isAdministrator}

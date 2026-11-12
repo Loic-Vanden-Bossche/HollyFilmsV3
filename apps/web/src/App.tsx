@@ -174,7 +174,9 @@ export default function App({
     )
 
   return (
-    <main className="member-shell mx-auto flex min-h-svh w-full max-w-xl flex-col justify-center gap-4 px-6 py-12 sm:px-10">
+    <main
+      className={`member-shell mx-auto flex min-h-svh w-full flex-col gap-6 px-6 py-10 sm:px-10 ${isAdminPage && user.data?.isAdministrator ? 'max-w-7xl' : 'max-w-xl justify-center'}`}
+    >
       <h1 className="mb-4">
         <Wordmark />
       </h1>

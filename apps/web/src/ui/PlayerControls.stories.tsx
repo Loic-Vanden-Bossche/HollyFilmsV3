@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn } from 'storybook/test'
+import { useEffect, useRef, useState } from 'react'
+import { expect, fireEvent, fn, waitFor } from 'storybook/test'
 import { PlayerControls } from './PlayerControls.tsx'
 
 const meta = {
@@ -87,11 +88,51 @@ export const TimelinePreview: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.tab()
     canvas.getByRole('slider', { name: 'Position de lecture' }).focus()
-    await expect(
-      await canvas.findByRole('img', {
+    await waitFor(() => {
+      const image = canvas.getByRole('img', {
         name: 'Aperçu de la position de lecture',
-      }),
+      })
+      if (getComputedStyle(image).opacity !== '1')
+        throw new Error('L’aperçu termine son fondu')
+    })
+    await expect(
+      canvas.getByRole('img', { name: 'Aperçu de la position de lecture' }),
     ).toBeVisible()
+  },
+}
+
+export const PointerPreview: Story = {
+  name: 'Aperçu fluide sans modifier la lecture',
+  args: TimelinePreview.args,
+  play: async ({ canvas, canvasElement, args }) => {
+    const slider = canvas.getByRole('slider', { name: 'Position de lecture' })
+    const bounds = slider.getBoundingClientRect()
+    for (const [fraction, time, offset] of [
+      [0.25, '0:45', '0px'],
+      [0.3, '0:54', '0px'],
+      [0.75, '2:15', '-224px'],
+    ] as const) {
+      fireEvent.pointerMove(slider, {
+        pointerType: 'mouse',
+        clientX: bounds.left + bounds.width * fraction,
+      })
+      await waitFor(() =>
+        expect(
+          canvasElement.querySelector('.player-preview-time'),
+        ).toHaveTextContent(time),
+      )
+      await expect(
+        canvas.getByRole('img', { name: 'Aperçu de la position de lecture' }),
+      ).toHaveStyle({ left: offset })
+    }
+    await expect(slider).toHaveValue('66')
+    await expect(args.onSeek).not.toHaveBeenCalled()
+    fireEvent.pointerOut(slider)
+    await waitFor(() => {
+      if (canvas.queryByRole('img'))
+        throw new Error('L’aperçu termine sa sortie')
+    })
+    await expect(canvas.queryByRole('img')).not.toBeInTheDocument()
   },
 }
 
@@ -101,5 +142,64 @@ export const PreviewUnavailable: Story = {
     await userEvent.tab()
     canvas.getByRole('slider', { name: 'Position de lecture' }).focus()
     await expect(await canvas.findByText('Aperçu indisponible')).toBeVisible()
+  },
+}
+
+export const ResponsiveTimeline: Story = {
+  name: 'Timeline réactive — chargement et sauts successifs',
+  args: { ...TimelinePreview.args },
+  render: function Render(args) {
+    const [media, setMedia] = useState({ ...args.media, seeking: false })
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    useEffect(() => () => clearTimeout(timer.current), [])
+    return (
+      <>
+        <p role="status" className="px-8 text-sm text-muted-foreground">
+          {media.seeking
+            ? 'Chargement de la position sélectionnée…'
+            : 'Position confirmée'}
+        </p>
+        <PlayerControls
+          {...args}
+          media={media}
+          onSeek={(position) => {
+            args.onSeek(position)
+            clearTimeout(timer.current)
+            setMedia((current) => ({ ...current, position, seeking: true }))
+            timer.current = setTimeout(
+              () => setMedia((current) => ({ ...current, seeking: false })),
+              1500,
+            )
+          }}
+        />
+      </>
+    )
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    const timeline = canvas.getByRole('slider', { name: 'Position de lecture' })
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Avancer de 30 secondes' }),
+    )
+    await expect(timeline).toHaveValue('96')
+    await expect(canvas.getByRole('status')).toHaveTextContent('Chargement')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Avancer de 30 secondes' }),
+    )
+    await expect(timeline).toHaveValue('126')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Reculer de 10 secondes' }),
+    )
+    await expect(timeline).toHaveValue('116')
+    await expect(args.onSeek).toHaveBeenLastCalledWith(116)
+    timeline.focus()
+    await expect(timeline).toHaveAttribute('aria-valuetext', '1:56')
+    await waitFor(
+      () =>
+        expect(canvas.getByRole('status')).toHaveTextContent(
+          'Position confirmée',
+        ),
+      { timeout: 2500 },
+    )
+    await expect(timeline).toHaveValue('116')
   },
 }

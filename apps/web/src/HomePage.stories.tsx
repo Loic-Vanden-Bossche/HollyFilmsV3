@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, fn, waitFor, within } from 'storybook/test'
@@ -67,12 +67,69 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Opening: Story = { name: 'Ouverture cinéma' }
+export const Opening: Story = {
+  name: 'Ouverture cinéma — navigation immédiate',
+  play: async ({ canvas, canvasElement }) => {
+    await expect(
+      canvas.queryByRole('button', { name: 'Passer l’introduction' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      canvasElement.querySelector('.home-page-content'),
+    ).not.toHaveAttribute('inert')
+    await expect(getComputedStyle(document.body).overflow).not.toBe('hidden')
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
+          'data-opening',
+          'false',
+        ),
+      { timeout: 3000 },
+    )
+    await expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle(
+      { opacity: '1' },
+    )
+  },
+}
+export const DelayedHero: Story = {
+  name: 'À l’affiche — arrivée des données pendant l’intro',
+  args: {
+    items: Array.from({ length: 36 }, (_, index) => ({
+      ...homeItems[index % homeItems.length],
+      id: 'arrival-' + index,
+    })),
+  },
+  render: function Render(args) {
+    const [ready, setReady] = useState(false)
+    useEffect(() => {
+      const timer = setTimeout(() => setReady(true), 400)
+      return () => clearTimeout(timer)
+    }, [])
+    return (
+      <HomePage
+        {...args}
+        items={ready ? args.items : []}
+        resumeItems={ready ? args.resumeItems : []}
+        state={ready ? 'ready' : 'loading'}
+      />
+    )
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await canvas.findByRole('region', { name: 'À l’affiche' })
+    await expect(
+      canvasElement.querySelector('.home-page-content'),
+    ).not.toHaveAttribute('inert')
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle({
+          opacity: '1',
+        }),
+      { timeout: 3000 },
+    )
+  },
+}
 export const Background: Story = {
   name: 'Fond animé et pause',
   play: async ({ canvas, canvasElement, userEvent }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     const background = canvasElement.querySelector('.catalogue-backdrop')
     const pause = canvas.queryByRole('button', {
       name: 'Mettre le fond en pause',
@@ -93,17 +150,45 @@ export const Background: Story = {
 export const StartPlayback: Story = {
   args: { onPlay: fn() },
   play: async ({ canvas, userEvent, args }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await userEvent.click(canvas.getByRole('button', { name: 'Lire' }))
     await expect(args.onPlay).toHaveBeenCalledWith(args.items[0], true)
+  },
+}
+export const CardPlayback: Story = {
+  name: 'Lecture depuis les affiches',
+  args: { onPlay: fn() },
+  play: async ({ canvas, userEvent, args }) => {
+    canvas
+      .getByRole('button', { name: 'Voir la fiche de ' + args.items[0].title })
+      .scrollIntoView()
+    const card = await canvas.findByRole('article', {
+      name: args.items[0].title,
+    })
+    await userEvent.hover(card)
+    await userEvent.click(
+      within(card).getByRole('button', { name: 'Lire ' + args.items[0].title }),
+    )
+    await expect(args.onPlay).toHaveBeenCalledWith(args.items[0], true)
+    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    const resume = canvas.getAllByRole('article', {
+      name: args.resumeItems[0].title,
+    })[0]
+    await userEvent.hover(resume)
+    await waitFor(() => expect(resume).toHaveAttribute('data-active', 'true'))
+    await userEvent.click(
+      within(resume).getByRole('button', {
+        name: 'Reprendre ' + args.resumeItems[0].title,
+      }),
+    )
+    await expect(args.onPlay).toHaveBeenLastCalledWith(
+      args.resumeItems[0],
+      true,
+    )
   },
 }
 export const Browse: Story = {
   name: 'Explorer le catalogue',
   play: async ({ canvas, userEvent, args }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await waitFor(() =>
       expect(
         canvas.getByRole('navigation', { name: 'Bibliothèque' }),
@@ -146,8 +231,6 @@ export const Empty: Story = { args: { items: [], resumeItems: [], total: 0 } }
 export const Unavailable: Story = {
   args: { state: 'error', items: [], resumeItems: [] },
   play: async ({ canvas, userEvent, args }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
     await expect(args.onRetry).toHaveBeenCalledOnce()
   },
@@ -155,8 +238,6 @@ export const Unavailable: Story = {
 export const Administrator: Story = {
   args: { isAdmin: true },
   play: async ({ canvas, userEvent, args }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await expect(
       canvas.getByRole('link', { name: 'Administration' }),
     ).toHaveAttribute('href', '/admin')
@@ -169,8 +250,6 @@ export const Administrator: Story = {
 export const MoreTitles: Story = {
   args: { hasMore: true },
   play: async ({ canvas, userEvent, args }) => {
-    const skip = canvas.queryByRole('button', { name: 'Passer l’introduction' })
-    if (skip) await userEvent.click(skip)
     await userEvent.click(
       canvas.getByRole('button', { name: 'Afficher plus de titres' }),
     )
@@ -185,5 +264,57 @@ export const NoArtwork: Story = {
       backdrop: undefined,
     })),
     resumeItems: [],
+  },
+}
+
+export const ImmersiveNavigation: Story = {
+  play: async ({ canvas, userEvent, args }) => {
+    const trigger = canvas.getByRole('button', { name: 'Explorer HollyFilms' })
+    await userEvent.click(trigger)
+    await userEvent.click(
+      within(canvas.getByRole('dialog')).getByRole('button', {
+        name: '02 Films',
+      }),
+    )
+    await waitFor(() =>
+      expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    await expect(args.onFilter).toHaveBeenCalledWith('movies')
+    await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Les films.',
+    )
+    await expect(trigger).toHaveFocus()
+  },
+}
+export const PlaybackSuspendsDecorations: Story = {
+  args: { playbackOpen: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelector('.catalogue-backdrop'),
+    ).toHaveAttribute('data-motion', 'paused')
+    await expect(canvasElement.querySelector('canvas')).toBeNull()
+  },
+}
+
+export const PerformanceCatalogue: Story = {
+  name: 'Catalogue chargé — 96 titres',
+  args: {
+    items: Array.from({ length: 96 }, (_, index) => ({
+      ...homeItems[index % homeItems.length],
+      id: 'perf-' + index,
+    })),
+    resumeItems: [],
+    filter: 'movies',
+    onPlay: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
+          'data-opening',
+          'false',
+        ),
+      { timeout: 3000 },
+    )
   },
 }

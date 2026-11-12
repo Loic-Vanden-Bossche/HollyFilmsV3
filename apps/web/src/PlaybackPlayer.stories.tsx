@@ -50,7 +50,10 @@ type Story = StoryObj<typeof meta>
 
 export const Loading: Story = {
   play: async ({ canvas, canvasElement, args, userEvent }) => {
-    await expect(canvas.getByRole('status')).toBeVisible()
+    await expect(await canvas.findByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '0',
+    )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
     await expect(
       canvasElement.querySelector('.player-artwork-hero img'),

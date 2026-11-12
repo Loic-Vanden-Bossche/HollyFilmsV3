@@ -8,6 +8,8 @@
     "apps/*"
   ],
   "scripts": {
+    "deploy": "yarn workspace @hollyfilms/infrastructure deploy",
+    "test:infrastructure": "yarn workspace @hollyfilms/infrastructure test",
     "dev": "docker compose up -d --wait && concurrently --kill-others --names web,api --prefix-colors cyan,magenta \"yarn dev:web\" \"yarn dev:api\"",
     "dev:web": "yarn workspace @hollyfilms/web dev",
     "dev:api": "yarn workspace @hollyfilms/api dev",
@@ -24,6 +26,7 @@
     "build-storybook": "yarn workspace @hollyfilms/web build-storybook",
     "test": "yarn workspace @hollyfilms/web test",
     "test:accounts": "yarn workspace @hollyfilms/api test",
+    "test:media": "yarn workspace @hollyfilms/api test:media",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:player": "yarn workspace @hollyfilms/web test:player"

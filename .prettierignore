@@ -1,3 +1,5 @@
 .agents/skills/
 .codex/skills/
 .playwright-mcp/
+apps/infrastructure/.terraform/
+apps/infrastructure/.artifacts/

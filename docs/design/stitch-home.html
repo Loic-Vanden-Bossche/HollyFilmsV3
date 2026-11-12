@@ -1,0 +1,1491 @@
+<!doctype html>
+
+<html class="dark" lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>HollyFilms 3.0 — Serveur Privé Haute Fidélité</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'primary-fixed-dim': '#4de082',
+              error: '#ffb4ab',
+              'on-tertiary': '#003731',
+              'on-secondary': '#002e6a',
+              background: '#0c1320',
+              primary: '#6bfb9a',
+              'on-primary-fixed': '#00210c',
+              'inverse-surface': '#dce2f4',
+              'surface-variant': '#2e3542',
+              'primary-fixed': '#6dfe9c',
+              'secondary-fixed-dim': '#adc6ff',
+              'surface-container-lowest': '#070e1a',
+              outline: '#869486',
+              secondary: '#adc6ff',
+              'secondary-container': '#0566d9',
+              'outline-variant': '#3d4a3e',
+              'on-primary': '#003919',
+              'surface-container-high': '#232a37',
+              'on-tertiary-fixed-variant': '#005047',
+              'secondary-fixed': '#d8e2ff',
+              'on-secondary-fixed-variant': '#004395',
+              'tertiary-fixed-dim': '#8fd3c7',
+              'inverse-on-surface': '#2a313e',
+              'on-error-container': '#ffdad6',
+              'surface-dim': '#0c1320',
+              tertiary: '#a9ede1',
+              'surface-container': '#19202c',
+              'surface-container-highest': '#2e3542',
+              'on-secondary-fixed': '#001a42',
+              'tertiary-fixed': '#abf0e3',
+              'on-error': '#690005',
+              'on-primary-container': '#005e2d',
+              'surface-container-low': '#151c28',
+              'on-tertiary-fixed': '#00201c',
+              'error-container': '#93000a',
+              'surface-tint': '#4de082',
+              'on-tertiary-container': '#0c5b52',
+              'inverse-primary': '#006d36',
+              'on-surface': '#dce2f4',
+              'on-secondary-container': '#e6ecff',
+              'surface-bright': '#323947',
+              'primary-container': '#4ade80',
+              'on-background': '#dce2f4',
+              'on-surface-variant': '#bccabb',
+              'on-primary-fixed-variant': '#005227',
+              'tertiary-container': '#8dd1c5',
+              surface: '#0c1320',
+            },
+            borderRadius: {
+              DEFAULT: '0.25rem',
+              lg: '0.5rem',
+              xl: '0.75rem',
+              full: '9999px',
+            },
+            spacing: {
+              'space-xl': '2.5rem',
+              'space-lg': '1.5rem',
+              'space-sm': '0.5rem',
+              gutter: '1.5rem',
+              margin: '3rem',
+              'space-xs': '0.25rem',
+              'space-md': '1rem',
+            },
+            fontFamily: {
+              'headline-xl': ['DM Sans'],
+              'badge-tech': ['DM Sans'],
+              'body-md': ['DM Sans'],
+              'display-hero': ['DM Sans'],
+              'headline-sm': ['DM Sans'],
+              'overline-tracked': ['DM Sans'],
+              'label-btn': ['DM Sans'],
+              'headline-lg': ['DM Sans'],
+              'body-sm': ['DM Sans'],
+              'body-lg': ['DM Sans'],
+              'headline-md': ['DM Sans'],
+            },
+            fontSize: {
+              'headline-xl': [
+                '40px',
+                {
+                  lineHeight: '44px',
+                  letterSpacing: '-0.025em',
+                  fontWeight: '700',
+                },
+              ],
+              'badge-tech': [
+                '10px',
+                {
+                  lineHeight: '12px',
+                  letterSpacing: '0.08em',
+                  fontWeight: '700',
+                },
+              ],
+              'body-md': [
+                '14px',
+                { lineHeight: '20px', letterSpacing: '0em', fontWeight: '400' },
+              ],
+              'display-hero': [
+                '56px',
+                {
+                  lineHeight: '60px',
+                  letterSpacing: '-0.03em',
+                  fontWeight: '800',
+                },
+              ],
+              'headline-sm': [
+                '16px',
+                {
+                  lineHeight: '22px',
+                  letterSpacing: '-0.01em',
+                  fontWeight: '600',
+                },
+              ],
+              'overline-tracked': [
+                '11px',
+                {
+                  lineHeight: '14px',
+                  letterSpacing: '0.15em',
+                  fontWeight: '600',
+                },
+              ],
+              'label-btn': [
+                '13px',
+                {
+                  lineHeight: '16px',
+                  letterSpacing: '0.01em',
+                  fontWeight: '600',
+                },
+              ],
+              'headline-lg': [
+                '28px',
+                {
+                  lineHeight: '34px',
+                  letterSpacing: '-0.02em',
+                  fontWeight: '700',
+                },
+              ],
+              'body-sm': [
+                '12px',
+                {
+                  lineHeight: '16px',
+                  letterSpacing: '0.01em',
+                  fontWeight: '400',
+                },
+              ],
+              'body-lg': [
+                '16px',
+                {
+                  lineHeight: '24px',
+                  letterSpacing: '-0.005em',
+                  fontWeight: '400',
+                },
+              ],
+              'headline-md': [
+                '20px',
+                {
+                  lineHeight: '26px',
+                  letterSpacing: '-0.015em',
+                  fontWeight: '600',
+                },
+              ],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined';
+        font-weight: normal;
+        font-style: normal;
+        font-size: 20px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-smoothing: antialiased;
+      }
+      .cinema-glow {
+        background: radial-gradient(
+          circle at 18% 12%,
+          rgba(74, 222, 128, 0.12) 0%,
+          rgba(59, 130, 246, 0.08) 28%,
+          transparent 65%
+        );
+      }
+      .aurora-button {
+        background: linear-gradient(
+          135deg,
+          #4ade80 0%,
+          #38bdf8 52%,
+          #3b82f6 100%
+        );
+        box-shadow: 0 0 28px -4px rgba(74, 222, 128, 0.35);
+      }
+      .poster-card:hover .poster-overlay {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .poster-card:hover {
+        transform: scale(1.03);
+        box-shadow:
+          0 20px 35px -10px rgba(5, 102, 217, 0.3),
+          0 0 24px 2px rgba(74, 222, 128, 0.18);
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-surface-container-lowest text-on-surface selection:bg-primary-container selection:text-on-primary-container font-body-md text-body-md min-h-screen overflow-x-hidden antialiased"
+  >
+    <!-- Ambient Cinematic Aurora Backdrop -->
+    <div class="cinema-glow pointer-events-none fixed inset-0 z-0"></div>
+    <div
+      class="bg-secondary-container/10 pointer-events-none fixed top-[-20%] right-[-10%] z-0 h-[680px] w-[680px] rounded-full blur-[130px]"
+    ></div>
+    <!-- SHARED COMPONENT: TopNavBar -->
+    <header
+      class="bg-surface/80 dark:bg-surface/80 border-outline-variant/30 docked full-width sticky top-0 z-50 border-b shadow-2xl backdrop-blur-md"
+    >
+      <div
+        class="mx-auto flex w-full max-w-[1920px] items-center justify-between gap-6 px-6 py-3 md:px-12"
+      >
+        <!-- Brand & Search cluster -->
+        <div class="flex items-center gap-8">
+          <!-- Brand Logo -->
+          <a
+            class="text-headline-md font-headline-md text-on-surface dark:text-on-surface group flex items-center gap-2 font-bold tracking-tight"
+            href="#"
+          >
+            <div
+              class="from-primary-container to-secondary-container shadow-primary-container/20 flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br via-secondary shadow-lg transition-all group-hover:scale-105"
+            >
+              <span
+                class="material-symbols-outlined text-surface-container-lowest"
+                style="font-variation-settings: 'FILL' 1"
+                >play_arrow</span
+              >
+            </div>
+            <span class="tracking-tight">HollyFilms 3.0</span>
+          </a>
+          <!-- Search Bar (on_left) -->
+          <div class="relative hidden w-80 lg:block">
+            <div
+              class="text-outline pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5"
+            >
+              <span class="material-symbols-outlined text-outline">search</span>
+            </div>
+            <input
+              class="bg-surface-container-high/40 border-outline-variant/40 text-on-surface text-body-sm font-body-sm placeholder:text-outline/70 focus:border-primary-container focus:ring-primary-container w-full rounded-full border py-1.5 pr-12 pl-10 transition-all focus:ring-1 focus:outline-none"
+              placeholder="Rechercher un film, réalisateur, saga..."
+              type="text"
+            />
+            <div
+              class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              <kbd
+                class="text-badge-tech font-badge-tech bg-surface-bright/70 text-outline border-outline-variant/30 rounded border px-1.5 py-0.5"
+                >⌘K</kbd
+              >
+            </div>
+          </div>
+        </div>
+        <!-- Navigation Links -->
+        <nav
+          class="text-label-btn font-label-btn hidden items-center gap-8 md:flex"
+        >
+          <!-- Active: Accueil -->
+          <a
+            class="relative font-semibold text-primary after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-primary dark:text-primary"
+            href="#"
+            >Accueil</a
+          >
+          <!-- Inactive items -->
+          <a
+            class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors"
+            href="#"
+            >Films</a
+          >
+          <a
+            class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors"
+            href="#"
+            >Séries</a
+          >
+          <a
+            class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors"
+            href="#"
+            >Nouveautés</a
+          >
+        </nav>
+        <!-- Trailing Action: Server Status & User Profile -->
+        <div class="flex items-center gap-4">
+          <!-- Server Status Badge -->
+          <div
+            class="bg-surface-container-high/60 border-outline-variant/30 text-badge-tech font-badge-tech text-on-surface-variant hidden items-center gap-2 rounded-full border px-3 py-1 sm:flex"
+          >
+            <span
+              class="bg-primary-container h-2 w-2 animate-pulse rounded-full"
+            ></span>
+            <span>Serveur Privé • En ligne</span>
+          </div>
+          <!-- Trailing Icon Action: Notifications -->
+          <button
+            aria-label="Notifications"
+            class="hover:bg-surface-container-high/40 text-on-surface-variant relative rounded-full p-2 transition-all duration-200 hover:text-primary dark:hover:text-primary"
+          >
+            <span class="material-symbols-outlined">notifications</span>
+            <span
+              class="bg-primary-container ring-surface absolute top-1.5 right-1.5 h-2 w-2 rounded-full ring-2"
+            ></span>
+          </button>
+          <!-- User Profile Dropdown -->
+          <div
+            class="border-outline-variant/30 flex items-center gap-3 border-l pl-2"
+          >
+            <div class="group relative flex cursor-pointer items-center gap-2">
+              <img
+                class="ring-primary-container/40 h-8 w-8 rounded-full object-cover ring-1"
+                data-alt="A refined ultra-high definition cinematic close up of a distinguished film curator avatar wearing refined dark glasses in a moody studio lit with soft teal and cyan neon reflections."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQh4spf7YfY2JKWvYlnMz8kR_8G9nVBnf6yRhiOyWYBsTTCs_c0XGZ5MKjRgCfHpCZ8GGroT_EVThVJU0D_-0hDfs4iYY9zwyreOH0t49-cLyPdi5w6I6Qpgk-iI2cODzv9tJOByW7RDFCByiUkKqTJgvzqQnjGG6GHCzn-USz53i76RGCrUw-04DcscgWAjcLFJ9XZbcXaKJfZoAoXjAzNqrzkTnkiSaY1gYO0mgBwrli2YW3GARrPraNKm6jANa1FdkgJLfRFveT"
+              />
+              <div class="hidden flex-col text-left xl:flex">
+                <span
+                  class="text-body-sm font-body-sm text-on-surface leading-none font-semibold"
+                  >Laurent V.</span
+                >
+                <span
+                  class="text-badge-tech font-badge-tech mt-0.5 tracking-wider text-primary uppercase"
+                  >Admin</span
+                >
+              </div>
+              <span
+                class="material-symbols-outlined text-outline group-hover:text-on-surface transition-colors"
+                >arrow_drop_down</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <!-- Main Canvas Container -->
+    <main class="relative z-10 mx-auto w-full max-w-[1920px] pb-16">
+      <!-- HERO FEATURE SHOWCASE: Dune: Deuxième Partie (21:9 Aspect Billboard) -->
+      <section class="relative w-full px-6 pt-6 pb-8 md:px-12">
+        <div
+          class="bg-surface-container-lowest relative min-h-[580px] w-full overflow-hidden rounded-2xl border border-white/[0.08] shadow-2xl lg:min-h-[640px]"
+        >
+          <!-- Hero Cinematic Still Backdrop -->
+          <div
+            class="absolute inset-0 bg-cover bg-center"
+            data-alt="A grand cinematic 4K still from a vast science fiction desert planet with twin radiant moons in the twilight sky. Epic towering sand dunes sweep across the wide panoramic vista with subtle blue and emerald atmospheric glows reflecting along the ridgelines and the silhouette of a desert traveler cloaked against the celestial horizon."
+            style="
+              background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAx1VdRUWkvfH1UMCgxDHH98_rhFcyp7BsyHzjIlnsYATgh23YzaWcy8FIHxUa6EoZUYKn4dL5_kF_zyERXDg_XQDSL3ddXtK6UdHecg4Yz6HIpH397fV8gdN1MPr2Bae0GRDiFgPU_yJLMXHG69-IedxSqsunMcwPFc2jaPj-XJ3Tdr_7P8mzbBqUG5sMaTfR3pkjDfEoDtvYj_3cM3M7vE1DeiZsZzYrdUBjIksV_dKGaqrgqXagavbwBFXoXMX97bpporp5LZ5qw');
+            "
+          >
+            <!-- Multi-gradient scrim for pristine legibility -->
+            <div
+              class="from-surface-container-lowest via-surface-container-lowest/80 absolute inset-0 bg-gradient-to-r to-transparent"
+            ></div>
+            <div
+              class="from-surface-container-lowest to-surface-container-lowest/40 absolute inset-0 bg-gradient-to-t via-transparent"
+            ></div>
+            <div
+              class="via-surface-container-lowest/40 to-surface-container-lowest/90 absolute inset-0 bg-radial from-transparent"
+            ></div>
+          </div>
+          <!-- Hero Content Overlay (Left-Aligned Editorial) -->
+          <div
+            class="relative z-10 flex h-full max-w-3xl flex-col justify-end p-8 md:p-14 lg:p-16"
+          >
+            <!-- Overline & Selection Badge -->
+            <div class="mb-3 flex items-center gap-3">
+              <span
+                class="bg-primary-container/15 border-primary-container/30 text-overline-tracked font-overline-tracked rounded-full border px-2.5 py-0.5 text-primary"
+                >SÉLECTION OFFICIELLE • 4K REMUX</span
+              >
+              <span
+                class="bg-surface-bright/50 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.08] px-2 py-0.5 backdrop-blur-md"
+                >HEVC 84 Mb/s</span
+              >
+            </div>
+            <!-- Hero Headline -->
+            <h1
+              class="text-display-hero font-display-hero text-on-surface mb-3 tracking-tight"
+            >
+              DUNE : DEUXIÈME PARTIE
+            </h1>
+            <!-- Critic Scores & Technical Specification Badges -->
+            <div class="mb-4 flex flex-wrap items-center gap-2.5">
+              <!-- TMDB Pill -->
+              <div
+                class="bg-surface-container-high/80 text-badge-tech font-badge-tech flex items-center gap-1.5 rounded-full border border-white/[0.08] px-2.5 py-1 backdrop-blur-md"
+              >
+                <span
+                  class="material-symbols-outlined text-sm text-secondary"
+                  style="font-variation-settings: 'FILL' 1"
+                  >star</span
+                >
+                <span class="text-on-surface"
+                  >TMDB <span class="font-bold text-secondary">8.6</span></span
+                >
+              </div>
+              <!-- RT Pill -->
+              <div
+                class="bg-surface-container-high/80 text-badge-tech font-badge-tech flex items-center gap-1.5 rounded-full border border-white/[0.08] px-2.5 py-1 backdrop-blur-md"
+              >
+                <span
+                  class="material-symbols-outlined text-primary-container text-sm"
+                  style="font-variation-settings: 'FILL' 1"
+                  >verified</span
+                >
+                <span class="text-on-surface"
+                  >RT <span class="font-bold text-primary">94%</span></span
+                >
+              </div>
+              <!-- Separation dot -->
+              <span class="text-outline-variant">•</span>
+              <!-- Tech Badges -->
+              <span
+                class="bg-surface-container-highest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.12] px-2 py-0.5"
+                >4K UHD</span
+              >
+              <span
+                class="bg-surface-container-highest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.12] px-2 py-0.5"
+                >HDR10+</span
+              >
+              <span
+                class="bg-surface-container-highest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.12] px-2 py-0.5"
+                >Dolby Atmos</span
+              >
+              <span
+                class="bg-surface-container-highest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.12] px-2 py-0.5"
+                >IMAX Enhanced</span
+              >
+              <!-- Metadata line -->
+              <span class="text-outline-variant">•</span>
+              <span
+                class="text-body-sm font-body-sm text-on-surface-variant font-medium"
+                >2024 • 16+ • 2h 46min • Science-Fiction, Aventure</span
+              >
+            </div>
+            <!-- Synopsis Text -->
+            <p
+              class="text-body-md font-body-md text-on-surface-variant mb-7 line-clamp-3 max-w-2xl leading-relaxed"
+            >
+              Paul Atréides s'unit à Chani et aux Fremen tout en préparant sa
+              revanche contre les conspirateurs qui ont détruit sa famille,
+              confronté à un choix entre l'amour de sa vie et le destin de
+              l'univers.
+            </p>
+            <!-- CTAs Cluster -->
+            <div class="flex flex-wrap items-center gap-4">
+              <!-- Primary Bouton de lecture -->
+              <button
+                class="aurora-button text-surface-container-lowest font-label-btn text-label-btn flex items-center gap-2.5 rounded-full px-6 py-3 font-bold transition-all hover:scale-[1.02] active:scale-95"
+              >
+                <span
+                  class="material-symbols-outlined text-surface-container-lowest text-lg"
+                  style="font-variation-settings: 'FILL' 1"
+                  >play_arrow</span
+                >
+                <span>Lire le film</span>
+              </button>
+              <!-- Secondary Bouton Voir la fiche -->
+              <button
+                class="text-on-surface text-label-btn font-label-btn flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-5 py-3 backdrop-blur-md transition-all hover:bg-white/[0.14] active:scale-95"
+              >
+                <span class="material-symbols-outlined text-on-surface text-lg"
+                  >info</span
+                >
+                <span>Voir la fiche</span>
+              </button>
+              <!-- Tertiary Bookmark Button -->
+              <button
+                class="text-on-surface flex items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] p-3 backdrop-blur-md transition-all hover:bg-white/[0.1] hover:text-primary active:scale-95"
+                title="Ajouter à ma liste"
+              >
+                <span class="material-symbols-outlined text-lg">bookmark</span>
+              </button>
+            </div>
+          </div>
+          <!-- Understated Carousel Progress / Previews Selector -->
+          <div
+            class="bg-surface-container-lowest/80 absolute right-8 bottom-6 z-20 hidden items-center gap-3 rounded-full border border-white/[0.08] px-4 py-2 backdrop-blur-md lg:flex"
+          >
+            <span
+              class="text-badge-tech font-badge-tech text-outline mr-1 tracking-wider uppercase"
+              >À L'AFFICHE</span
+            >
+            <button
+              class="text-on-surface text-badge-tech font-badge-tech flex items-center gap-2 rounded-full border border-primary/40 bg-white/[0.1] px-3 py-1"
+            >
+              <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
+              <span>Dune 2</span>
+            </button>
+            <button
+              class="text-outline hover:text-on-surface text-badge-tech font-badge-tech rounded-full px-3 py-1 transition-colors"
+            >
+              Oppenheimer
+            </button>
+            <button
+              class="text-outline hover:text-on-surface text-badge-tech font-badge-tech rounded-full px-3 py-1 transition-colors"
+            >
+              Blade Runner 2049
+            </button>
+            <button
+              class="text-outline hover:text-on-surface text-badge-tech font-badge-tech rounded-full px-3 py-1 transition-colors"
+            >
+              Interstellar
+            </button>
+          </div>
+        </div>
+      </section>
+      <!-- SECTION: Reprendre la lecture (16:9 Aspect Ratio Scrub Cards) -->
+      <section class="w-full px-6 py-6 md:px-12">
+        <!-- Section Header -->
+        <div class="mb-5 flex items-end justify-between">
+          <div>
+            <span
+              class="text-overline-tracked font-overline-tracked mb-1 block tracking-[0.2em] text-primary"
+              >FLUX RÉCENTS</span
+            >
+            <h2
+              class="text-headline-lg font-headline-lg text-on-surface tracking-tight"
+            >
+              Reprendre la lecture
+            </h2>
+          </div>
+          <a
+            class="text-label-btn font-label-btn text-on-surface-variant group flex items-center gap-1.5 transition-colors hover:text-primary"
+            href="#"
+          >
+            <span>Voir tout l'historique</span>
+            <span
+              class="material-symbols-outlined text-base transition-transform group-hover:translate-x-1"
+              >arrow_forward</span
+            >
+          </a>
+        </div>
+        <!-- 16:9 Rail Grid -->
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <!-- Card 1: Blade Runner 2049 -->
+          <div
+            class="group bg-surface-container hover:border-primary-container/40 relative overflow-hidden rounded-xl border border-white/[0.05] shadow-xl transition-all duration-300 hover:scale-[1.02]"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-video w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                data-alt="A striking neon cyberpunk cinematic frame from a futuristic metropolis drenched in atmospheric golden fog and soft blue rain haze featuring high-contrast holographic architecture in pristine 4K resolution."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwgiAn5Wb9casigxy9oKyM6EDSHMNkPN8LddqXBjx0tSfi5o8QjcLGlVzXrpO07U3gi22lSW2CMF5R_i5FRRFafAy-2MUONK-EkGyKOhBvCTDhOeR6KT1533Gy7FekFFusDdZ12BeHhsScZI-Li3qTPVavHRVV77tlXUtFYZ8rbumrRzoZTld2qhhu__B-2NClvMKIVUn3G2WIW7dSCD9GfquWCACf1OmC6GiVy3yoYozT1Exvdq2wNlaJgUP67U38kcmgucDrgbNF"
+              />
+              <div
+                class="from-surface-container absolute inset-0 bg-gradient-to-t via-transparent to-transparent opacity-90"
+              ></div>
+              <!-- Quick hover play action -->
+              <div
+                class="bg-surface-container-lowest/40 absolute inset-0 flex items-center justify-center opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
+              >
+                <div
+                  class="text-surface-container-lowest flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform group-hover:scale-110"
+                >
+                  <span
+                    class="material-symbols-outlined text-xl"
+                    style="font-variation-settings: 'FILL' 1"
+                    >play_arrow</span
+                  >
+                </div>
+              </div>
+              <!-- Stream badge -->
+              <div
+                class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface absolute top-2.5 right-2.5 rounded border border-white/[0.1] px-2 py-0.5 backdrop-blur-md"
+              >
+                FR TrueHD Atmos
+              </div>
+              <!-- Scrub Progress Bar (68%) -->
+              <div class="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+                <div
+                  class="from-primary-container h-full w-[68%] bg-gradient-to-r to-secondary"
+                ></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-4">
+              <div>
+                <h3
+                  class="text-headline-sm font-headline-sm text-on-surface leading-tight"
+                >
+                  Blade Runner 2049
+                </h3>
+                <p class="text-body-sm font-body-sm text-outline mt-0.5">
+                  Reste 48 min • 4K HDR
+                </p>
+              </div>
+              <button
+                class="text-outline hover:text-on-surface rounded-full p-1.5 transition-colors hover:bg-white/[0.06]"
+                title="Plus d'options"
+              >
+                <span class="material-symbols-outlined text-sm">more_vert</span>
+              </button>
+            </div>
+          </div>
+          <!-- Card 2: Succession — S04 E03 -->
+          <div
+            class="group bg-surface-container hover:border-primary-container/40 relative overflow-hidden rounded-xl border border-white/[0.05] shadow-xl transition-all duration-300 hover:scale-[1.02]"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-video w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                data-alt="An atmospheric dramatic cinematic wide shot in a luxurious high-rise boardroom overlooking Manhattan at twilight with cool slate blue glass reflections and somber character silhouettes."
+                src=""
+              />
+              <div
+                class="from-surface-container absolute inset-0 bg-gradient-to-t via-transparent to-transparent opacity-90"
+              ></div>
+              <div
+                class="bg-surface-container-lowest/40 absolute inset-0 flex items-center justify-center opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
+              >
+                <div
+                  class="text-surface-container-lowest flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform group-hover:scale-110"
+                >
+                  <span
+                    class="material-symbols-outlined text-xl"
+                    style="font-variation-settings: 'FILL' 1"
+                    >play_arrow</span
+                  >
+                </div>
+              </div>
+              <div
+                class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface absolute top-2.5 right-2.5 rounded border border-white/[0.1] px-2 py-0.5 backdrop-blur-md"
+              >
+                4K Dolby Vision
+              </div>
+              <!-- Scrub Progress Bar (35%) -->
+              <div class="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+                <div
+                  class="from-primary-container h-full w-[35%] bg-gradient-to-r to-secondary"
+                ></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-4">
+              <div>
+                <h3
+                  class="text-headline-sm font-headline-sm text-on-surface leading-tight"
+                >
+                  Succession — S04 E03
+                </h3>
+                <p class="text-body-sm font-body-sm text-outline mt-0.5">
+                  Reste 38 min • HBO Master
+                </p>
+              </div>
+              <button
+                class="text-outline hover:text-on-surface rounded-full p-1.5 transition-colors hover:bg-white/[0.06]"
+                title="Plus d'options"
+              >
+                <span class="material-symbols-outlined text-sm">more_vert</span>
+              </button>
+            </div>
+          </div>
+          <!-- Card 3: Oppenheimer -->
+          <div
+            class="group bg-surface-container hover:border-primary-container/40 relative overflow-hidden rounded-xl border border-white/[0.05] shadow-xl transition-all duration-300 hover:scale-[1.02]"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-video w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                data-alt="An intense cinematic portrait of a 1940s physicist in a wide brim fedora under harsh dramatic chiaroscuro stage lighting with amber fire embers dissolving softly into deep black shadows."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsLN9HIJSaGYzMiAAntB9GB_yZFO6ya43NiEzTfwrrHcVP2Mp5HCIABS7OD7es9vgVxrPrb0ZZGi_rKUTIqJ8jxLrOzRhKTLCTzAHR6f4YwXg03pdbiY7ft0PqVIvTypKK4_2hl87Zu5Qki_shhPFdgNS8BdQVKXQKfTJsugI7zNnvjgQ_wdaoMYWVU9CtO72rQHnfKHHbAxCBRxR6775g49Ve3pWg1333DkYMowruHeuOJAOQh7XNxn6VtwFE1yTdm2rOPjBw7CqC"
+              />
+              <div
+                class="from-surface-container absolute inset-0 bg-gradient-to-t via-transparent to-transparent opacity-90"
+              ></div>
+              <div
+                class="bg-surface-container-lowest/40 absolute inset-0 flex items-center justify-center opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
+              >
+                <div
+                  class="text-surface-container-lowest flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform group-hover:scale-110"
+                >
+                  <span
+                    class="material-symbols-outlined text-xl"
+                    style="font-variation-settings: 'FILL' 1"
+                    >play_arrow</span
+                  >
+                </div>
+              </div>
+              <div
+                class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface absolute top-2.5 right-2.5 rounded border border-white/[0.1] px-2 py-0.5 backdrop-blur-md"
+              >
+                IMAX 4K 1.43:1
+              </div>
+              <!-- Scrub Progress Bar (85%) -->
+              <div class="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+                <div
+                  class="from-primary-container h-full w-[85%] bg-gradient-to-r to-secondary"
+                ></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-4">
+              <div>
+                <h3
+                  class="text-headline-sm font-headline-sm text-on-surface leading-tight"
+                >
+                  Oppenheimer
+                </h3>
+                <p class="text-body-sm font-body-sm text-outline mt-0.5">
+                  Reste 24 min • DTS-HD MA 5.1
+                </p>
+              </div>
+              <button
+                class="text-outline hover:text-on-surface rounded-full p-1.5 transition-colors hover:bg-white/[0.06]"
+                title="Plus d'options"
+              >
+                <span class="material-symbols-outlined text-sm">more_vert</span>
+              </button>
+            </div>
+          </div>
+          <!-- Card 4: The Last of Us — S01 E01 -->
+          <div
+            class="group bg-surface-container hover:border-primary-container/40 relative overflow-hidden rounded-xl border border-white/[0.05] shadow-xl transition-all duration-300 hover:scale-[1.02]"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-video w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                data-alt="A moody post-apocalyptic cinematic landscape with overgrown lush green vegetation over fractured urban asphalt illuminated by the soft twilight sky and distant storm clouds in 4K."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAOviD6Xbz2UXvdgufC7UQMo1C4OQupHpEYoS5NntXMTJSq2AIUuJV-AxDa2RabicIpl6PYWOSjA2KUbOCeLEQsBU1ih1bDDojdGEbPKZ2rGruzRkLpHhjnN6pOQ1GKB_KLQroSbCxpDK30EblPubcLkXiTwG-XDqlp_9a8iAlRjN4UIOj24CHsCqa5QLm0ImoGOZytIHPcWkb4WoHLyc2noV0jEwr0C0p9BbxCBtEBdKSuRc1kwPzsze4iQuDkY-f6irGKiqd8rPM"
+              />
+              <div
+                class="from-surface-container absolute inset-0 bg-gradient-to-t via-transparent to-transparent opacity-90"
+              ></div>
+              <div
+                class="bg-surface-container-lowest/40 absolute inset-0 flex items-center justify-center opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
+              >
+                <div
+                  class="text-surface-container-lowest flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-transform group-hover:scale-110"
+                >
+                  <span
+                    class="material-symbols-outlined text-xl"
+                    style="font-variation-settings: 'FILL' 1"
+                    >play_arrow</span
+                  >
+                </div>
+              </div>
+              <div
+                class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface absolute top-2.5 right-2.5 rounded border border-white/[0.1] px-2 py-0.5 backdrop-blur-md"
+              >
+                Dolby Vision Atmos
+              </div>
+              <!-- Scrub Progress Bar (15%) -->
+              <div class="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+                <div
+                  class="from-primary-container h-full w-[15%] bg-gradient-to-r to-secondary"
+                ></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-4">
+              <div>
+                <h3
+                  class="text-headline-sm font-headline-sm text-on-surface leading-tight"
+                >
+                  The Last of Us — S01 E01
+                </h3>
+                <p class="text-body-sm font-body-sm text-outline mt-0.5">
+                  Reste 1h 10 min • VOSTFR
+                </p>
+              </div>
+              <button
+                class="text-outline hover:text-on-surface rounded-full p-1.5 transition-colors hover:bg-white/[0.06]"
+                title="Plus d'options"
+              >
+                <span class="material-symbols-outlined text-sm">more_vert</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- SECTION: Catalogue Cinéma (2:3 Aspect Vertical Posters) -->
+      <section class="w-full px-6 py-8 md:px-12">
+        <!-- Filter & Sort Bar -->
+        <div
+          class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center"
+        >
+          <div>
+            <span
+              class="text-overline-tracked font-overline-tracked mb-1 block tracking-[0.2em] text-secondary"
+              >COLLECTION PRIVÉE</span
+            >
+            <h2
+              class="text-headline-lg font-headline-lg text-on-surface tracking-tight"
+            >
+              Catalogue des Films
+            </h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Filter Tabs -->
+            <div
+              class="bg-surface-container-high/60 border-outline-variant/30 text-label-btn font-label-btn flex items-center gap-1.5 rounded-full border p-1 backdrop-blur-md"
+            >
+              <button
+                class="bg-primary-container text-on-primary-container rounded-full px-4 py-1.5 font-semibold"
+              >
+                Tous les films
+              </button>
+              <button
+                class="text-on-surface-variant hover:text-on-surface rounded-full px-3.5 py-1.5 transition-colors"
+              >
+                Science-Fiction
+              </button>
+              <button
+                class="text-on-surface-variant hover:text-on-surface rounded-full px-3.5 py-1.5 transition-colors"
+              >
+                Thriller &amp; Policier
+              </button>
+              <button
+                class="text-on-surface-variant hover:text-on-surface rounded-full px-3.5 py-1.5 transition-colors"
+              >
+                Drame
+              </button>
+              <button
+                class="text-on-surface-variant hover:text-on-surface rounded-full px-3.5 py-1.5 transition-colors"
+              >
+                Animation
+              </button>
+            </div>
+            <!-- Sort Dropdown -->
+            <div
+              class="bg-surface-container-high/60 border-outline-variant/30 text-body-sm font-body-sm text-on-surface hover:border-outline flex cursor-pointer items-center gap-2 rounded-full border px-3.5 py-2 backdrop-blur-md transition-colors"
+            >
+              <span class="material-symbols-outlined text-outline text-base"
+                >swap_vert</span
+              >
+              <span>Mieux notés (IMDb 8+)</span>
+              <span class="material-symbols-outlined text-outline text-base"
+                >expand_more</span
+              >
+            </div>
+          </div>
+        </div>
+        <!-- 2:3 Catalog Grid (6 Items) -->
+        <div
+          class="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+        >
+          <!-- Poster 1: Challengers -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="A dramatic cinematic film poster of an intense tennis court rivalry featuring sun-drenched golden hour lighting, bold primary color sports clothing, and dramatic perspective shadows."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1mGTQbop-EjqXt7ZD2_QfUvN8MfU7IkmKvY0vyl1qLvMBut35w363jYh7PWw-VDA27VRtBRbiqjVFvbPsHn0guWCJ7tWA_855EIKmSf2hknAd4nghq4vxFoB5h72YA2A0O6Hh7vzG6MOKJHU8q645uA_qhLrRvqBjI8P_f_DZUxa7Y1sLyX_wapGaX5miJfDyIZRO0pP3tp7FJa54RuAvMHuto0MDQKkXmn1ic3sdsX-RKbL0hnFGkzjEQzuUofJ1qI3jtyFARSig"
+              />
+              <!-- Tech Badges Anchored Top-Right -->
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K HDR</span
+                >
+                <span
+                  class="bg-secondary-container/90 text-badge-tech font-badge-tech text-on-secondary-container rounded px-1.5 py-0.5"
+                  >Longue</span
+                >
+              </div>
+              <!-- Watched Checkmark indicator -->
+              <div
+                class="bg-surface-container-lowest/80 absolute top-2.5 left-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-primary/40 text-primary backdrop-blur-md"
+                title="Vu"
+              >
+                <span
+                  class="material-symbols-outlined text-sm"
+                  style="font-variation-settings: 'FILL' 1"
+                  >check</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  Luca Guadagnino
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Challengers
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 7.7 • RT 88%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR / VO DTS-HD</span
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Poster 2: Furiosa: Une saga Mad Max -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="A high-contrast cinematic movie poster set in a rust-orange post-apocalyptic desert wasteland with armored custom vehicles roaring through plumes of black smoke under an emerald-tinted sun."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdi50YxqTp4EzTYcxOt_2NiNwZYTgqjSy28kjka_j-CU-8ubG0v8Bt-gFDHmtVGXjlmNu5AKd3g6RwsMK241TawHa4OpAgCDxZygxfMgVGa2wyoit3PANdntmElycqJzoqbKyR1g3eERXzep4g_5-Tf8jk2EDMeizZPvf7IcOy1V-VRMcDA0Sjq0Pi8tq5WC6vai43jDJLlfKKjny2MykjLnLQPXmBkZ2YqLi1DomzhhCEZleMNpFe3mFyaMw0Js4AGXb4xrUYJpmz"
+              />
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K Atmos</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  George Miller
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Furiosa
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 8.1 • RT 90%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR / VO Atmos</span
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Poster 3: Anatomie d'une chute -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="An austere, award-winning cinematic French film poster featuring a snow-covered alpine wooden chalet in deep winter with cold slate blue and pure white snow gradients and a lone figure in the doorway."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4cg5NMEXrmzryLd5w6YgYcxS3RoegbJtwt_xsKcuB5RcwqbPWpyxBkpJpUBWZmBuNUayj3BfNGSAyawftSI7bsd6gIwg-XlitUbF4LxlSvhG4WA5ks2ayx4_zbKuk7-zYsVCDOWtNMhFnZiujaBmOkVQCDca1Oh_cn-IfJJZR_gMDhURqEdNBODMyoSJODUKRBykL2xk2pXVmKVczqKBAa_QoOH8bpsoYaHAuH2BtC-6zjNk5RBiZxiRke6f5_0KEeq6NhBZCD8H6"
+              />
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K UHD</span
+                >
+                <span
+                  class="bg-primary-container text-badge-tech font-badge-tech text-on-primary-container rounded px-1.5 py-0.5"
+                  >Palme d'Or</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  Justine Triet
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Anatomie d'une chute
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 7.9 • RT 96%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR 5.1 Master</span
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Poster 4: Spider-Man: Across the Spider-Verse -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="An electrifying stylized cinematic poster depicting a falling superhero through dynamic kaleidoscopic dimensions with electric cyan, vivid magenta, and midnight blue comic book halftone textures."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuA82YKyH_qMUB6zlNYD-D2bL2tvh31-0zPYLS3I0ubI1gamNW8iEgHNr_F7OzD_pLBokV-huDxjZxHeThUX2gtS7RULDD_d6DrWmrAtKvhCn_FuGN9lZyR-rRYbngWpneS2tDna92yJyeU-KDjL-lDiGL1ORrRdlNE68RP9AKt5yxG0bZx3Rjs-DDxUoz_EAAy9h1v3g_fhc6GCR07VJbzReA1jPuLk4qnucFJh31xCHpMdDLEqIXNkJHnJIL7xOHT4O2KGGMd0NpV7"
+              />
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K HDR</span
+                >
+              </div>
+              <div
+                class="bg-surface-container-lowest/80 absolute top-2.5 left-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-primary/40 text-primary backdrop-blur-md"
+                title="Vu"
+              >
+                <span
+                  class="material-symbols-outlined text-sm"
+                  style="font-variation-settings: 'FILL' 1"
+                  >check</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  Sony Animation
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Across the Spider-Verse
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 8.7 • RT 95%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR / VO Atmos</span
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Poster 5: Civil War -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="A grim, hyper-realistic cinematic poster of a dystopian urban landscape with smoke rising behind the Statue of Liberty under a desaturated overcast sky with intense war photojournalism aesthetics."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQDXApsM3nJIUg_erS7Lw5YlZuIhqpLhP593AOF3r_PGLvYv11oXB0Z2O_z5FEVsjc5i8HeiF8DHXcA9ZwHEcC32j7zDO8K3ziTaJEeMEgwhWyJwioetEWgxcbe2RDMPrw1nM6tTwXTUtLEO7fV_GexBUl3mhO1DWAn2MYUsAUU9NEP0k3cDSAiaRALf_kOhYjqGSpNfBUU-pTEyacRvJGKL72dmQKlGObupRihj98oIKW11c4f_jfRltD_7OAdlBcds5UCMaHzWK_"
+              />
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K Remux</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  Alex Garland • A24
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Civil War
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 7.4 • RT 81%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR / VO 7.1</span
+                >
+              </div>
+            </div>
+          </div>
+          <!-- Poster 6: Poor Things -->
+          <div
+            class="poster-card group bg-surface-container relative cursor-pointer overflow-hidden rounded-xl border border-white/[0.05] transition-all duration-300"
+          >
+            <div
+              class="bg-surface-container-high relative aspect-[2/3] w-full overflow-hidden"
+            >
+              <img
+                class="h-full w-full object-cover"
+                data-alt="A lavish surreal Victorian steampunk cinematic poster with rich cobalt blue and emerald green hues, decadent velvet fabrics, and ornate architectural motifs in high artistic dynamic range."
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjlCETCT5_J4af4PX0Q66inPM4sKA-KSR9gbhHuECewDUJis3IQ_uLyQ4bBVPHgDhV3GUDL2WmMMdT-2Zjd3MiHmfC12OqS07_5kbHIvhMnCRXR-M71YVyTjWGAF1X8GxmvEzTsBBU6HMkUwAkCgh7RBer2-iiZFYK2DhCRyeSKDjsldq6zmdJP31-0ePsEbVmEfWT4htWfDHmvyFNyDZHN76CkOc5mTUGPXqXgUMJ5wlXIMdcOsVpEfJoDZnjifdTPKTrRYDV3mT7"
+              />
+              <div
+                class="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5"
+              >
+                <span
+                  class="bg-surface-container-lowest/90 text-badge-tech font-badge-tech text-on-surface rounded border border-white/[0.15] px-2 py-0.5 shadow-md backdrop-blur-md"
+                  >4K HDR10+</span
+                >
+              </div>
+              <!-- Hover Slide Action Overlay -->
+              <div
+                class="poster-overlay from-surface-container-lowest via-surface-container-lowest/70 absolute inset-0 flex translate-y-2 flex-col justify-end bg-gradient-to-t to-transparent p-4 opacity-0 transition-all duration-200"
+              >
+                <div class="mb-2 flex items-center gap-2">
+                  <button
+                    class="text-surface-container-lowest rounded-full bg-white p-2 transition-transform hover:scale-110"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base"
+                      style="font-variation-settings: 'FILL' 1"
+                      >play_arrow</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Ajouter aux favoris"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >favorite</span
+                    >
+                  </button>
+                  <button
+                    class="rounded-full bg-white/[0.1] p-2 text-white transition-colors hover:bg-white/[0.2] hover:text-primary"
+                    title="Marquer comme vu"
+                  >
+                    <span class="material-symbols-outlined text-base"
+                      >check</span
+                    >
+                  </button>
+                </div>
+                <p
+                  class="text-badge-tech font-badge-tech text-primary uppercase"
+                >
+                  Yorgos Lanthimos
+                </p>
+              </div>
+            </div>
+            <div class="p-3">
+              <h4
+                class="text-headline-sm font-headline-sm text-on-surface truncate"
+              >
+                Pauvres Créatures
+              </h4>
+              <div
+                class="text-badge-tech font-badge-tech text-outline mt-1 flex items-center justify-between"
+              >
+                <span class="font-semibold text-secondary"
+                  >TMDB 8.0 • RT 92%</span
+                >
+                <span
+                  class="bg-surface-bright/40 text-on-surface-variant rounded px-1.5 py-0.5"
+                  >FR / VO Atmos</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- TECHNICAL SPECIFICATION / SERVER HEALTH RAIL -->
+      <section class="w-full px-6 py-6 md:px-12">
+        <div
+          class="bg-surface-container/60 flex flex-col items-start justify-between gap-6 rounded-2xl border border-white/[0.06] p-6 backdrop-blur-md lg:flex-row lg:items-center"
+        >
+          <div class="flex items-center gap-4">
+            <div
+              class="bg-surface-container-highest text-primary-container flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.08]"
+            >
+              <span class="material-symbols-outlined text-2xl">dns</span>
+            </div>
+            <div>
+              <h4 class="text-headline-sm font-headline-sm text-on-surface">
+                Transcodage &amp; Moteur Matériel HollyCore™ 3.0
+              </h4>
+              <p class="text-body-sm font-body-sm text-on-surface-variant">
+                Flux direct 4K HDR sans compression. Codecs natifs pris en
+                charge sans perte de dynamique sonore.
+              </p>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="bg-surface-container-lowest/80 text-badge-tech font-badge-tech text-on-surface rounded-full border border-white/[0.08] px-3 py-1"
+              >HEVC Main10</span
+            >
+            <span
+              class="bg-surface-container-lowest/80 text-badge-tech font-badge-tech text-on-surface rounded-full border border-white/[0.08] px-3 py-1"
+              >AV1 Passthrough</span
+            >
+            <span
+              class="bg-surface-container-lowest/80 text-badge-tech font-badge-tech text-on-surface rounded-full border border-white/[0.08] px-3 py-1"
+              >Dolby Vision Profile 7/8</span
+            >
+            <span
+              class="bg-surface-container-lowest/80 text-badge-tech font-badge-tech text-on-surface rounded-full border border-white/[0.08] px-3 py-1"
+              >DTS:X &amp; Atmos</span
+            >
+            <span
+              class="bg-primary-container/20 text-badge-tech font-badge-tech border-primary-container/40 rounded-full border px-3 py-1 text-primary"
+              >10 Gbps symétrique</span
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- SHARED COMPONENT: Footer -->
+    <footer
+      class="bg-surface-container-lowest dark:bg-surface-container-lowest border-outline-variant/20 docked full-width bottom mt-20 border-t"
+    >
+      <div
+        class="mx-auto flex w-full max-w-[1920px] flex-col items-center justify-between gap-6 px-6 py-10 md:flex-row md:px-12"
+      >
+        <!-- Brand & Copyright -->
+        <div
+          class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left"
+        >
+          <span
+            class="text-headline-sm font-headline-sm text-on-surface dark:text-on-surface font-bold"
+            >HollyFilms 3.0</span
+          >
+          <span class="text-outline-variant hidden md:inline">•</span>
+          <p
+            class="text-body-sm font-body-sm text-on-surface-variant dark:text-on-surface-variant"
+          >
+            © 2025 HollyFilms 3.0 • Plateforme de streaming privé haute
+            fidélité. Tous droits réservés.
+          </p>
+        </div>
+        <!-- Footer Links -->
+        <ul
+          class="text-body-sm font-body-sm flex flex-wrap items-center justify-center gap-6"
+        >
+          <li>
+            <a
+              class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors hover:text-primary dark:hover:text-primary"
+              href="#"
+              >Statut Serveur</a
+            >
+          </li>
+          <li>
+            <a
+              class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors hover:text-primary dark:hover:text-primary"
+              href="#"
+              >Conditions d'accès</a
+            >
+          </li>
+          <li>
+            <a
+              class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors hover:text-primary dark:hover:text-primary"
+              href="#"
+              >Documentation Audio/Vidéo</a
+            >
+          </li>
+          <li>
+            <a
+              class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors hover:text-primary dark:hover:text-primary"
+              href="#"
+              >Paramètres Flux</a
+            >
+          </li>
+          <li>
+            <a
+              class="text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface transition-colors hover:text-primary dark:hover:text-primary"
+              href="#"
+              >Assistance</a
+            >
+          </li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>

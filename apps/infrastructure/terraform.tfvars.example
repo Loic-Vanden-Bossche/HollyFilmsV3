@@ -1,0 +1,26 @@
+# Copier vers terraform.tfvars (ignoré), puis remplacer les valeurs.
+kubeconfig_path = "~/.kube/config"
+# kubeconfig_context = "nom-du-contexte-chbrx"
+namespace_name = "hollyfilms-v3"
+hostname = "hollyfilms-v3.chbrx.com"
+jellyfin_url = "https://hollyfilms.chbrx.com"
+
+# Le script deploy fournit automatiquement les images par digest après push.
+# Renseigner ces valeurs uniquement pour un plan/apply manuel.
+# api_image = "ghcr.io/loic-vanden-bossche/hollyfilms-v3-api:v1.0.0"
+# web_image = "ghcr.io/loic-vanden-bossche/hollyfilms-v3-web:v1.0.0"
+
+database_password = ""
+jellyfin_api_key = ""
+tmdb_api_token = ""
+
+# Garder exactement la clé existante en cas de reprise d'une base SSO !
+# google = {
+#   client_id = "...apps.googleusercontent.com"
+#   client_secret = "..."
+#   password_key = "...32 octets en base64..."
+# }
+# ghcr_credentials = {
+#   username = "Loic-Vanden-Bossche"
+#   token = "...jeton read:packages..."
+# }

@@ -2,11 +2,27 @@
 .tilted-card {
   position: relative;
   width: 100%;
+  perspective: none;
+  transition: perspective 0s 0.5s;
+}
+.tilted-card[data-active='true'] {
+  perspective: 850px;
+  transition: none;
+}
+.tilted-card[data-active='false']
+  :is(
+    .tilted-card__halo,
+    .tilted-card__glare,
+    .tilted-card__edge,
+    .rb-glare-clip
+  ) {
+  visibility: hidden;
+  transition: visibility 0s 0.5s;
 }
 .tilted-card__body {
   position: relative;
   border-radius: 9px;
-  transform-style: preserve-3d;
+  transform-style: flat;
 }
 .tilted-card__halo {
   position: absolute;
@@ -26,10 +42,18 @@
 .tilted-card__glare {
   z-index: 2;
   mix-blend-mode: screen;
+  overflow: hidden;
 }
 .tilted-card__edge {
   z-index: 4;
   padding: 1px;
+  background: linear-gradient(
+    135deg,
+    #b0f5e8,
+    #4ade8080 30%,
+    #3b82f650 60%,
+    transparent
+  );
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
@@ -40,4 +64,15 @@
   .tilted-card__edge {
     display: none;
   }
+}
+
+.tilted-card__light {
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(
+    ellipse,
+    #b0f5e83d,
+    #7dded80a 42%,
+    transparent 70%
+  );
 }

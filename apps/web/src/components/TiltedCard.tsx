@@ -6,12 +6,12 @@ import {
   useMotionTemplate,
   useSpring,
   useTransform,
-  useReducedMotion,
-  type MotionStyle,
 } from 'motion/react'
+import { GlareHover } from './reactbits/Effects.tsx'
+import { cinemaMotion, useMotionPolicy } from './reactbits/policy.ts'
 import './TiltedCard.css'
 
-const spring = { stiffness: 190, damping: 25, mass: 0.65 }
+const { spring, depth } = cinemaMotion
 const clamp = (value: number) => Math.min(1, Math.max(-1, value))
 
 export default function TiltedCard({
@@ -19,13 +19,20 @@ export default function TiltedCard({
   active = false,
   disabled: disabledProp = false,
   trackingRef,
+  hoverScale = depth.scale,
+  tiltStrength = 1,
+  hoverLift = depth.lift,
 }: {
   children: ReactNode
+  hoverLift?: number
+  tiltStrength?: number
+  hoverScale?: number
   active?: boolean
   disabled?: boolean
   trackingRef?: RefObject<HTMLElement | null>
 }) {
-  const disabled = Boolean(useReducedMotion()) || disabledProp
+  const { running, fine } = useMotionPolicy()
+  const disabled = disabledProp || !running || !fine
   const root = useRef<HTMLDivElement>(null)
   const x = useSpring(0, spring)
   const y = useSpring(0, spring)
@@ -34,60 +41,114 @@ export default function TiltedCard({
   useEffect(() => {
     lift.set(active && !disabled ? 1 : 0)
   }, [active, disabled, lift])
-  const rotateX = useTransform(y, [-1, 1], [6, -6])
-  const rotateY = useTransform(x, [-1, 1], [-7, 7])
-  const lightX = useTransform(x, [-1, 1], [0, 100])
-  const lightY = useTransform(y, [-1, 1], [0, 100])
+  const rotateX = useTransform(
+    y,
+    [-1, 1],
+    [depth.tiltX * tiltStrength, -depth.tiltX * tiltStrength],
+  )
+  const rotateY = useTransform(
+    x,
+    [-1, 1],
+    [-depth.tiltY * tiltStrength, depth.tiltY * tiltStrength],
+  )
+  const lightX = useTransform(x, [-1, 1], [-25, 25])
+  const lightY = useTransform(y, [-1, 1], [-25, 25])
   const imageX = useTransform(x, [-1, 1], [5, -5])
   const imageY = useTransform(y, [-1, 1], [5, -5])
-  const reflection = useMotionTemplate`radial-gradient(ellipse at ${lightX}% ${lightY}%, #b0f5e83d, #7dded80a 42%, transparent 70%)`
-  const edge = useMotionTemplate`radial-gradient(ellipse at ${lightX}% ${lightY}%, #b0f5e8, #4ade8080 30%, #3b82f650 60%, transparent)`
+  const reflection = useMotionTemplate`translate3d(${lightX}%, ${lightY}%, 0)`
   const parallax = useMotionTemplate`translate3d(${imageX}px, ${imageY}px, 0) scale(${zoom})`
+
+  useEffect(() => {
+    const artwork = root.current?.querySelector<HTMLElement>(
+      '.media-card-artwork',
+    )
+    if (!artwork) return
+    const update = (value: string) => {
+      artwork.style.transform =
+        disabled ||
+        (Math.abs(x.get()) < 0.001 &&
+          Math.abs(y.get()) < 0.001 &&
+          lift.get() < 0.001)
+          ? 'none'
+          : value
+    }
+    update(parallax.get())
+    return parallax.on('change', update)
+  }, [disabled, parallax, x, y, lift])
 
   useEffect(() => {
     const area = trackingRef?.current ?? root.current
     if (!area || disabled || !active) {
-      x.set(0)
-      y.set(0)
+      if (disabled) {
+        x.jump(0)
+        y.jump(0)
+      } else {
+        x.set(0)
+        y.set(0)
+      }
       return
     }
-    // Measure the stationary hit area, never the transformed poster.
+    let bounds: DOMRect | undefined
+    let pending = 0
+    let pointerX = 0,
+      pointerY = 0
+    const invalidate = () => {
+      bounds = undefined
+    }
     const move = (event: PointerEvent) => {
       if (event.pointerType !== 'mouse') return
-      const rect = area.getBoundingClientRect()
-      const image = root.current?.getBoundingClientRect()
-      x.set(
-        clamp(
-          ((event.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 2,
-        ),
-      )
-      y.set(
-        clamp(
-          ((event.clientY - rect.top) /
-            Math.max(1, image?.height ?? rect.height) -
-            0.5) *
-            2,
-        ),
-      )
+      pointerX = event.clientX
+      pointerY = event.clientY
+      if (pending) return
+      pending = requestAnimationFrame(() => {
+        pending = 0
+        // Read the stationary area once per entry/resize/scroll, not the
+        // transformed card on every pointer event. Coalesce high-rate mice.
+        bounds ??= area.getBoundingClientRect()
+        x.set(
+          clamp(
+            ((pointerX - bounds.left) / Math.max(1, bounds.width) - 0.5) * 2,
+          ),
+        )
+        y.set(
+          clamp(
+            ((pointerY - bounds.top) / Math.max(1, bounds.height) - 0.5) * 2,
+          ),
+        )
+      })
     }
     const reset = () => {
+      cancelAnimationFrame(pending)
+      pending = 0
+      invalidate()
       x.set(0)
       y.set(0)
     }
+    const resize = new ResizeObserver(invalidate)
+    resize.observe(area)
     area.addEventListener('pointermove', move, { passive: true })
     area.addEventListener('pointerleave', reset)
     area.addEventListener('pointercancel', reset)
+    window.addEventListener('scroll', invalidate, {
+      passive: true,
+      capture: true,
+    })
+    window.addEventListener('resize', invalidate)
     window.addEventListener('blur', reset)
     return () => {
+      cancelAnimationFrame(pending)
+      resize.disconnect()
       area.removeEventListener('pointermove', move)
       area.removeEventListener('pointerleave', reset)
       area.removeEventListener('pointercancel', reset)
+      window.removeEventListener('scroll', invalidate, true)
+      window.removeEventListener('resize', invalidate)
       window.removeEventListener('blur', reset)
     }
   }, [active, disabled, trackingRef, x, y])
 
   return (
-    <div ref={root} className="tilted-card">
+    <div ref={root} className="tilted-card" data-active={active && !disabled}>
       <motion.div
         className="tilted-card__halo"
         aria-hidden="true"
@@ -100,34 +161,34 @@ export default function TiltedCard({
       />
       <motion.div
         className="tilted-card__body"
-        style={
-          {
-            rotateX: disabled ? 0 : rotateX,
-            rotateY: disabled ? 0 : rotateY,
-            transformPerspective: 850,
-            '--card-parallax': disabled ? 'none' : parallax,
-          } as MotionStyle
-        }
+        style={{
+          rotateX: disabled ? 0 : rotateX,
+          rotateY: disabled ? 0 : rotateY,
+        }}
         initial={false}
         animate={{
-          y: active && !disabled ? -5 : 0,
-          scale: active && !disabled ? 1.025 : 1,
+          y: active && !disabled ? -hoverLift : 0,
+          scale: active && !disabled ? hoverScale : 1,
         }}
         transition={{ type: 'spring', stiffness: 240, damping: 26 }}
       >
         {children}
+        <GlareHover active={active && !disabled} />
         <motion.span
           className="tilted-card__glare"
           aria-hidden="true"
-          style={{ background: reflection }}
           initial={false}
           animate={{ opacity: active ? 1 : 0 }}
           transition={{ duration: 0.3 }}
-        />
+        >
+          <motion.span
+            className="tilted-card__light"
+            style={{ transform: reflection }}
+          />
+        </motion.span>
         <motion.span
           className="tilted-card__edge"
           aria-hidden="true"
-          style={{ background: edge }}
           initial={false}
           animate={{ opacity: active ? 0.85 : 0 }}
           transition={{ duration: 0.35 }}

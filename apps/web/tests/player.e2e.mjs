@@ -368,6 +368,12 @@ test(
         'no opening splash',
       )
       assert.equal(await playerView.locator('iframe').count(), 0)
+      const preparation = playerView.getByRole('progressbar', {
+        name: 'Préparation de la lecture',
+      })
+      await preparation.waitFor()
+      assert.equal(await preparation.getAttribute('aria-valuenow'), '25')
+      assert.equal(await playerView.locator('.player-spinner').count(), 0)
       await until(
         () =>
           playerView
@@ -383,6 +389,9 @@ test(
     await page
       .locator('.player-viewport[data-state="playing"]')
       .waitFor({ timeout: 30_000 })
+    await playerView
+      .getByRole('progressbar', { name: 'Préparation de la lecture' })
+      .waitFor({ state: 'detached', timeout: 2000 })
     t.diagnostic(
       'Direct playback after releasing the negotiation request: ' +
         Math.round(performance.now() - negotiationReleasedAt) +
@@ -444,6 +453,118 @@ test(
     await page.waitForFunction(() => !document.fullscreenElement)
     await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     assert(await playerView.locator('video').evaluate((video) => video.paused))
+    // The elastic decoration must preserve native range keys and actual video volume.
+    const volume = playerView.getByRole('slider', {
+      name: 'Volume',
+      exact: true,
+    })
+    await volume.focus()
+    await page.keyboard.press('Home')
+    await until(
+      () => playerView.locator('video').evaluate((video) => video.volume === 0),
+      'keyboard volume minimum',
+    )
+    await until(
+      async () => (await volume.getAttribute('aria-valuetext')) === '0 %',
+      'keyboard volume minimum committed',
+    )
+    await page.keyboard.press('ArrowRight')
+    await until(
+      () =>
+        playerView
+          .locator('video')
+          .evaluate((video) => Math.abs(video.volume - 0.01) < 0.001),
+      'keyboard volume step',
+    )
+    // The media element updates before React commits the accessible label.
+    await until(
+      async () => (await volume.getAttribute('aria-valuetext')) === '1 %',
+      'keyboard volume accessible value',
+    )
+    await page.keyboard.press('End')
+    await until(
+      () => playerView.locator('video').evaluate((video) => video.volume === 1),
+      'keyboard volume maximum',
+    )
+    assert.equal(
+      await page.locator('.catalogue-backdrop canvas').count(),
+      0,
+      'decorative shader is unmounted during playback',
+    )
+    // Hold media acknowledgements: the timeline must respond before loading
+    // finishes, and rapid steps must accumulate from the requested position.
+    stage = 'optimistic timeline while media events are delayed'
+    await playerView.locator('video').evaluate((video) => {
+      const events = ['timeupdate', 'seeking', 'seeked', 'progress']
+      const hold = (event) => event.stopImmediatePropagation()
+      for (const event of events) video.addEventListener(event, hold, true)
+      window.releaseTimelineEvents = () => {
+        for (const event of events) video.removeEventListener(event, hold, true)
+        video.dispatchEvent(new Event('seeked'))
+      }
+    })
+    try {
+      await timeline.focus()
+      await page.keyboard.press('Home')
+      await until(
+        async () => (await timeline.inputValue()) === '0',
+        'immediate seek to start',
+        2000,
+      )
+      await playerView
+        .getByRole('button', { name: 'Avancer de 30 secondes' })
+        .click()
+      await until(
+        async () => Number(await timeline.inputValue()) === 30,
+        'first immediate skip',
+        2000,
+      )
+      await playerView
+        .getByRole('button', { name: 'Avancer de 30 secondes' })
+        .click()
+      await until(
+        async () => Number(await timeline.inputValue()) === 60,
+        'accumulated skip',
+        2000,
+      )
+      await playerView
+        .getByRole('button', { name: 'Reculer de 10 secondes' })
+        .click()
+      await until(
+        async () => Number(await timeline.inputValue()) === 50,
+        'immediate backward skip',
+        2000,
+      )
+      const bounds = await timeline.boundingBox()
+      await timeline.click({
+        position: { x: bounds.width * 0.7, y: bounds.height / 2 },
+      })
+      await until(
+        async () => {
+          const selected = Number(await timeline.inputValue())
+          const duration = Number(await timeline.getAttribute('max'))
+          return Math.abs(selected / duration - 0.7) < 0.02
+        },
+        'immediate pointer seek',
+        2000,
+      )
+      await until(
+        () =>
+          playerView.locator('.player-elapsed').evaluate((bar) => {
+            const progress = new DOMMatrixReadOnly(
+              getComputedStyle(bar).transform,
+            ).a
+            return progress > 0.68 && progress < 0.72
+          }),
+        'animated progress settles before media acknowledgement',
+        2000,
+      )
+    } finally {
+      await page.evaluate(() => {
+        window.releaseTimelineEvents()
+        delete window.releaseTimelineEvents
+      })
+    }
     // Verify a seek through the player's keyboard shortcuts.
     await playerView.locator('video').focus()
     await page.keyboard.press('l')
