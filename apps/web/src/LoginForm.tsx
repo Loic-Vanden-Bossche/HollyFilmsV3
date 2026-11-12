@@ -1,0 +1,481 @@
+import { useEffect, useId, useRef, useState } from 'react'
+import type { SubmitEvent } from 'react'
+import {
+  AnimatePresence,
+  LayoutGroup,
+  motion,
+  useReducedMotion,
+} from 'motion/react'
+import {
+  ArrowRight,
+  Check,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
+import type { AuthOptions } from '@hollyfilms/shared/accounts'
+import { registerAccount } from './account-api.ts'
+import { TextInput } from './ui/TextInput.tsx'
+import { Wordmark } from './ui/Wordmark.tsx'
+import googleLogo from './assets/logos/google-gradient.png'
+import './auth.css'
+
+type LoginFormProps = {
+  initialMode?: 'login' | 'register'
+  notice?: string
+  options?: AuthOptions
+  animationsPaused?: boolean
+  onSignIn: (username: string, password: string) => Promise<void>
+}
+
+export function LoginForm({
+  notice,
+  options,
+  onSignIn,
+  initialMode = 'login',
+  animationsPaused = false,
+}: LoginFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const submitting = useRef(false)
+  const [error, setError] = useState<string>()
+  const [registering, setRegistering] = useState(initialMode === 'register')
+  const [registered, setRegistered] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [focused, setFocused] = useState<string | null>(null)
+  const successHeading = useRef<HTMLHeadingElement>(null)
+  const id = useId()
+  const reduced = useReducedMotion()
+  const still = reduced || animationsPaused
+  const transition = {
+    duration: still ? 0 : 0.3,
+    ease: [0.22, 1, 0.36, 1] as const,
+  }
+  const enter = {
+    hidden: { opacity: still ? 1 : 0, y: still ? 0 : 12 },
+    visible: (order: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: { ...transition, delay: still ? 0 : order * 0.045 },
+    }),
+  }
+  const feedback = {
+    initial: { height: 0, opacity: 0 },
+    animate: { height: 'auto', opacity: 1 },
+    exit: { height: 0, opacity: 0 },
+    transition,
+  }
+
+  useEffect(() => {
+    if (registered) successHeading.current?.focus()
+  }, [registered])
+
+  function changeMode(register: boolean) {
+    if (submitting.current) return
+    setRegistering(register)
+    setError(undefined)
+    setShowPassword(false)
+  }
+
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (submitting.current) return
+    submitting.current = true
+    const form = event.currentTarget
+    const fields = new FormData(form)
+    const username = String(fields.get('username'))
+    const password = String(fields.get('password'))
+    setError(undefined)
+    setIsSubmitting(true)
+    try {
+      if (registering) {
+        await registerAccount(username, password)
+        setRegistered(true)
+      } else {
+        await onSignIn(username, password)
+      }
+      form.reset()
+      setShowPassword(false)
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'La demande a échoué. Réessaie.',
+      )
+    } finally {
+      submitting.current = false
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <LayoutGroup id={id}>
+      <motion.section
+        className="auth-card glass-panel"
+        aria-labelledby={id + (registered ? '-success-heading' : '-heading')}
+        initial="hidden"
+        animate="visible"
+      >
+        <div className="auth-light" aria-hidden="true">
+          <motion.div
+            key={String(registering)}
+            initial={{ x: still ? '0%' : '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ duration: still ? 0 : 1.4, ease: 'easeOut' }}
+          />
+        </div>
+        <motion.div className="auth-brand" variants={enter} custom={0}>
+          <Wordmark compact />
+          <span className="auth-edition">3.0</span>
+        </motion.div>
+
+        <motion.div
+          initial={false}
+          animate={{
+            height: registered ? 0 : 'auto',
+            opacity: registered ? 0 : 1,
+          }}
+          transition={transition}
+          inert={registered}
+          aria-hidden={registered || undefined}
+          className="auth-form-content"
+        >
+          <motion.div
+            className="auth-switch"
+            role="group"
+            aria-label="Connexion ou inscription"
+            variants={enter}
+            custom={1}
+          >
+            {[false, true].map((register) => (
+              <motion.button
+                key={String(register)}
+                type="button"
+                aria-pressed={registering === register}
+                disabled={isSubmitting}
+                onClick={() => changeMode(register)}
+                whileTap={still ? undefined : { scale: 0.98 }}
+              >
+                {registering === register && (
+                  <motion.span
+                    className="auth-switch-active"
+                    layoutId="auth-mode"
+                    transition={
+                      still
+                        ? { duration: 0 }
+                        : { type: 'spring', stiffness: 420, damping: 36 }
+                    }
+                  />
+                )}
+                <span>{register ? 'Inscription' : 'Connexion'}</span>
+              </motion.button>
+            ))}
+          </motion.div>
+
+          <motion.div className="auth-intro" variants={enter} custom={2}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={String(registering)}
+                initial={{ opacity: 0, y: still ? 0 : 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: still ? 0 : -6 }}
+                transition={transition}
+              >
+                <h2 id={registered ? undefined : id + '-heading'}>
+                  {registering ? 'Créer votre compte.' : 'Bon retour.'}
+                </h2>
+                <p>
+                  {registering
+                    ? 'Votre accès commence ici.'
+                    : 'Vos films et séries vous attendent.'}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+
+          {options?.googleStartUrl && (
+            <motion.div variants={enter} custom={3}>
+              <motion.a
+                className="auth-google glass-control"
+                href={options.googleStartUrl}
+                aria-disabled={isSubmitting || undefined}
+                tabIndex={isSubmitting ? -1 : undefined}
+                onClick={(event) => {
+                  if (submitting.current) event.preventDefault()
+                }}
+                whileHover={still || isSubmitting ? undefined : { y: -2 }}
+                whileTap={still || isSubmitting ? undefined : { scale: 0.985 }}
+                transition={transition}
+              >
+                <svg
+                  width={20}
+                  height={20}
+                  viewBox="940 940 940 940"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <image href={googleLogo} width={2820} height={2820} />
+                </svg>
+                Continuer avec Google
+                <ArrowRight size={16} aria-hidden="true" />
+              </motion.a>
+              <div className="auth-divider">
+                <span />
+                ou avec vos identifiants
+                <span />
+              </div>
+            </motion.div>
+          )}
+
+          <AnimatePresence initial={false}>
+            {notice && (
+              <motion.div key="notice" {...feedback} className="auth-feedback">
+                <p role="status" className="auth-notice">
+                  {notice}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit} aria-busy={isSubmitting}>
+            <fieldset disabled={isSubmitting} className="auth-fields">
+              <motion.div variants={enter} custom={4}>
+                <label htmlFor={id + '-username'}>Nom d’utilisateur</label>
+                <div className="auth-input-wrap">
+                  <motion.span
+                    className="auth-focus"
+                    aria-hidden="true"
+                    animate={{ opacity: focused === 'username' ? 1 : 0 }}
+                    transition={transition}
+                  />
+                  <UserRound
+                    size={18}
+                    className="auth-input-icon"
+                    aria-hidden="true"
+                  />
+                  <TextInput
+                    id={id + '-username'}
+                    name="username"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    placeholder="Votre nom d’utilisateur"
+                    onFocus={() => setFocused('username')}
+                    onBlur={() => setFocused(null)}
+                  />
+                </div>
+              </motion.div>
+              <motion.div variants={enter} custom={5}>
+                <label htmlFor={id + '-password'}>Mot de passe</label>
+                <div className="auth-input-wrap">
+                  <motion.span
+                    className="auth-focus"
+                    aria-hidden="true"
+                    animate={{ opacity: focused === 'password' ? 1 : 0 }}
+                    transition={transition}
+                  />
+                  <LockKeyhole
+                    size={18}
+                    className="auth-input-icon"
+                    aria-hidden="true"
+                  />
+                  <TextInput
+                    id={id + '-password'}
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete={
+                      registering ? 'new-password' : 'current-password'
+                    }
+                    required={registering}
+                    minLength={registering ? 8 : undefined}
+                    aria-describedby={
+                      registering ? id + '-password-hint' : undefined
+                    }
+                    placeholder={
+                      registering
+                        ? '8 caractères minimum'
+                        : 'Votre mot de passe'
+                    }
+                    onFocus={() => setFocused('password')}
+                    onBlur={() => setFocused(null)}
+                  />
+                  <motion.button
+                    className="auth-password-toggle"
+                    type="button"
+                    aria-label={
+                      showPassword
+                        ? 'Masquer le mot de passe'
+                        : 'Afficher le mot de passe'
+                    }
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword(!showPassword)}
+                    whileTap={still ? undefined : { scale: 0.9 }}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={String(showPassword)}
+                        initial={{ opacity: 0, rotate: still ? 0 : -25 }}
+                        animate={{ opacity: 1, rotate: 0 }}
+                        exit={{ opacity: 0, rotate: still ? 0 : 25 }}
+                        transition={{ duration: still ? 0 : 0.1 }}
+                      >
+                        {showPassword ? (
+                          <EyeOff size={18} />
+                        ) : (
+                          <Eye size={18} />
+                        )}
+                      </motion.span>
+                    </AnimatePresence>
+                  </motion.button>
+                </div>
+                <AnimatePresence initial={false}>
+                  {registering && (
+                    <motion.div {...feedback} className="auth-feedback">
+                      <p id={id + '-password-hint'} className="auth-hint">
+                        Choisissez au moins 8 caractères.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+              <motion.button
+                className="auth-submit"
+                type="submit"
+                variants={enter}
+                custom={6}
+                whileHover={
+                  still || isSubmitting
+                    ? undefined
+                    : { y: -2, boxShadow: '0 8px 30px #4ade802e' }
+                }
+                whileTap={still || isSubmitting ? undefined : { scale: 0.98 }}
+                transition={transition}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    className="auth-submit-content"
+                    key={isSubmitting ? 'sending' : String(registering)}
+                    initial={{ opacity: 0, y: still ? 0 : 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: still ? 0 : -5 }}
+                    transition={{ duration: still ? 0 : 0.12 }}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <motion.span
+                          aria-hidden="true"
+                          className="auth-busy-dot"
+                          animate={{ opacity: still ? 1 : [0.35, 1, 0.35] }}
+                          transition={{
+                            duration: 1,
+                            repeat: still ? 0 : Infinity,
+                          }}
+                        />
+                        Envoi…
+                      </>
+                    ) : (
+                      <>
+                        {registering ? 'Envoyer la demande' : 'Se connecter'}
+                        <ArrowRight size={18} aria-hidden="true" />
+                      </>
+                    )}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
+            </fieldset>
+            <span role="status" className="sr-only">
+              {isSubmitting ? 'Envoi en cours…' : ''}
+            </span>
+            <AnimatePresence initial={false}>
+              {error && (
+                <motion.div {...feedback} className="auth-feedback">
+                  <p role="alert" className="auth-error">
+                    {error}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </form>
+          <motion.p className="auth-access" variants={enter} custom={7}>
+            <ShieldCheck size={15} aria-hidden="true" />
+            <span>L’accès nécessite l’approbation d’un administrateur.</span>
+          </motion.p>
+        </motion.div>
+
+        <AnimatePresence>
+          {registered && (
+            <motion.div {...feedback} className="auth-feedback">
+              <div className="auth-success">
+                <motion.div
+                  className="auth-success-icon"
+                  initial={{ scale: still ? 1 : 0.7 }}
+                  animate={{ scale: 1 }}
+                  transition={
+                    still
+                      ? { duration: 0 }
+                      : { type: 'spring', stiffness: 220, damping: 18 }
+                  }
+                >
+                  <svg
+                    viewBox="0 0 40 40"
+                    width={40}
+                    height={40}
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <motion.path
+                      d="m10 20 7 7 14-14"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      initial={{ pathLength: still ? 1 : 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{
+                        duration: still ? 0 : 0.5,
+                        delay: still ? 0 : 0.15,
+                      }}
+                    />
+                  </svg>
+                </motion.div>
+                <h2
+                  id={id + '-success-heading'}
+                  ref={successHeading}
+                  tabIndex={-1}
+                >
+                  Demande envoyée.
+                </h2>
+                <p>
+                  Votre compte est en attente d’approbation. Vous pourrez
+                  ensuite vous connecter avec vos identifiants.
+                </p>
+                <div className="auth-success-status">
+                  <Check size={14} aria-hidden="true" />
+                  Inscription enregistrée
+                </div>
+                <motion.button
+                  type="button"
+                  className="auth-google glass-control"
+                  whileHover={still ? undefined : { y: -2 }}
+                  whileTap={still ? undefined : { scale: 0.98 }}
+                  onClick={() => {
+                    setRegistered(false)
+                    changeMode(false)
+                    requestAnimationFrame(() =>
+                      document.getElementById(id + '-username')?.focus(),
+                    )
+                  }}
+                >
+                  Revenir à la connexion
+                  <ArrowRight size={16} aria-hidden="true" />
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.section>
+    </LayoutGroup>
+  )
+}

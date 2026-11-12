@@ -1,0 +1,43 @@
+@reference '../index.css';
+.tilted-card {
+  position: relative;
+  width: 100%;
+}
+.tilted-card__body {
+  position: relative;
+  border-radius: 9px;
+  transform-style: preserve-3d;
+}
+.tilted-card__halo {
+  position: absolute;
+  inset: 10% -3% -2%;
+  border-radius: 20%;
+  background: linear-gradient(135deg, #4ade8055, #3b82f655);
+  filter: blur(22px);
+  pointer-events: none;
+}
+.tilted-card__glare,
+.tilted-card__edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.tilted-card__glare {
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+.tilted-card__edge {
+  z-index: 4;
+  padding: 1px;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+@media (forced-colors: active) {
+  .tilted-card__halo,
+  .tilted-card__glare,
+  .tilted-card__edge {
+    display: none;
+  }
+}

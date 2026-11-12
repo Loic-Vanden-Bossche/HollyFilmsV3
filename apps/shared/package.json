@@ -1,0 +1,15 @@
+{
+  "name": "@hollyfilms/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./library": "./src/library.ts",
+    "./showcase": "./src/showcase.ts",
+    "./accounts": "./src/accounts.ts",
+    "./jellyfin": "./src/jellyfin.ts"
+  },
+  "dependencies": {
+    "@jellyfin/sdk": "^1.0.2",
+    "axios": "^1.21.1"
+  }
+}

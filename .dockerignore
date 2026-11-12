@@ -1,10 +1,12 @@
-node_modules
-dist
-storybook-static
+**/node_modules
+**/dist
+**/storybook-static
 .git
 .idea
 .env
 .env.*
 media
-server/generated
+apps/api/src/generated
+.yarn
 *.log
+.playwright-mcp

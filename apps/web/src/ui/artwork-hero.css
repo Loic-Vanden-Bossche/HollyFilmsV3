@@ -1,0 +1,43 @@
+.artwork-hero-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+}
+.artwork-hero-layer::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+.artwork-hero-flight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.artwork-hero-flight img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.artwork-hero-frost {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 35%, #080f1b08, #080f1b80 85%),
+    linear-gradient(#080f1b66, #080f1b26 40%, #080f1bcc);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .artwork-hero-frost {
+    backdrop-filter: none !important;
+    background: #080f1bb3;
+  }
+}

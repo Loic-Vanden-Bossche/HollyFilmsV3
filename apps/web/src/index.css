@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@config '../tailwind.config.js';
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face {
+  font-family: 'HollyFilms';
+  src: url('./assets/fonts/HollyFont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  :where(a, button, input, select, textarea):focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply border border-glass-edge bg-glass bg-glass-sheen shadow-glass backdrop-blur-glass backdrop-saturate-150;
+  }
+  .glass-control {
+    @apply border border-glass-edge bg-glass-control bg-glass-sheen shadow-glass-control backdrop-blur-md backdrop-saturate-125;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+  .glass-control:where(:enabled, a):hover {
+    @apply border-link/50 bg-accent/80;
+  }
+  .glass-input {
+    @apply bg-background/60;
+    box-shadow:
+      inset 0 2px 6px #03081030,
+      0 1px 0 #ecf4fb0a;
+    transition: background-color 0.2s;
+  }
+  .glass-input:focus-visible {
+    @apply bg-background/85;
+  }
+  .member-shell {
+    isolation: isolate;
+  }
+  .member-shell::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 15% 20%, #4ade801c, transparent 50%),
+      radial-gradient(ellipse at 85% 70%, #3b82f62e, transparent 55%);
+  }
+  @supports not (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    .glass-panel,
+    .glass-control {
+      @apply bg-card;
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-panel,
+    .glass-control {
+      @apply bg-card;
+      background-image: none;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .glass-input {
+      @apply bg-background;
+    }
+  }
+  @media (forced-colors: active) {
+    .glass-panel,
+    .glass-control,
+    .glass-input {
+      background: Canvas;
+      color: CanvasText;
+      border: 1px solid ButtonBorder;
+      box-shadow: none;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}

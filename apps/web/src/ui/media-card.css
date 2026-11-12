@@ -1,0 +1,217 @@
+@reference '../index.css';
+.media-tile {
+  position: relative;
+  cursor: default;
+}
+.media-tile[data-active='true'] {
+  z-index: 2;
+}
+.media-tile > .tilted-card {
+  z-index: 2;
+  pointer-events: none;
+}
+.media-card-artwork {
+  position: absolute;
+  inset: 0;
+  transform: var(--card-parallax, none);
+}
+.media-tile-image {
+  transition:
+    border-color 0.3s,
+    box-shadow 0.4s;
+}
+.media-tile[data-active='true'] .media-tile-image {
+  box-shadow:
+    0 20px 35px -14px #0009,
+    0 0 0 1px #7dded81a;
+}
+.media-action-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+.media-tile-select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.media-tile-select:focus-visible {
+  @apply outline-2 outline-offset-4 outline-ring;
+}
+.media-tile:focus-within .media-tile-image {
+  @apply border-link/50;
+}
+.media-card-badges {
+  position: absolute;
+  inset: 9px 9px auto;
+  display: flex;
+  gap: 5px;
+  justify-content: space-between;
+  z-index: 2;
+  pointer-events: none;
+}
+.media-quality,
+.media-watched {
+  @apply border border-glass-edge bg-glass-strong text-foreground;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  backdrop-filter: blur(16px);
+}
+.media-watched {
+  @apply bg-accent text-accent-foreground;
+  margin-left: auto;
+}
+.media-card-actions {
+  position: absolute;
+  z-index: 3;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 34px 10px 12px;
+  background: linear-gradient(transparent, #080f1be6);
+  pointer-events: none;
+}
+.media-card-actions button {
+  @apply border border-glass-edge bg-glass-strong text-foreground shadow-glass-control;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  backdrop-filter: blur(20px);
+  cursor: pointer;
+  pointer-events: none;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.media-card-actions button[aria-pressed='true'] {
+  @apply border-link/50 text-link;
+}
+.media-card-actions button:hover {
+  @apply bg-accent;
+}
+.media-card-actions button:focus-visible {
+  @apply outline-2 outline-offset-2 outline-ring;
+}
+.media-card-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.media-card-facts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-height: 18px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.media-card-facts:empty {
+  display: none;
+}
+.media-card-facts + .media-tile-title {
+  margin-top: 7px;
+}
+.media-critic {
+  @apply text-foreground;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.media-critic > span {
+  font-size: 14px;
+}
+.media-audio-languages {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.media-audio-languages > span {
+  display: inline-flex;
+}
+.media-audio-languages img {
+  width: 20px;
+  height: 15px;
+  border-radius: 3px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px #ecf4fb26;
+}
+.media-language-code,
+.media-language-more {
+  @apply text-muted-foreground;
+  font-size: 9px;
+}
+.media-edition {
+  @apply text-link;
+  display: block;
+  margin-top: 7px;
+  font-size: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.media-card-error {
+  @apply text-destructive;
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.media-kind {
+  top: auto;
+  bottom: 12px;
+  z-index: 2;
+  pointer-events: none;
+}
+.media-action-loading {
+  animation: media-action-spin 1s linear infinite;
+}
+@keyframes media-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  .media-card-actions button {
+    width: 44px;
+    height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-action-loading {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .media-card-actions button,
+  .media-quality,
+  .media-watched {
+    @apply bg-card;
+    backdrop-filter: none;
+  }
+}
+
+.media-tile:hover .media-card-actions button,
+.media-tile:focus-within .media-card-actions button {
+  pointer-events: auto;
+}
+@media (hover: none), (pointer: coarse) {
+  .media-card-actions button {
+    pointer-events: auto;
+  }
+}

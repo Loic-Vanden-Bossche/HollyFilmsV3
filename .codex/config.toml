@@ -1,19 +1,16 @@
-  [mcp_servers.webstorm]
-    url = "http://127.0.0.1:64542/stream"
+[mcp_servers.webstorm]
+url = "http://127.0.0.1:64542/stream"
 
-    [mcp_servers.webstorm.env_http_headers]
-      IJ_MCP_LAUNCH_ORIGIN = "IJ_MCP_LAUNCH_ORIGIN"
+[mcp_servers.webstorm.env_http_headers]
+IJ_MCP_LAUNCH_ORIGIN = "IJ_MCP_LAUNCH_ORIGIN"
 
 [mcp_servers.figma]
 url = "https://mcp.figma.com/mcp"
 
 [mcp_servers.shadcn]
+# Includes the official @react-bits registry in apps/web/components.json.
 command = "node"
-args = ["node_modules/shadcn/dist/index.js", "mcp"]
-
-[mcp_servers.21st-dev]
-url = "https://21st.dev/api/mcp"
-bearer_token_env_var = "API_KEY_21ST"
+args = ["node_modules/shadcn/dist/index.js", "mcp", "--cwd", "apps/web"]
 
 [mcp_servers.playwright]
 command = "node"
@@ -24,3 +21,8 @@ url = "https://mcp.motion.dev"
 
 [mcp_servers.storybook]
 url = "http://127.0.0.1:6006/mcp"
+
+[mcp_servers.stitch]
+url = "https://stitch.googleapis.com/mcp"
+tool_timeout_sec = 300
+env_http_headers = { "X-Goog-Api-Key" = "STITCH_API_KEY" }

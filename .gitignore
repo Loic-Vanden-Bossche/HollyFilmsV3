@@ -14,7 +14,9 @@ storybook-static
 *.local
 .env
 /media/
-/server/generated/
+/apps/api/src/generated/
+.yarn/install-state.gz
+.yarn/unplugged/
 
 # Editor directories and files
 .vscode/*
@@ -26,3 +28,6 @@ storybook-static
 *.njsproj
 *.sln
 *.sw?
+
+
+.playwright-mcp/

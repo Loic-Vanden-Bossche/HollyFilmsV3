@@ -5,18 +5,17 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY apps/shared/package.json ./apps/shared/
+RUN corepack yarn install --immutable
 
-COPY prisma.config.ts tsconfig.server.json ./
-COPY prisma ./prisma
-COPY server ./server
-COPY shared ./shared
-COPY src/jellyfin.ts ./src/jellyfin.ts
-COPY tests/accounts.test.ts ./tests/accounts.test.ts
-RUN npm run build:api
+COPY apps/api ./apps/api
+COPY apps/shared ./apps/shared
+RUN corepack yarn build:api
 
 USER node
 ENV HOLLYFILMS_API_HOST=0.0.0.0
 EXPOSE 3000
-CMD ["node", "server/index.ts"]
+CMD ["node", "apps/api/src/index.ts"]

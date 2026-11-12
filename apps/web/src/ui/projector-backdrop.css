@@ -1,0 +1,20 @@
+.projector-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 0% 0%, #4ade8029, transparent 60%),
+    radial-gradient(ellipse at 80% 90%, #3b82f625, transparent 65%), #080f1b;
+}
+.projector-shader {
+  position: absolute;
+  inset: 0;
+}
+.projector-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #080f1b55, #080f1b18 65%, #080f1b20),
+    linear-gradient(0deg, #080f1b70, transparent 45%);
+}
