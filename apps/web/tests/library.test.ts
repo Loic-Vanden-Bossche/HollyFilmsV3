@@ -3,6 +3,8 @@ import { createServer } from 'node:http'
 import test from 'node:test'
 import {
   getLibraryPage,
+  getCollectionsPage,
+  getCollection,
   getResumeItems,
   getLibraryImage,
   toMediaItem,
@@ -42,6 +44,136 @@ test('episode progress uses the series artwork and handles incomplete metadata',
     toMediaItem({ Id: 'movie', Name: 'Untitled', RunTimeTicks: 0 })?.minutes,
     undefined,
   )
+})
+
+test('favorites, sorting and collections are scoped by the SDK to the current user', async (t) => {
+  const requests: URL[] = []
+  const collection = {
+    Id: 'saga',
+    Name: 'Saga',
+    Type: 'BoxSet',
+    ChildCount: 3,
+    ImageTags: { Primary: 'poster' },
+  }
+  const server = createServer((request, response) => {
+    const url = new URL(request.url!, 'http://localhost')
+    requests.push(url)
+    response.setHeader('Content-Type', 'application/json')
+    response.end(
+      JSON.stringify(
+        url.pathname.endsWith('/saga')
+          ? collection
+          : { Items: [collection], TotalRecordCount: 1 },
+      ),
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+  const address = server.address()
+  assert(address && typeof address !== 'string')
+  const url = `http://127.0.0.1:${address.port}`
+  const session = { deviceId: 'device', accessToken: 'user-token' }
+  await getLibraryPage(
+    url,
+    session,
+    'user-123',
+    'favorites',
+    '',
+    0,
+    undefined,
+    { sort: 'rating' },
+  )
+  await getLibraryPage(
+    url,
+    session,
+    'user-123',
+    'collections',
+    '',
+    36,
+    undefined,
+    { sort: 'title', collectionId: 'saga' },
+  )
+  const page = await getCollectionsPage(url, session, 'user-123', 24, 'Saga')
+  const detail = await getCollection(url, session, 'user-123', 'saga')
+  await getResumeItems(url, session, 'user-123', undefined, {
+    episodesOnly: true,
+  })
+  assert.equal(requests[0].searchParams.get('isFavorite'), 'true')
+  assert.match(requests[0].searchParams.get('sortBy')!, /CommunityRating/)
+  assert.equal(requests[1].searchParams.get('parentId'), 'saga')
+  assert.equal(requests[1].searchParams.get('collapseBoxSetItems'), 'false')
+  assert.equal(requests[1].searchParams.get('recursive'), 'true')
+  assert.equal(requests[1].searchParams.get('sortOrder'), 'Ascending')
+  assert.equal(requests[2].pathname, '/UserViews')
+  assert.equal(requests[3].searchParams.get('includeItemTypes'), 'BoxSet')
+  assert.equal(requests[3].searchParams.get('searchTerm'), 'Saga')
+  assert.equal(requests[3].searchParams.get('startIndex'), '24')
+  assert.equal(page.items[0].count, 3)
+  assert.equal(detail.id, 'saga')
+  assert.equal(requests[5].searchParams.get('includeItemTypes'), 'Episode')
+  for (const request of requests)
+    assert.equal(request.searchParams.get('userId'), 'user-123')
+})
+
+test('collections use the user library without the BoxSet filter that re-roots Jellyfin 12 queries', async (t) => {
+  const requests: URL[] = []
+  const server = createServer((request, response) => {
+    const url = new URL(request.url!, 'http://localhost')
+    requests.push(url)
+    assert.match(request.headers.authorization ?? '', /Token="user-token"/)
+    response.setHeader('Content-Type', 'application/json')
+    if (url.pathname === '/UserViews') {
+      assert.equal(url.searchParams.get('includeHidden'), 'true')
+      response.end(
+        JSON.stringify({
+          Items: [
+            { Id: 'films', CollectionType: 'movies' },
+            { Id: 'user-collections', CollectionType: 'boxsets' },
+          ],
+        }),
+      )
+      return
+    }
+    // A user-root listing can be empty while the linked collection library is not.
+    const scoped =
+      url.searchParams.get('parentId') === 'user-collections' &&
+      !url.searchParams.has('includeItemTypes')
+    response.end(
+      JSON.stringify({
+        Items: scoped
+          ? [{ Id: 'saga', Name: 'Saga', Type: 'BoxSet', ChildCount: 3 }]
+          : [],
+        TotalRecordCount: scoped ? 25 : 0,
+      }),
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+  const address = server.address()
+  assert(address && typeof address !== 'string')
+  const page = await getCollectionsPage(
+    `http://127.0.0.1:${address.port}`,
+    { deviceId: 'device', accessToken: 'user-token' },
+    'user-123',
+    24,
+    'Saga',
+  )
+  assert.equal(page.total, 25)
+  assert.equal(page.items[0].id, 'saga')
+  assert.equal(page.items[0].count, 3)
+  assert.equal(requests[1].searchParams.get('startIndex'), '24')
+  assert.equal(requests[1].searchParams.get('limit'), '24')
+  assert.equal(requests[1].searchParams.get('searchTerm'), 'Saga')
+  assert.equal(requests[1].searchParams.get('sortOrder'), 'Ascending')
+  assert.equal(requests[1].searchParams.get('collapseBoxSetItems'), 'false')
+  for (const request of requests)
+    assert.equal(request.searchParams.get('userId'), 'user-123')
 })
 
 test('SDK requests use the signed-in user, search, pagination and header authentication', async (t) => {

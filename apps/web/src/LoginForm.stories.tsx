@@ -116,9 +116,7 @@ export const ErrorState: Story = {
   name: 'Erreur de connexion',
   args: {
     onSignIn: fn(async () => {
-      throw new Error(
-        'Identifiants incorrects. Vérifiez votre nom et votre mot de passe.',
-      )
+      throw new Error('Vérifie ton nom d’utilisateur et ton mot de passe.')
     }),
   },
   play: async ({ canvas, userEvent, args }) => {
@@ -133,7 +131,7 @@ export const ErrorState: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Se connecter' }))
     await expect(args.onSignIn).toHaveBeenCalledWith('cinephile', 'movie-night')
     await expect(await canvas.findByRole('alert')).toHaveTextContent(
-      'Identifiants incorrects',
+      'Vérifie ton nom d’utilisateur et ton mot de passe.',
     )
     await expect(
       canvas.getByLabelText('Mot de passe', { exact: true }),

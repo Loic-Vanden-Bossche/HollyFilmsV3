@@ -1,3 +1,4 @@
+import type { Translate } from '../i18n/messages.ts'
 import { createJellyfinApi } from '@hollyfilms/shared/jellyfin'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import type { MediaItem } from '@hollyfilms/shared/library'
@@ -421,11 +422,11 @@ export function createPlaybackApi(session: JellyfinSession, userId: string) {
 
 export type PlaybackApi = ReturnType<typeof createPlaybackApi>
 
-export function trackName(track: MediaStream) {
+export function trackName(track: MediaStream, t: Translate) {
   return (
     track.DisplayTitle ??
     track.Title ??
     ([track.Language, track.Codec?.toUpperCase()].filter(Boolean).join(' ') ||
-      'Piste ' + track.Index)
+      t('Piste {number}', { number: track.Index ?? 0 }))
   )
 }

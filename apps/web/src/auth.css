@@ -288,7 +288,7 @@
     transition: none !important;
   }
 }
-@media (max-height: 700px) {
+@media (max-height: 800px) {
   .auth-card,
   .auth-dialog .auth-card {
     padding: 20px;
@@ -401,7 +401,7 @@
     padding: 28px 22px;
   }
 }
-@media (max-height: 700px) {
+@media (max-height: 800px) {
   .auth-card,
   .auth-dialog .auth-card {
     padding: 0;

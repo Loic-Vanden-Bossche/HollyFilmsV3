@@ -9,7 +9,13 @@ import { PlayerShell } from './PlayerShell.tsx'
 import { PlayerArtwork } from './PlayerArtwork.tsx'
 import { homeItems } from '../home-fixtures.ts'
 
-function Demo({ instant = false }: { instant?: boolean }) {
+function Demo({
+  instant = false,
+  homepage = true,
+}: {
+  instant?: boolean
+  homepage?: boolean
+}) {
   const [details, setDetails] = useState(false)
   const [player, setPlayer] = useState(false)
   const [frame, setFrame] = useState(false)
@@ -20,7 +26,7 @@ function Demo({ instant = false }: { instant?: boolean }) {
   }, [player, instant])
   return (
     <div
-      className="home-page"
+      className={homepage ? 'home-page' : undefined}
       style={{ minHeight: '100vh', padding: '60px 6vw' }}
     >
       <h1 style={{ fontSize: 28, marginBottom: 24 }}>
@@ -42,6 +48,10 @@ function Demo({ instant = false }: { instant?: boolean }) {
             item={homeItems[0]}
             wide
             onSelect={() => setDetails(true)}
+            onPlay={() => {
+              setFrame(false)
+              setPlayer(true)
+            }}
           />
         </div>
       </div>
@@ -200,7 +210,7 @@ export const FastPlayback: Story = {
   },
 }
 export const PlayerRoundTrip: Story = {
-  name: 'Image vers lecteur et retour',
+  name: 'Fiche vers lecteur, retour sans transition partagée',
   args: { children: <Demo /> },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await waitFor(() =>
@@ -242,10 +252,38 @@ export const PlayerRoundTrip: Story = {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Retour au catalogue' }),
     )
+    await afterPaint()
+    await expect(
+      document.querySelector('[data-artwork-destination="artwork"]'),
+    ).not.toBeInTheDocument()
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-artwork-flight]'),
+        ).not.toBeInTheDocument(),
+      { timeout: 2000 },
+    )
+    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+  },
+}
+
+export const HomepageToPlayer: Story = {
+  args: { children: <Demo /> },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector<HTMLImageElement>('.media-tile-wide img')
+          ?.naturalWidth,
+      ).toBeGreaterThan(0),
+    )
+    const card = canvas.getAllByRole('article')[1]
+    await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+    await userEvent.click(canvas.getByRole('button', { name: /^Lire / }))
     if (!reducedMotion())
       await waitFor(() =>
         expect(
-          document.querySelector('[data-artwork-destination="artwork"]'),
+          document.querySelector('[data-artwork-destination="player"]'),
         ).toBeInTheDocument(),
       )
     await waitFor(
@@ -255,6 +293,45 @@ export const PlayerRoundTrip: Story = {
         ).not.toBeInTheDocument(),
       { timeout: 2000 },
     )
-    await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Retour au catalogue' }),
+    )
+    await afterPaint()
+    await expect(
+      document.querySelector('[data-artwork-flight]'),
+    ).not.toBeInTheDocument()
+  },
+}
+
+export const OtherOrigins: Story = {
+  name: 'Autres écrans sans transition partagée',
+  args: { children: <Demo homepage={false} /> },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector<HTMLImageElement>('.media-tile-wide img')
+          ?.naturalWidth,
+      ).toBeGreaterThan(0),
+    )
+    const card = canvas.getAllByRole('article')[1]
+    await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+    await userEvent.click(canvas.getByRole('button', { name: /^Lire / }))
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Retour au catalogue' }),
+      ).toBeVisible(),
+    )
+    await afterPaint()
+    await expect(
+      document.querySelector('[data-artwork-flight]'),
+    ).not.toBeInTheDocument()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Retour au catalogue' }),
+    )
+    await afterPaint()
+    await expect(
+      document.querySelector('[data-artwork-flight]'),
+    ).not.toBeInTheDocument()
   },
 }

@@ -1,8 +1,12 @@
+import { localizeText } from '../i18n/messages.ts'
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { Tooltip } from './Tooltip.tsx'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
 import type { PlayerState } from '../playback/use-playback.ts'
 import { Wordmark } from './Wordmark.tsx'
+import { lockBodyScroll } from './body-scroll-lock.ts'
 import '../player.css'
 
 export function PlayerShell({
@@ -14,6 +18,7 @@ export function PlayerShell({
   onInteraction,
   onBackHover,
   problem,
+  actions,
   children,
 }: {
   title: string
@@ -24,25 +29,26 @@ export function PlayerShell({
   onInteraction?: () => void
   onBackHover?: (hovered: boolean) => void
   problem?: string
+  actions?: ReactNode
   children?: ReactNode
 }) {
+  const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
   const reduced = useReducedMotion()
   useEffect(() => {
     const element = dialog.current!
-    const overflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockBodyScroll()
     element.showModal()
     return () => {
       element.close()
-      document.body.style.overflow = overflow
+      unlockScroll()
     }
   }, [])
   return (
     <motion.dialog
       ref={dialog}
       className="player-shell"
-      aria-label={`Lecteur · ${title}`}
+      aria-label={t('Lecteur · {title}', { title: title })}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: reduced ? 0.12 : 0.45, ease: [0.16, 1, 0.3, 1] }}
@@ -74,25 +80,34 @@ export function PlayerShell({
           aria-hidden={!showHeading}
           inert={!showHeading}
         >
-          <motion.button
-            initial={{ opacity: 0, y: reduced ? 0 : -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: reduced ? 0 : 0.45,
-              delay: reduced ? 0 : 0.08,
-            }}
-            whileHover={reduced ? undefined : { x: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.94 }}
-            type="button"
-            className="player-back"
-            aria-label="Retour au catalogue"
-            onClick={onClose}
-            onHoverStart={() => onBackHover?.(true)}
-            onHoverEnd={() => onBackHover?.(false)}
+          <div
+            className="player-heading-actions"
+            onPointerEnter={() => onBackHover?.(true)}
+            onPointerLeave={() => onBackHover?.(false)}
           >
-            <ArrowLeft size={20} aria-hidden="true" />
-            <span>Retour</span>
-          </motion.button>
+            <Tooltip>
+              <motion.button
+                initial={{ opacity: 0, y: reduced ? 0 : -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: reduced ? 0 : 0.45,
+                  delay: reduced ? 0 : 0.08,
+                }}
+                whileHover={reduced ? undefined : { x: -2 }}
+                whileTap={reduced ? undefined : { scale: 0.94 }}
+                type="button"
+                className="player-back"
+                aria-label={t('Retour au catalogue')}
+                onClick={onClose}
+                onHoverStart={() => onBackHover?.(true)}
+                onHoverEnd={() => onBackHover?.(false)}
+              >
+                <ArrowLeft size={20} aria-hidden="true" />
+                <span>{t('Retour')}</span>
+              </motion.button>
+            </Tooltip>
+            {actions}
+          </div>
           <motion.div
             className="player-title-block"
             initial={{ opacity: 0, y: reduced ? 0 : 18 }}
@@ -138,13 +153,20 @@ export function PlayerShell({
             transition={{ duration: reduced ? 0 : 0.2 }}
           >
             <div className="player-status-glow" aria-hidden="true" />
-            <h2>La lecture n’a pas pu démarrer</h2>
+            <h2>{t('La lecture n’a pas pu démarrer')}</h2>
             <p>
-              {problem ||
-                'Vérifiez votre connexion et la disponibilité de ce titre.'}
+              {problem
+                ? localizeText(
+                    t,
+                    problem,
+                    'Vérifiez votre connexion et la disponibilité de ce titre.',
+                  )
+                : t(
+                    'Vérifiez votre connexion et la disponibilité de ce titre.',
+                  )}
             </p>
             <button type="button" className="home-primary" onClick={onRetry}>
-              <RotateCcw size={18} /> Réessayer
+              <RotateCcw size={18} /> {t('Réessayer')}
             </button>
           </motion.div>
         )}

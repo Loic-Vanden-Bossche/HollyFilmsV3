@@ -54,3 +54,34 @@ export const Default: Story = {
     ).toHaveFocus()
   },
 }
+
+export const Scrollbars: Story = {
+  name: 'Défilement discret — vertical et horizontal',
+  args: {
+    className: 'w-full max-w-xl',
+    children: (
+      <>
+        <h2 id="glass-heading" className="mb-5 text-xl font-semibold">
+          Défilement HollyFilms
+        </h2>
+        <div
+          role="region"
+          aria-label="Contenu défilant"
+          tabIndex={0}
+          className="h-64 overflow-auto rounded-xl border border-glass-edge p-4 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <div className="grid w-[640px] gap-4 pb-3">
+            {Array.from({ length: 12 }, (_, index) => (
+              <div key={index} className="rounded-lg bg-background/60 p-4">
+                <p className="font-semibold">Sélection {index + 1}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Défilement natif à la souris, au clavier et sur écran tactile.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
+    ),
+  },
+}

@@ -1,3 +1,4 @@
+import { detectLocale, translate, type Message } from './i18n/messages.ts'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, waitFor, within } from 'storybook/test'
 import { LandingPage } from './LandingPage.tsx'
@@ -19,28 +20,80 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Opening: Story = { name: 'Ouverture cinéma', args: { items } }
+export const Opening: Story = {
+  name: 'Ouverture cinéma',
+  args: { items },
+  play: async ({ canvasElement }) => {
+    const words = canvasElement.querySelectorAll(
+      '.title-accent .rb-blur-text > span',
+    )
+    await expect(words).toHaveLength(3)
+    await waitFor(
+      () => {
+        for (const word of words) {
+          const style = getComputedStyle(word)
+          expect(style.opacity).toBe('1')
+          expect(style.transform).toBe('none')
+          expect(style.filter).toBe('blur(0px)')
+          expect(style.backgroundClip).toBe('text')
+          expect(style.backgroundImage).not.toBe('none')
+        }
+      },
+      { timeout: 2500 },
+    )
+    const shine = canvasElement.querySelector(
+      '.release-version .rb-shiny-highlight',
+    )!
+    await expect(shine).toHaveAttribute('aria-hidden', 'true')
+    await expect(getComputedStyle(shine).backgroundClip).toBe('text')
+  },
+}
+export const PauseDuringTitle: Story = {
+  name: 'Pause pendant la révélation du titre',
+  args: { items },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Mettre les animations en pause' }),
+    )
+    await waitFor(() => {
+      for (const word of canvasElement.querySelectorAll(
+        '.rb-blur-text > span',
+      )) {
+        expect(getComputedStyle(word).opacity).toBe('1')
+        expect(getComputedStyle(word).transform).toBe('none')
+      }
+    })
+    await expect(canvasElement.querySelector('.rb-shiny-text')).toHaveAttribute(
+      'data-running',
+      'false',
+    )
+  },
+}
 
 export const Catalogue: Story = {
   args: { items },
   play: async ({ canvas, canvasElement, userEvent }) => {
+    const locale = detectLocale([
+      canvasElement.ownerDocument.documentElement.lang,
+    ])
+    const t = (message: Message) => translate(locale, message)
     await expect(canvasElement).not.toHaveTextContent(/jellyfin/i)
     await expect(
       canvas.getByRole('heading', {
         level: 1,
-        name: 'HollyFilms 3.0 — Films et séries',
+        name: t('HollyFilms 3.0 — Films et séries'),
       }),
     ).toBeVisible()
     await expect(
-      canvas.getByRole('heading', { name: 'Au catalogue' }),
+      canvas.getByRole('heading', { name: t('Au catalogue') }),
     ).toBeVisible()
-    const catalogue = canvas.getByRole('region', { name: 'Au catalogue' })
+    const catalogue = canvas.getByRole('region', { name: t('Au catalogue') })
     await expect(
       within(catalogue).queryByRole('button'),
     ).not.toBeInTheDocument()
     await expect(within(catalogue).queryByRole('link')).not.toBeInTheDocument()
     const pause = canvas.getByRole('button', {
-      name: 'Mettre les animations en pause',
+      name: t('Mettre les animations en pause'),
     })
     await userEvent.click(pause)
     await expect(pause).toHaveAttribute('aria-pressed', 'true')
@@ -69,6 +122,8 @@ export const Login: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Se connecter' }))
     const dialog = canvas.getByRole('dialog')
     await expect(dialog).toBeVisible()
+    await expect(getComputedStyle(dialog).scrollbarWidth).toBe('none')
+    await expect(getComputedStyle(dialog).overflowX).toBe('hidden')
     await userEvent.type(
       canvas.getByLabelText('Nom d’utilisateur'),
       'cinephile',
@@ -92,9 +147,14 @@ export const Registration: Story = {
         canvas.getByRole('heading', { name: 'Créer votre compte.' }),
       ).toBeVisible(),
     )
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Envoyer la demande' }),
+      ).toBeVisible(),
+    )
     await expect(
-      canvas.getByRole('button', { name: 'Envoyer la demande' }),
-    ).toBeVisible()
+      getComputedStyle(canvas.getByRole('dialog')).scrollbarWidth,
+    ).toBe('none')
     await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
     await waitFor(() => expect(trigger).toHaveFocus())
   },

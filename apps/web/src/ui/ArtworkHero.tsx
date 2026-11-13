@@ -24,7 +24,6 @@ type Snapshot = {
   position: string
   at: number
   score: number
-  player: boolean
 }
 type Flight = {
   id: number
@@ -65,7 +64,6 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
   const snapshots = useRef(new Map<string, Snapshot>())
   const sequence = useRef(0)
   const scheduled = useRef(new Set<number>())
-  const origins = useRef(new WeakMap<HTMLElement, HTMLElement>())
   const active = useRef(new Map<number, Flight>())
   const [flights, setFlights] = useState<Flight[]>([])
   const popover = useRef<HTMLDivElement>(null)
@@ -79,17 +77,14 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       scheduled.current.add(id)
     }
     const transition = (target: Entry) => {
+      // Only enter the player from homepage/details artwork. Never fly back
+      // into the catalogue, or between cards and details.
+      if (!target.element.closest('.player-artwork-hero')) return
       const snapshot = snapshots.current.get(target.key)
+      if (!snapshot) return
       const destination = frame(target.element)
-      const targetIsPlayer = Boolean(
-        target.element.closest('.player-artwork-hero'),
-      )
       if (
-        !snapshot ||
         !destination ||
-        // A shared image only travels across the player boundary, never between
-        // catalogue cards, carousel slides or details dialogs.
-        snapshot.player === targetIsPlayer ||
         snapshot.entry.element === target.element ||
         performance.now() - snapshot.at > 1500
       )
@@ -104,7 +99,6 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       )
         return
       snapshots.current.delete(target.key)
-      origins.current.set(target.element, snapshot.entry.element)
       const visibility = target.element.style.visibility
       target.element.style.visibility = 'hidden'
       const flight: Flight = {
@@ -112,7 +106,7 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         snapshot,
         target,
         frame: destination,
-        frosted: targetIsPlayer,
+        frosted: true,
         restore: () => {
           target.element.style.visibility = visibility
         },
@@ -132,22 +126,6 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         })
         return () => {
           entries.current.delete(entry.element)
-          const origin = snapshots.current.get(entry.key)
-          if (origin?.entry.element !== entry.element) return
-          later(() => {
-            const modal = document.querySelector('dialog[open]')
-            const candidates = [...entries.current.values()].filter(
-              (value) =>
-                value.key === entry.key &&
-                frame(value.element) &&
-                (!modal || modal.contains(value.element)),
-            )
-            const target =
-              candidates.find(
-                (value) => value.element === origins.current.get(entry.element),
-              ) ?? candidates[0]
-            if (target) transition(target)
-          })
         }
       },
       update(element, blob) {
@@ -173,10 +151,18 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       clear()
       if (reduced || !('showPopover' in HTMLElement.prototype)) return
       const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('.player-shell')) return
+      const sourceScope = target?.closest('.media-dialog, .home-page')
+      if (!sourceScope) return
       const scope = target?.closest('dialog, .media-tile, section')
       const modal = document.querySelector('dialog[open]')
       expiry = setTimeout(() => pending.clear(), 1600)
       for (const entry of entries.current.values()) {
+        if (
+          !sourceScope.contains(entry.element) ||
+          entry.element.closest('.player-shell')
+        )
+          continue
         if (scope?.matches('.media-tile') && !scope.contains(entry.element))
           continue
         const image = entry.element.querySelector('img')
@@ -203,12 +189,11 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
           position: style.objectPosition,
           at: performance.now(),
           score,
-          player: Boolean(entry.element.closest('.player-artwork-hero')),
         })
       }
     }
     const keyboard = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') capture(event)
+      if (event.key === 'Escape') clear()
     }
     document.addEventListener('click', capture, true)
     document.addEventListener('keydown', keyboard, true)

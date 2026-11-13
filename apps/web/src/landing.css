@@ -30,6 +30,14 @@
   margin-inline: var(--spacing-stage);
   padding-block: 24px;
 }
+.showcase-nav-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
 .showcase-logo {
   display: inline-flex;
   align-items: center;
@@ -100,10 +108,21 @@
   letter-spacing: -0.055em;
 }
 .title-accent {
-  @apply bg-brand-gradient;
-  background-clip: text;
-  color: transparent;
   padding-right: 0.06em;
+}
+/* Paint on each animated glyph layer, not its transformed ancestor. */
+.title-accent .rb-blur-text > span {
+  @apply bg-brand-gradient;
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+.title-accent .rb-blur-text > span:nth-child(2) {
+  background-position: 50% 0;
+}
+.title-accent .rb-blur-text > span:nth-child(3) {
+  background-position: 100% 0;
 }
 .feature-reel {
   height: 76px;
@@ -269,12 +288,20 @@
   padding: 0;
   border-radius: 24px;
   width: min(840px, calc(100vw - 32px));
-  max-height: 90dvh;
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   color: inherit;
   box-shadow:
     inset 0 1px 0 #ecf4fb26,
     0 30px 150px #0009;
+}
+.auth-dialog::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .auth-dialog::backdrop {
   background: transparent;

@@ -130,7 +130,7 @@ test(
     await writeInContainer(
       name,
       '/media/Signal Test (2026)/Signal Test (2026).fr.srt',
-      '1\n00:00:00,000 --> 00:02:59,000\nHollyFilms — sous-titres de test\n',
+      '1\n00:00:00,000 --> 00:02:59,000\nHollyFilms — sous-titres de test\n\n2\n00:00:01,000 --> 00:00:02,000\nHollyFilms — cue courte\n',
     )
     await writeInContainer(
       name,
@@ -277,6 +277,7 @@ test(
     })
     t.after(() => browser.close())
     const page = await browser.newPage({
+      locale: 'fr-FR',
       viewport: { width: 1440, height: 900 },
     })
     await page.addInitScript(() => {
@@ -398,6 +399,8 @@ test(
         ' ms on the local fixture.',
     )
     assert.equal(new URL(page.url()).pathname, '/app')
+    assert.equal(new URL(page.url()).searchParams.get('play'), item.Id)
+    const playbackHistoryLength = await page.evaluate(() => history.length)
     await until(
       () =>
         playerView
@@ -447,13 +450,27 @@ test(
     await page.waitForFunction(() =>
       document.fullscreenElement?.classList.contains('player-viewport'),
     )
+    const leaveFullscreen = playerView.getByRole('button', {
+      name: 'Quitter le plein écran',
+      exact: true,
+    })
+    // Clicking dismisses a tooltip until the pointer leaves its trigger.
+    await page.mouse.move(700, 400)
+    await leaveFullscreen.hover()
     await playerView
-      .getByRole('button', { name: 'Quitter le plein écran', exact: true })
-      .click()
+      .getByRole('tooltip', { name: 'Quitter le plein écran' })
+      .waitFor()
+    assert(
+      await page
+        .locator('.player-viewport:fullscreen [role="tooltip"]')
+        .count(),
+      'tooltip is inside the fullscreen surface',
+    )
+    await leaveFullscreen.click()
     await page.waitForFunction(() => !document.fullscreenElement)
     await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     assert(await playerView.locator('video').evaluate((video) => video.paused))
-    // The elastic decoration must preserve native range keys and actual video volume.
+    // The animated volume meter preserves native range keys and actual video volume.
     const volume = playerView.getByRole('slider', {
       name: 'Volume',
       exact: true,
@@ -612,20 +629,19 @@ test(
       .getByRole('button', { name: 'Paramètres de lecture' })
       .click()
     const audio = options().getByLabel('Audio', { exact: true })
-    const secondAudio = await audio
-      .locator('option')
-      .nth(1)
-      .getAttribute('value')
-    await audio.selectOption(secondAudio)
+    await audio.click()
+    await page.getByRole('option').nth(1).click()
     await page.locator('.player-viewport[data-state="ready"]').waitFor()
     await options()
       .getByRole('button', { name: 'Sous-titres', exact: true })
       .click()
     const language = options().getByLabel('Langue', { exact: true })
-    const srt = language
-      .locator('option')
+    await language.click()
+    await page
+      .getByRole('option')
       .filter({ hasText: /French|Français|SRT/i })
-    await language.selectOption(await srt.first().getAttribute('value'))
+      .first()
+      .click()
     await until(
       async () =>
         (
@@ -635,10 +651,96 @@ test(
         ).includes('HollyFilms'),
       'rendered subtitle',
     )
-    const ass = language
-      .locator('option')
+    await until(
+      () =>
+        playerView.evaluate((root) => {
+          const caption = root.querySelector('.player-captions')
+          const controls = root.querySelector('.player-controls')
+          return (
+            caption &&
+            controls &&
+            caption.getBoundingClientRect().bottom <
+              controls.getBoundingClientRect().top - 8
+          )
+        }),
+      'text subtitles clear the visible playback controls',
+    )
+    assert(
+      await language.locator('img').count(),
+      'subtitle select includes a flag',
+    )
+    const originalCue = await playerView
+      .locator('video track')
+      .evaluate((track) => {
+        window.subtitleOffsetTrack = track
+        return track.track.cues[0].startTime
+      })
+    await options()
+      .getByRole('button', { name: /Régler le décalage/ })
+      .click()
+    const offsetPanel = playerView.getByRole('region', {
+      name: 'Décalage des sous-titres',
+    })
+    const offsetSlider = offsetPanel.getByRole('slider')
+    await offsetPanel
+      .getByRole('button', { name: 'Retarder de 0,1 seconde' })
+      .click()
+    await until(
+      () =>
+        playerView
+          .locator('video track')
+          .evaluate(
+            (track, start) =>
+              track === window.subtitleOffsetTrack &&
+              Math.abs(track.track.cues[0].startTime - start - 0.1) < 0.001,
+            originalCue,
+          ),
+      'live subtitle offset without reload',
+    )
+    await offsetSlider.focus()
+    await page.keyboard.press('Home')
+    await until(
+      () =>
+        playerView
+          .locator('video track')
+          .evaluate(
+            (track) =>
+              track.track.cues.length === 1 &&
+              track.track.cues[0].endTime === 59,
+          ),
+      'negative offset removes expired cues',
+    )
+    await offsetPanel
+      .getByRole('button', { name: 'Réinitialiser le décalage' })
+      .click()
+    await until(
+      () =>
+        playerView
+          .locator('video track')
+          .evaluate(
+            (track, start) =>
+              track === window.subtitleOffsetTrack &&
+              track.track.cues.length === 2 &&
+              track.track.cues[0].startTime === start,
+            originalCue,
+          ),
+      'reset restores cues without reload or drift',
+    )
+    await page.keyboard.press('Escape')
+    await offsetPanel.waitFor({ state: 'detached' })
+    assert(
+      await playerView.isVisible(),
+      'Escape closes offset panel, not playback',
+    )
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await language.click()
+    await page
+      .getByRole('option')
       .filter({ hasText: /English|Anglais|ASS/i })
-    await language.selectOption(await ass.first().getAttribute('value'))
+      .first()
+      .click()
     try {
       await until(
         async () =>
@@ -664,13 +766,34 @@ test(
       async () => (await playerView.locator('canvas').count()) > 0,
       'ASS overlay',
     )
-    await language.selectOption(await srt.first().getAttribute('value'))
+    await until(
+      () =>
+        playerView.evaluate((root) => {
+          const canvas = root.querySelector('.player-subtitle-canvas')
+          const controls = root.querySelector('.player-controls')
+          return (
+            canvas &&
+            controls &&
+            canvas.getBoundingClientRect().height > 0 &&
+            canvas.getBoundingClientRect().bottom <
+              controls.getBoundingClientRect().top - 8
+          )
+        }),
+      'ASS subtitle plane clears controls without clipping top captions',
+    )
+    await language.click()
+    await page
+      .getByRole('option')
+      .filter({ hasText: /French|Français|SRT/i })
+      .first()
+      .click()
     await options().getByRole('button', { name: 'Fermer les options' }).click()
     stage = 'HLS quality change'
     await playerView
       .getByRole('button', { name: 'Paramètres de lecture' })
       .click()
-    await options().getByLabel('Qualité').selectOption('420000')
+    await options().getByLabel('Qualité').click()
+    await page.locator('[role="option"][data-value="420000"]').click()
     await page.locator('.player-viewport[data-state="ready"]').waitFor()
     await until(
       () =>
@@ -774,9 +897,51 @@ test(
       'HLS resume after reload',
     )
     assert(page.workers().some((worker) => worker.url().includes('hls.worker')))
+    stage = 'restoring active playback from the URL'
+    await video.evaluate((element) => element.pause())
+    await until(
+      async () => new URL(page.url()).searchParams.get('paused') === '1',
+      'pause reflected in URL',
+    )
+    const savedTime = Number(new URL(page.url()).searchParams.get('t'))
+    assert(savedTime > 20, 'the URL contains the current playback position')
+    const historyBeforeReload = await page.evaluate(() => history.length)
+    assert.equal(
+      historyBeforeReload,
+      playbackHistoryLength + 2,
+      'only close and reopen add history entries, never playback progress',
+    )
+    await page.reload()
+    await page.locator('.player-viewport[data-state="ready"]').waitFor()
+    assert(
+      await playerView.locator('video').evaluate((element) => element.paused),
+      'reload preserves pause',
+    )
+    await until(
+      async () =>
+        Math.abs(
+          Number(
+            await playerView
+              .getByRole('slider', { name: 'Position de lecture' })
+              .inputValue(),
+          ) - savedTime,
+        ) < 2,
+      'reload restores the saved timestamp',
+    )
+    assert.equal(await page.evaluate(() => history.length), historyBeforeReload)
+    await page.goBack()
+    await page.locator('.player-shell').waitFor({ state: 'detached' })
+    await page.goForward()
+    await page.locator('.player-viewport[data-state="ready"]').waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('play'), item.Id)
     stage = 'closing playback'
     await page.getByRole('button', { name: 'Retour au catalogue' }).click()
     await page.locator('.player-shell').waitFor({ state: 'detached' })
+    assert.notEqual(
+      await page.evaluate(() => getComputedStyle(document.body).overflowY),
+      'hidden',
+      'homepage scrolling is restored after player return',
+    )
     stage = 'episode queue'
     await exec('docker', [
       'exec',
@@ -821,6 +986,12 @@ test(
     await page
       .getByRole('button', { name: /Voir la fiche de Orbit Test/ })
       .click()
+    const seriesId = new URL(page.url()).searchParams.get('media')
+    assert(seriesId)
+    await page.reload()
+    await page.getByRole('button', { name: 'Fermer la fiche' }).waitFor()
+    assert.equal(new URL(page.url()).pathname, '/app/series')
+    assert.equal(new URL(page.url()).searchParams.get('media'), seriesId)
     await page.getByRole('button', { name: 'Lire la série' }).click()
     await until(
       () =>
@@ -850,9 +1021,21 @@ test(
         playerView.locator('video').evaluate((video) => video.readyState >= 3),
       'second episode',
     )
+    assert.notEqual(
+      new URL(page.url()).searchParams.get('play'),
+      seriesId,
+      'URL follows the actual episode, not its parent series',
+    )
     await page.getByRole('button', { name: 'Retour au catalogue' }).click()
     await page.locator('.player-shell').waitFor({ state: 'detached' })
+    await page.getByRole('button', { name: 'Fermer la fiche' }).click()
     stage = 'backend failure and retry'
+    await page.locator('.media-dialog').waitFor({ state: 'detached' })
+    assert.notEqual(
+      await page.evaluate(() => getComputedStyle(document.body).overflowY),
+      'hidden',
+      'returning through media details releases the final scroll lock',
+    )
     await page.route(
       playbackInfo,
       (route) => route.fulfill({ status: 503, body: '' }),
@@ -872,6 +1055,7 @@ test(
     await page.getByRole('button', { name: 'Retour au catalogue' }).click()
     await page.locator('.player-shell').waitFor({ state: 'detached' })
     stage = 'remote playback'
+    await page.getByRole('button', { name: 'Fermer la fiche' }).click()
     const secondDevice = 'player-receiver'
     const receiverAuthorization = authorization.replace(
       'player-e2e',
@@ -884,7 +1068,10 @@ test(
         body: JSON.stringify({ Username: 'PlayerTest', Pw: password }),
       })
     ).json()
-    const receiver = await browser.newPage({ reducedMotion: 'reduce' })
+    const receiver = await browser.newPage({
+      reducedMotion: 'reduce',
+      locale: 'fr-FR',
+    })
     receiver.on('pageerror', (error) =>
       errors.push({ stage, stack: error.stack }),
     )
@@ -909,6 +1096,10 @@ test(
       )
     }, 'receiver registered')
     async function openMovie(client) {
+      const closeDetails = client.getByRole('button', {
+        name: 'Fermer la fiche',
+      })
+      if (await closeDetails.isVisible()) await closeDetails.click()
       await client.getByRole('button', { name: 'Films', exact: true }).click()
       await client
         .getByRole('button', { name: /Voir la fiche de Signal Test/ })
@@ -933,7 +1124,10 @@ test(
     await playerView
       .getByRole('button', { name: 'Paramètres de lecture' })
       .click()
-    await options().getByRole('button', { name: 'Diffusion' }).click()
+    await playerView
+      .locator('.player-heading')
+      .getByRole('button', { name: 'Chromecast et appareils' })
+      .click()
     await options().locator('button.player-menu-list').first().click()
     await receiver
       .locator('.player-viewport[data-state="playing"]')
@@ -957,6 +1151,7 @@ test(
         .getByRole('button', { name: 'Paramètres de lecture' })
         .click()
       await client
+        .locator('.player-heading')
         .getByRole('button', { name: 'SyncPlay', exact: true })
         .click()
     }
@@ -989,9 +1184,84 @@ test(
     await receiver.locator('.player-shell').waitFor({ state: 'detached' })
     await page.getByRole('button', { name: 'Retour au catalogue' }).click()
     await page.locator('.player-shell').waitFor({ state: 'detached' })
+    stage = 'library destinations'
+    await api(`/UserFavoriteItems/${item.Id}?userId=${auth.User.Id}`, {
+      method: 'POST',
+      headers,
+    })
+    await page.goto(origin + '/app/favorites')
+    const favoriteCard = page.getByRole('article', {
+      name: item.Name,
+      exact: true,
+    })
+    await favoriteCard.hover()
+    await favoriteCard
+      .getByRole('button', { name: 'Retirer des favoris' })
+      .click()
+    await favoriteCard.waitFor({ state: 'detached' })
+    await page.getByRole('button', { name: 'Films', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Trier les titres' }).click()
+    await page.getByRole('option', { name: 'Titre A–Z' }).click()
+    await page.reload()
+    assert.equal(new URL(page.url()).pathname, '/app/movies')
+    assert.equal(
+      await page
+        .getByRole('combobox', { name: 'Trier les titres' })
+        .innerText(),
+      'Titre A–Z',
+    )
+    const created = await (
+      await api(
+        '/Collections?' +
+          new URLSearchParams({ name: 'Collection Test', ids: item.Id }),
+        { method: 'POST', headers },
+      )
+    ).json()
+    assert(created.Id)
+    await api(`/Collections/${created.Id}/Items?ids=${item.Id}`, {
+      method: 'POST',
+      headers,
+    })
+    const collectionItems = await (
+      await api(
+        '/Items?' +
+          new URLSearchParams({
+            parentId: created.Id,
+            userId: auth.User.Id,
+            recursive: 'true',
+            includeItemTypes: 'Movie,Series',
+          }),
+        { headers },
+      )
+    ).json()
+    assert(
+      collectionItems.Items.some((entry) => entry.Id === item.Id),
+      'the test collection contains its movie: ' +
+        JSON.stringify(collectionItems),
+    )
+    await page.getByRole('button', { name: 'Collections', exact: true }).click()
+    await page.getByRole('button', { name: /Collection Test/ }).click()
+    await page.getByRole('heading', { name: 'Collection Test.' }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('collection'), created.Id)
+    await page.reload()
+    await page
+      .getByRole('button', { name: /Voir la fiche de Signal Test/ })
+      .waitFor({ timeout: 10000 })
+      .catch(async (error) => {
+        t.diagnostic(
+          'Collection page: ' + (await page.locator('body').innerText()),
+        )
+        throw error
+      })
+    await page.getByRole('button', { name: 'Toutes les collections' }).click()
+    await page.getByRole('heading', { name: 'Les collections.' }).waitFor()
+    await page.goBack()
+    await page.getByRole('heading', { name: 'Collection Test.' }).waitFor()
+    await page.getByRole('button', { name: 'Accueil', exact: true }).click()
+    await page.getByRole('region', { name: 'À l’affiche' }).waitFor()
     assert.deepEqual(errors, [])
     t.diagnostic(
-      'Verified on Jellyfin 12.4: decoded video, audio, SRT, HLS, resume, episode queue, retry, remote playback and SyncPlay.',
+      'Verified on Jellyfin 12.4: decoded video, audio, SRT, HLS, resume, episode queue, retry, remote playback, SyncPlay, favorites, sorting and collection URL restoration.',
     )
   },
 )

@@ -1,4 +1,7 @@
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { Tooltip } from './Tooltip.tsx'
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -67,6 +70,8 @@ export function HomeCarousel({
   session,
   userId,
   active = true,
+  reveal = true,
+  onReady,
   entranceKey = 0,
   skipEntrance = false,
   onSelect,
@@ -76,6 +81,8 @@ export function HomeCarousel({
   items: MediaItem[]
   session?: JellyfinSession
   userId?: string
+  reveal?: boolean
+  onReady?: (id: string) => void
   active?: boolean
   entranceKey?: number
   skipEntrance?: boolean
@@ -83,6 +90,7 @@ export function HomeCarousel({
   onPlay?: (item: MediaItem, resume: boolean) => void
   onFavorite?: (item: MediaItem, favorite: boolean) => Promise<boolean>
 }) {
+  const { t, locale } = useI18n()
   const reduced = useReducedMotion()
   const backdropWidth = useSyncExternalStore(
     subscribeViewport,
@@ -110,7 +118,24 @@ export function HomeCarousel({
   const found = slides.findIndex((item) => item.id === selectedId)
   const index = found < 0 ? 0 : found
   const item = slides[index]
-  const enabled = active && visible && inView && !reduced
+  const assetKey = JSON.stringify([
+    item?.id,
+    item?.backdrop ?? item?.poster,
+    item?.logo,
+    backdropWidth,
+  ])
+  const [backdropReady, setBackdropReady] = useState<string>()
+  const [logoReady, setLogoReady] = useState<string>()
+  const settleBackdrop = useCallback(
+    () => setBackdropReady(assetKey),
+    [assetKey],
+  )
+  const settleLogo = useCallback(() => setLogoReady(assetKey), [assetKey])
+  useEffect(() => {
+    if (item && backdropReady === assetKey && logoReady === assetKey)
+      onReady?.(item.id)
+  }, [item, assetKey, backdropReady, logoReady, onReady])
+  const enabled = active && reveal && visible && inView && !reduced
   const running = enabled && !paused
   const preview = useQuery({
     queryKey: ['hero-preview', session?.deviceId, userId, item?.id],
@@ -159,7 +184,7 @@ export function HomeCarousel({
   const finish = item.minutes
     ? new Date(
         now + (item.remainingMinutes ?? item.minutes) * 60000,
-      ).toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })
+      ).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
     : undefined
   const navigate = (direction: number) =>
     setSelectedId(
@@ -184,8 +209,10 @@ export function HomeCarousel({
     <section
       ref={root}
       className="home-hero home-carousel"
+      data-revealed={reveal}
+      inert={!reveal}
       aria-roledescription="carrousel"
-      aria-label="À l’affiche"
+      aria-label={t('À l’affiche')}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocusCapture={() => setFocused(true)}
@@ -206,9 +233,15 @@ export function HomeCarousel({
             key={`${item.id}:${entranceKey}`}
             className="hero-backdrop"
             initial={
-              reduced ? false : { opacity: 0.35, transform: 'scale(1.08)' }
+              reduced && reveal
+                ? false
+                : { opacity: 0, transform: 'scale(1.08)' }
             }
-            animate={{ opacity: 1, transform: 'scale(1)' }}
+            animate={
+              reveal
+                ? { opacity: 1, transform: 'scale(1)' }
+                : { opacity: 0, transform: 'scale(1.08)' }
+            }
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0 : 1.1, ease }}
           >
@@ -216,6 +249,7 @@ export function HomeCarousel({
               source={item.backdrop ?? item.poster}
               session={session}
               width={backdropWidth}
+              onReady={settleBackdrop}
               eager
             />
           </motion.div>
@@ -239,14 +273,18 @@ export function HomeCarousel({
             key={`${item.id}:${entranceKey}`}
             reduced={Boolean(reduced)}
             skipEntrance={skipEntrance}
+            reveal={reveal}
           >
             <p data-hero-stage className="home-eyebrow">
-              <span />À L’AFFICHE <span className="hero-kind">{item.kind}</span>
+              <span />
+              {t('À L’AFFICHE')}{' '}
+              <span className="hero-kind">{t(item.kind)}</span>
             </p>
             <h1 data-hero-stage className="hero-title" id="home-title">
               <span className="sr-only">{item.title}</span>
               <MediaArtwork
                 source={item.logo}
+                onReady={settleLogo}
                 session={session}
                 width={1600}
                 eager
@@ -258,7 +296,9 @@ export function HomeCarousel({
               {item.rating != null && (
                 <span
                   className="hero-score"
-                  aria-label={'Note spectateurs : ' + item.rating.toFixed(1)}
+                  aria-label={
+                    t('Note spectateurs :') + ' ' + item.rating.toFixed(1)
+                  }
                 >
                   <Star size={15} fill="currentColor" />
                   {item.rating.toFixed(1)}
@@ -266,18 +306,20 @@ export function HomeCarousel({
               )}
               {item.criticRating != null && (
                 <span
-                  aria-label={'Note critiques : ' + item.criticRating + '%'}
+                  aria-label={
+                    t('Note critiques :') + ' ' + item.criticRating + '%'
+                  }
                 >
-                  {item.criticRating}% <small>critiques</small>
+                  {item.criticRating}% <small>{t('critiques')}</small>
                 </span>
               )}
               {item.year && <span>{item.year}</span>}
               {item.classification && <span>{item.classification}</span>}
-              {item.minutes && <span>{formatDuration(item.minutes)}</span>}
+              {item.minutes && <span>{formatDuration(item.minutes, t)}</span>}
               {finish && (
                 <span className="hero-finish">
                   <Clock3 size={13} />
-                  Fin à {finish}
+                  {t('Fin à {time}', { time: finish })}
                 </span>
               )}
             </div>
@@ -288,7 +330,7 @@ export function HomeCarousel({
             )}
             <p data-hero-stage className="home-synopsis">
               {item.overview ||
-                'Découvrez ce titre dans votre bibliothèque HollyFilms.'}
+                t('Découvrez ce titre dans votre bibliothèque HollyFilms.')}
             </p>
             <div data-hero-stage className="home-hero-actions">
               {onPlay && (
@@ -301,7 +343,9 @@ export function HomeCarousel({
                     onClick={() => onPlay(item, true)}
                   >
                     <Play size={20} fill="currentColor" />
-                    <Magnet>{item.progress > 0 ? 'Reprendre' : 'Lire'}</Magnet>
+                    <Magnet>
+                      {item.progress > 0 ? t('Reprendre') : t('Lire')}
+                    </Magnet>
                   </motion.button>
                 </StarBorder>
               )}
@@ -313,28 +357,35 @@ export function HomeCarousel({
                 onClick={() => onSelect(item)}
               >
                 <Info size={20} />
-                Voir la fiche
+                {t('Voir la fiche')}
               </motion.button>
               {onFavorite && (
-                <motion.button
-                  type="button"
-                  className="hero-glass hero-favorite"
-                  disabled={Boolean(saving)}
-                  aria-label={
-                    favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'
-                  }
-                  aria-pressed={favorite}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => void toggleFavorite()}
-                >
-                  <ClickSpark burst={burst} />
-                  <Heart size={21} fill={favorite ? 'currentColor' : 'none'} />
-                </motion.button>
+                <Tooltip>
+                  <motion.button
+                    type="button"
+                    className="hero-glass hero-favorite"
+                    disabled={Boolean(saving)}
+                    aria-label={
+                      favorite
+                        ? t('Retirer des favoris')
+                        : t('Ajouter aux favoris')
+                    }
+                    aria-pressed={favorite}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => void toggleFavorite()}
+                  >
+                    <ClickSpark burst={burst} />
+                    <Heart
+                      size={21}
+                      fill={favorite ? 'currentColor' : 'none'}
+                    />
+                  </motion.button>
+                </Tooltip>
               )}
             </div>
             {favoriteError === item.id && (
               <p role="alert" className="hero-favorite-error">
-                Impossible de modifier les favoris. Réessayez.
+                {t('Impossible de modifier les favoris. Réessayez.')}
               </p>
             )}
           </HeroSlide>
@@ -343,88 +394,100 @@ export function HomeCarousel({
       <motion.div
         className="hero-preview-controls"
         initial={reduced || skipEntrance ? false : { opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
+        animate={{ opacity: reveal ? 1 : 0, y: reveal ? 0 : -12 }}
         transition={{ duration: 0.45, delay: 0.2, ease }}
       >
         <span className="hero-preview-label">
           {playingPreview && enabled
-            ? 'BANDE-ANNONCE'
-            : 'LA SÉLECTION HOLLYFILMS'}
+            ? t('BANDE-ANNONCE')
+            : t('LA SÉLECTION HOLLYFILMS')}
         </span>
         {preview.data && (
-          <button
-            type="button"
-            className="hero-glass"
-            aria-label={
-              muted ? 'Activer le son de l’aperçu' : 'Couper le son de l’aperçu'
-            }
-            disabled={!playingPreview || !enabled}
-            onClick={() => setMuted((value) => !value)}
-          >
-            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
+          <Tooltip>
+            <button
+              type="button"
+              className="hero-glass"
+              aria-label={
+                muted
+                  ? t('Activer le son de l’aperçu')
+                  : t('Couper le son de l’aperçu')
+              }
+              disabled={!playingPreview || !enabled}
+              onClick={() => setMuted((value) => !value)}
+            >
+              {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+          </Tooltip>
         )}
         {!reduced && (
-          <button
-            type="button"
-            className="hero-glass"
-            aria-label={
-              paused
-                ? 'Reprendre les animations'
-                : 'Mettre les animations en pause'
-            }
-            aria-pressed={paused}
-            onClick={() => setPaused((value) => !value)}
-          >
-            {paused ? <Play size={17} /> : <Pause size={17} />}
-          </button>
+          <Tooltip>
+            <button
+              type="button"
+              className="hero-glass"
+              aria-label={
+                paused
+                  ? t('Reprendre les animations')
+                  : t('Mettre les animations en pause')
+              }
+              aria-pressed={paused}
+              onClick={() => setPaused((value) => !value)}
+            >
+              {paused ? <Play size={17} /> : <Pause size={17} />}
+            </button>
+          </Tooltip>
         )}
       </motion.div>
       {slides.length > 1 && (
         <motion.nav
           initial={reduced || skipEntrance ? false : { opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: reveal ? 1 : 0, y: reveal ? 0 : 18 }}
           transition={{ duration: 0.5, delay: 0.35, ease }}
           className="hero-pagination"
-          aria-label="Choisir un titre à l’affiche"
+          aria-label={t('Choisir un titre à l’affiche')}
         >
           <div className="hero-pagination-heading">
-            <span>LA SÉLECTION</span>
+            <span>{t('LA SÉLECTION')}</span>
             <span className="hero-counter">
               <strong>{String(index + 1).padStart(2, '0')}</strong> /{' '}
               {String(slides.length).padStart(2, '0')}
             </span>
           </div>
           <div className="hero-navigation">
-            <button
-              type="button"
-              className="hero-glass"
-              aria-label="Titre précédent"
-              onClick={() => navigate(-1)}
-            >
-              <ChevronLeft size={20} />
-            </button>
+            <Tooltip>
+              <button
+                type="button"
+                className="hero-glass"
+                aria-label={t('Titre précédent')}
+                onClick={() => navigate(-1)}
+              >
+                <ChevronLeft size={20} />
+              </button>
+            </Tooltip>
             <div className="hero-dots">
               {slides.map((slide, position) => (
-                <button
-                  key={slide.id}
-                  type="button"
-                  aria-label={'Afficher ' + slide.title}
-                  aria-current={index === position ? 'true' : undefined}
-                  onClick={() => setSelectedId(slide.id)}
-                >
-                  <span />
-                </button>
+                <Tooltip key={slide.id}>
+                  <button
+                    key={slide.id}
+                    type="button"
+                    aria-label={t('Afficher') + ' ' + slide.title}
+                    aria-current={index === position ? 'true' : undefined}
+                    onClick={() => setSelectedId(slide.id)}
+                  >
+                    <span />
+                  </button>
+                </Tooltip>
               ))}
             </div>
-            <button
-              type="button"
-              className="hero-glass"
-              aria-label="Titre suivant"
-              onClick={() => navigate(1)}
-            >
-              <ChevronRight size={20} />
-            </button>
+            <Tooltip>
+              <button
+                type="button"
+                className="hero-glass"
+                aria-label={t('Titre suivant')}
+                onClick={() => navigate(1)}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </Tooltip>
           </div>
           <div className="hero-progress" aria-hidden="true">
             <motion.div style={{ scaleX: progress }} />
@@ -436,26 +499,29 @@ export function HomeCarousel({
         aria-live={focused || paused || reduced ? 'polite' : 'off'}
         aria-atomic="true"
       >
-        {index + 1} sur {slides.length} : {item.title}
+        {index + 1} {t('sur')} {slides.length} : {item.title}
       </span>
     </section>
   )
 }
 
-// Mounted per selection: staging runs when data arrives, independently of the page intro.
+// Mount immediately to load artwork; stage the content only when the intro releases it.
 function HeroSlide({
   children,
   reduced,
   skipEntrance,
+  reveal,
 }: {
   children: ReactNode
   reduced: boolean
   skipEntrance: boolean
+  reveal: boolean
 }) {
   const [skipAtMount] = useState(skipEntrance)
   const instant = reduced || (skipEntrance && !skipAtMount)
   const [scope, animateSlide] = useAnimate<HTMLDivElement>()
   useLayoutEffect(() => {
+    if (!reveal) return
     const stages = Array.from(
       scope.current.querySelectorAll<HTMLElement>('[data-hero-stage]'),
     )
@@ -502,7 +568,7 @@ function HeroSlide({
       badges?.complete()
       badges?.stop()
     }
-  }, [animateSlide, instant, scope])
+  }, [animateSlide, instant, scope, reveal])
   return (
     <motion.div
       ref={scope}

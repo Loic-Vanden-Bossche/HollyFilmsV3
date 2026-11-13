@@ -19,6 +19,10 @@ import type {
   AuthResult,
   RegistrationSummary,
 } from '@hollyfilms/shared/accounts'
+import {
+  googlePictureUrl,
+  type AccountProfile,
+} from '@hollyfilms/shared/profile'
 
 const databaseUrl = process.env.HOLLYFILMS_TEST_DATABASE_URL
 const jellyfinUrl = process.env.HOLLYFILMS_TEST_JELLYFIN_URL
@@ -153,6 +157,7 @@ test(
           issuer: 'https://accounts.google.com',
           subject: 'fixture-subject',
           email: 'test@example.org',
+          picture: 'https://lh3.googleusercontent.com/fixture-avatar',
         }
       },
     }
@@ -320,6 +325,7 @@ test(
       assert.equal(start.statusCode, 303, start.body)
       const params = new URL(start.headers.location!).searchParams
       assert.equal(params.get('code_challenge_method'), 'S256')
+      assert.equal(params.get('scope'), 'openid email profile')
       const cookie = start.cookies[0]!
       assert.equal(cookie.httpOnly, true)
       const callback = new URLSearchParams({
@@ -366,6 +372,194 @@ test(
     assert.equal(
       await db.registration.count({ where: { method: 'GOOGLE' } }),
       1,
+    )
+
+    await context.test(
+      'Profils : identité, photo Google, import, suppression et permissions',
+      async () => {
+        const googleHeaders = {
+          authorization: `Bearer ${googleLogin.session.accessToken}`,
+          'x-hollyfilms-device': googleLogin.session.deviceId,
+        }
+        const profile = async (headers = standardHeaders) => {
+          const result = await app.inject({ url: '/api/profile', headers })
+          assert.equal(result.statusCode, 200, result.body)
+          return result.json<AccountProfile>()
+        }
+        assert.equal((await app.inject('/api/profile')).statusCode, 401)
+        assert.equal((await app.inject('/api/profile/image')).statusCode, 401)
+        assert.equal(
+          (await app.inject({ method: 'DELETE', url: '/api/profile/image' }))
+            .statusCode,
+          401,
+        )
+        assert.equal((await profile()).id, active.jellyfinId)
+        assert.equal((await profile()).google, null)
+        assert.equal((await profile()).canEdit, true)
+        assert.equal(
+          (await profile(googleHeaders)).google?.picture,
+          'https://lh3.googleusercontent.com/fixture-avatar',
+        )
+        assert.equal(
+          (await profile(googleHeaders)).google?.email,
+          'test@example.org',
+        )
+        assert.equal(
+          googlePictureUrl(
+            'https://googleusercontent.com.attacker.test/avatar',
+          ),
+          null,
+        )
+        assert.equal(
+          googlePictureUrl('http://lh3.googleusercontent.com/avatar'),
+          null,
+        )
+        assert.equal(googlePictureUrl('javascript:alert(1)'), null)
+        const png =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aHfoAAAAASUVORK5CYII='
+        const upload = await app.inject({
+          method: 'PUT',
+          url: '/api/profile/image',
+          headers: googleHeaders,
+          payload: { type: 'image/png', data: png },
+        })
+        assert.equal(upload.statusCode, 204, upload.body)
+        assert.ok((await profile(googleHeaders)).imageTag)
+        assert.equal(
+          (await profile()).imageTag,
+          null,
+          'Uploading never modifies another user',
+        )
+        assert.ok(
+          (
+            await users.getUserById({
+              userId: (await profile(googleHeaders)).id,
+            })
+          ).data.PrimaryImageTag,
+        )
+        const image = await app.inject({
+          url: '/api/profile/image',
+          headers: googleHeaders,
+        })
+        assert.equal(image.statusCode, 200, image.body)
+        assert.match(String(image.headers['content-type']), /^image\//)
+        assert.ok(image.rawPayload.length > 0)
+        assert.equal(
+          (
+            await app.inject({
+              method: 'DELETE',
+              url: '/api/profile/image',
+              headers: googleHeaders,
+            })
+          ).statusCode,
+          204,
+        )
+        assert.equal((await profile(googleHeaders)).imageTag, null)
+        assert.ok(
+          (await profile(googleHeaders)).google?.picture,
+          'Custom removal restores the Google fallback',
+        )
+        const invalid = await app.inject({
+          method: 'PUT',
+          url: '/api/profile/image',
+          headers: standardHeaders,
+          payload: {
+            type: 'image/png',
+            data: Buffer.from('not an actual image').toString('base64'),
+          },
+        })
+        assert.equal(invalid.statusCode, 400)
+        assert.equal(
+          (
+            await app.inject({
+              method: 'PUT',
+              url: '/api/profile/image',
+              headers: { ...standardHeaders, origin: 'https://attacker.test' },
+              payload: { type: 'image/png', data: png },
+            })
+          ).statusCode,
+          403,
+        )
+        const policy = (await users.getUserById({ userId: active.jellyfinId! }))
+          .data.Policy!
+        await users.updateUserPolicy({
+          userId: active.jellyfinId!,
+          userPolicy: { ...policy, EnableUserPreferenceAccess: false },
+        })
+        assert.equal((await profile()).canEdit, false)
+        assert.equal(
+          (
+            await app.inject({
+              method: 'PUT',
+              url: '/api/profile/image',
+              headers: standardHeaders,
+              payload: { type: 'image/png', data: png },
+            })
+          ).statusCode,
+          403,
+        )
+        await users.updateUserPolicy({
+          userId: active.jellyfinId!,
+          userPolicy: policy,
+        })
+      },
+    )
+    await context.test(
+      'Mot de passe : vérification, changement, suppression et protection SSO/admin',
+      async () => {
+        const change = (
+          headers: typeof standardHeaders,
+          currentPassword: string,
+          newPassword: string,
+        ) =>
+          app.inject({
+            method: 'PUT',
+            url: '/api/profile/password',
+            headers,
+            payload: { currentPassword, newPassword },
+          })
+        assert.equal(
+          (await change(standardHeaders, 'incorrect', 'new-password'))
+            .statusCode,
+          403,
+        )
+        const changed = await change(standardHeaders, password, 'new-password')
+        assert.equal(changed.statusCode, 204, changed.body)
+        assert.equal(
+          (
+            await post('/api/auth/password', {
+              ...body,
+              password: 'new-password',
+            })
+          ).json<AuthResult>().status,
+          'authenticated',
+        )
+        const removed = await change(standardHeaders, 'new-password', '')
+        assert.equal(removed.statusCode, 204, removed.body)
+        assert.equal(
+          (
+            await post('/api/auth/password', { ...body, password: '' })
+          ).json<AuthResult>().status,
+          'authenticated',
+        )
+        assert.equal(
+          (await change(adminHeaders, adminPassword, '')).statusCode,
+          400,
+        )
+        const googleHeaders = {
+          authorization: `Bearer ${googleLogin.session.accessToken}`,
+          'x-hollyfilms-device': googleLogin.session.deviceId,
+        }
+        assert.equal(
+          (await change(googleHeaders, '', 'do-not-change')).statusCode,
+          409,
+        )
+        assert.equal(
+          (await googleFlow()).status,
+          'authenticated',
+          'Google SSO must remain functional',
+        )
+      },
     )
   },
 )

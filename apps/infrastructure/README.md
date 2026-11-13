@@ -22,7 +22,7 @@ Les flux vidéo ne sont pas mis en tampon ou en cache par les proxies. Range, le
 
 ## Prérequis et configuration
 
-Terraform **1.15.8+**, Docker/Buildx, Node 24 et Corepack. Le kubeconfig doit cibler CHBRX ; préciser `kubeconfig_context` pour éviter de dépendre du contexte courant. NGINX, cert-manager, le ClusterIssuer et la StorageClass existants ne sont pas gérés ici. Le stockage par défaut `local-path` utilise `WaitForFirstConsumer`, d’où `wait_until_bound = false` sur le PVC.
+Terraform **1.15.8+**, Docker/Buildx, Git, GitHub CLI (`gh`), Node 24 et Corepack. Le kubeconfig doit cibler CHBRX ; préciser `kubeconfig_context` pour éviter de dépendre du contexte courant. NGINX, cert-manager, le ClusterIssuer et la StorageClass existants ne sont pas gérés ici. Le stockage par défaut `local-path` utilise `WaitForFirstConsumer`, d’où `wait_until_bound = false` sur le PVC.
 
 Depuis la racine du dépôt :
 
@@ -40,12 +40,13 @@ Renseigner le fichier ignoré par Git :
 
 Les Secrets Kubernetes gérés par Terraform figurent aussi dans son état, malgré `sensitive = true`. Protéger le bucket, les sauvegardes, le fichier de variables et les plans. Les variables peuvent également être fournies avec `TF_VAR_*`. Aucun `.env` local n’est chargé par le script de déploiement ni copié dans les images.
 
-Exporter les identifiants du backend Scaleway dans le terminal, puis authentifier Docker :
+Exporter les identifiants du backend Scaleway. Authentifier Docker avec un jeton autorisé à publier sur GHCR et GitHub CLI avec un compte autorisé à créer des releases dans `HollyFilmsV3`.
 
 ```powershell
 $env:AWS_ACCESS_KEY_ID = "<accès Scaleway>"
 $env:AWS_SECRET_ACCESS_KEY = "<secret Scaleway>"
 docker login ghcr.io
+gh auth login --hostname github.com
 ```
 
 Le DNS de `hollyfilms-v3.chbrx.com` doit pointer sur l’endpoint de l’ingress CHBRX, comme le portfolio. La configuration ne crée pas d’enregistrement DNS. Pour Google, ajouter exactement cette URI de redirection dans la console OAuth :
@@ -55,6 +56,8 @@ https://hollyfilms-v3.chbrx.com/api/auth/google/callback
 ```
 
 ## Construire, publier et préparer le déploiement
+
+Pousser d’abord le commit à publier sur [HollyFilmsV3](https://github.com/Loic-Vanden-Bossche/HollyFilmsV3). Le script construit les deux images depuis le commit courant. Les modifications locales doivent être commitées et poussées pour entrer dans les images.
 
 ```powershell
 corepack yarn deploy v1.0.0
@@ -67,7 +70,9 @@ ghcr.io/loic-vanden-bossche/hollyfilms-v3-api:v1.0.0
 ghcr.io/loic-vanden-bossche/hollyfilms-v3-web:v1.0.0
 ```
 
-Il récupère ensuite les **digests** des images publiées et prépare `apps/infrastructure/hollyfilms.tfplan` avec ces références immuables. Une erreur interrompt la suite. `latest` est refusé, aucun tag `latest` n’est publié. `GHCR_IMAGE` permet de changer le préfixe des deux dépôts ; `GHCR_SOURCE_URL` permet de renseigner le lien GitHub OCI lorsque le dépôt HollyFilms est créé. `DOCKER_PLATFORM` vaut `linux/amd64` par défaut.
+Les images portent le label OCI `org.opencontainers.image.source` de `HollyFilmsV3` pour leur association au dépôt, ainsi que le commit et la version. Si un package publié auparavant sans label reste dissocié, utiliser **Connect repository** dans [GitHub Packages](https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-user-scoped-package-on-github).
+
+Le script récupère les **digests** et prépare `apps/infrastructure/hollyfilms.tfplan`. Il publie ensuite la [release GitHub](https://github.com/Loic-Vanden-Bossche/HollyFilmsV3/releases) avec les notes générées par GitHub et les deux références immuables. Le tag de la release pointe vers le commit des images. Une release existante bloque la republication de la version avant la construction. Le tag `latest` est réservé. `GHCR_IMAGE` change le préfixe des deux images, `GHCR_SOURCE_URL` surcharge le label source OCI et `DOCKER_PLATFORM` vaut `linux/amd64` par défaut.
 
 Après lecture du plan :
 
@@ -81,7 +86,7 @@ Pour construire, publier et appliquer dans la même commande, utiliser explicite
 corepack yarn deploy v1.0.1 --apply
 ```
 
-Cette option applique le plan enregistré sans confirmation supplémentaire. Le script n’installe aucun workflow CI/CD. Exécuter les déploiements un à la fois, comme pour le backend Scaleway du portfolio.
+Cette option applique le plan enregistré après la publication de la release. En cas d’échec d’`apply`, reprendre avec la commande Terraform ci-dessus. Exécuter les déploiements un à la fois, comme pour le backend Scaleway du portfolio.
 
 Le Job `hollyfilms-migrate-<hash de l’image API>` utilise **`prisma migrate deploy`**. Terraform attend sa réussite avant le rollout ; un échec conserve les anciens pods de l’application. Les Jobs terminés sont suivis par Terraform sans TTL automatique. Les migrations doivent être compatibles avec l’ancienne version, encore active pendant le rollout. Les modifications de Secrets applicatifs déclenchent un redémarrage des pods.
 

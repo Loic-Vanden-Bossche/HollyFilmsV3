@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Tooltip } from './Tooltip.tsx'
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { cinemaMotion } from '../components/reactbits/policy.ts'
 
 export function MediaRail({
   title,
@@ -13,6 +16,7 @@ export function MediaRail({
   kind?: 'poster' | 'person' | 'scene' | 'review'
   count?: number
 }) {
+  const { t } = useI18n()
   const ref = useRef<HTMLDivElement>(null),
     reduced = useReducedMotion()
   const [edges, setEdges] = useState({ start: true, end: true })
@@ -43,41 +47,77 @@ export function MediaRail({
       behavior: reduced ? 'instant' : 'smooth',
     })
   return (
-    <motion.section
-      className={`detail-rail detail-rail-${kind}`}
-      aria-label={title}
-      initial={{ opacity: 0, y: reduced ? 0 : 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.05 }}
-      transition={{ duration: reduced ? 0 : 0.3 }}
-    >
-      <div className="detail-section-heading">
+    <section className={`detail-rail detail-rail-${kind}`} aria-label={title}>
+      <motion.div
+        className="detail-section-heading"
+        initial={
+          reduced ? false : { opacity: 0, transform: 'translateY(14px)' }
+        }
+        whileInView={{ opacity: 1, transform: 'translateY(0px)' }}
+        viewport={{ once: true, amount: 0.1 }}
+        transition={{ duration: reduced ? 0 : 0.4, ease: cinemaMotion.ease }}
+      >
         <h3>
           {title}
           {count != null && <span>{count}</span>}
         </h3>
         <div className="detail-rail-controls">
-          <button
-            className="glass-control"
-            aria-label={`${title} : précédent`}
-            disabled={edges.start}
-            onClick={() => move(-1)}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            className="glass-control"
-            aria-label={`${title} : suivant`}
-            disabled={edges.end}
-            onClick={() => move(1)}
-          >
-            <ChevronRight size={18} />
-          </button>
+          <Tooltip>
+            <button
+              className="glass-control"
+              aria-label={t('{title} : précédent', { title })}
+              disabled={edges.start}
+              onClick={() => move(-1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+          </Tooltip>
+          <Tooltip>
+            <button
+              className="glass-control"
+              aria-label={t('{title} : suivant', { title })}
+              disabled={edges.end}
+              onClick={() => move(1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </Tooltip>
         </div>
-      </div>
+      </motion.div>
       <div ref={ref} className="detail-rail-track">
-        {children}
+        {Children.map(
+          children,
+          (child, index) =>
+            child && (
+              <motion.div
+                className="detail-rail-entry"
+                initial={
+                  reduced
+                    ? false
+                    : { opacity: 0, transform: 'translateY(22px) scale(0.97)' }
+                }
+                whileInView={{
+                  opacity: 1,
+                  transform: 'translateY(0px) scale(1)',
+                }}
+                viewport={{ once: true, amount: 0.08 }}
+                onFocusCapture={(event) => {
+                  // Keyboard navigation can reach a card before its scroll reveal.
+                  event.currentTarget
+                    .getAnimations()
+                    .forEach((animation) => animation.finish())
+                }}
+                transition={{
+                  duration: reduced ? 0 : 0.48,
+                  delay: reduced ? 0 : Math.min(index, 5) * 0.045,
+                  ease: cinemaMotion.ease,
+                }}
+              >
+                {child}
+              </motion.div>
+            ),
+        )}
       </div>
-    </motion.section>
+    </section>
   )
 }

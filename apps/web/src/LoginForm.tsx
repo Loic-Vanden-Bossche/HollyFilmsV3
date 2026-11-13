@@ -1,3 +1,6 @@
+import { localizeText } from './i18n/messages.ts'
+import { useI18n } from './i18n/I18nProvider.tsx'
+import { Tooltip } from './ui/Tooltip.tsx'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
@@ -16,6 +19,7 @@ import { registerAccount } from './account-api.ts'
 import { TextInput } from './ui/TextInput.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import googleLogo from './assets/logos/google-gradient.png'
+import { rememberAppReturn } from './use-app-route.ts'
 import {
   BlurText,
   SpotlightCard,
@@ -40,6 +44,7 @@ export function LoginForm({
   initialMode = 'login',
   animationsPaused = false,
 }: LoginFormProps) {
+  const { t } = useI18n()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submitting = useRef(false)
   const [error, setError] = useState<string>()
@@ -133,7 +138,10 @@ export function LoginForm({
               />
             </div>
             <div className="auth-layout">
-              <aside className="auth-aside" aria-label="Votre espace cinéma">
+              <aside
+                className="auth-aside"
+                aria-label={t('Votre espace cinéma')}
+              >
                 <div className="auth-aside-visual" aria-hidden="true">
                   <motion.div
                     className="auth-orbit"
@@ -156,16 +164,17 @@ export function LoginForm({
                 </div>
                 <p className="auth-aside-kicker">HOLLYFILMS 3.0</p>
                 <p className="auth-aside-title">
-                  Votre bibliothèque.
+                  {t('Votre bibliothèque.')}
                   <br />
-                  Votre séance.
+                  {t('Votre séance.')}
                 </p>
                 <p className="auth-aside-detail">
-                  Retrouvez vos films, vos séries et votre progression dans un
-                  seul espace.
+                  {t(
+                    'Retrouvez vos films, vos séries et votre progression dans un seul espace.',
+                  )}
                 </p>
                 <span className="auth-aside-caption">
-                  <ShieldCheck size={15} /> Un espace réservé aux membres
+                  <ShieldCheck size={15} /> {t('Un espace réservé aux membres')}
                 </span>
               </aside>
               <div className="auth-main">
@@ -190,7 +199,7 @@ export function LoginForm({
                   <motion.div
                     className="auth-switch"
                     role="group"
-                    aria-label="Connexion ou inscription"
+                    aria-label={t('Connexion ou inscription')}
                     variants={enter}
                     custom={1}
                   >
@@ -218,7 +227,9 @@ export function LoginForm({
                             }
                           />
                         )}
-                        <span>{register ? 'Inscription' : 'Connexion'}</span>
+                        <span>
+                          {register ? t('Inscription') : t('Connexion')}
+                        </span>
                       </motion.button>
                     ))}
                   </motion.div>
@@ -240,15 +251,15 @@ export function LoginForm({
                           <BlurText
                             text={
                               registering
-                                ? 'Créer votre compte.'
-                                : 'Bon retour.'
+                                ? t('Créer votre compte.')
+                                : t('Bon retour.')
                             }
                           />
                         </h2>
                         <p>
                           {registering
-                            ? 'Votre accès commence ici.'
-                            : 'Vos films et séries vous attendent.'}
+                            ? t('Votre accès commence ici.')
+                            : t('Vos films et séries vous attendent.')}
                         </p>
                       </motion.div>
                     </AnimatePresence>
@@ -263,6 +274,7 @@ export function LoginForm({
                         tabIndex={isSubmitting ? -1 : undefined}
                         onClick={(event) => {
                           if (submitting.current) event.preventDefault()
+                          else rememberAppReturn()
                         }}
                         whileHover={
                           still || isSubmitting ? undefined : { y: -2 }
@@ -281,12 +293,12 @@ export function LoginForm({
                         >
                           <image href={googleLogo} width={2820} height={2820} />
                         </svg>
-                        Continuer avec Google
+                        {t('Continuer avec Google')}
                         <ArrowRight size={16} aria-hidden="true" />
                       </motion.a>
                       <div className="auth-divider">
                         <span />
-                        ou avec vos identifiants
+                        {t('ou avec vos identifiants')}
                         <span />
                       </div>
                     </motion.div>
@@ -310,7 +322,7 @@ export function LoginForm({
                     <fieldset disabled={isSubmitting} className="auth-fields">
                       <motion.div variants={enter} custom={4}>
                         <label htmlFor={id + '-username'}>
-                          Nom d’utilisateur
+                          {t('Nom d’utilisateur')}
                         </label>
                         <div className="auth-input-wrap">
                           <motion.span
@@ -333,14 +345,16 @@ export function LoginForm({
                             autoCapitalize="none"
                             spellCheck={false}
                             required
-                            placeholder="Votre nom d’utilisateur"
+                            placeholder={t('Votre nom d’utilisateur')}
                             onFocus={() => setFocused('username')}
                             onBlur={() => setFocused(null)}
                           />
                         </div>
                       </motion.div>
                       <motion.div variants={enter} custom={5}>
-                        <label htmlFor={id + '-password'}>Mot de passe</label>
+                        <label htmlFor={id + '-password'}>
+                          {t('Mot de passe')}
+                        </label>
                         <div className="auth-input-wrap">
                           <motion.span
                             className="auth-focus"
@@ -369,43 +383,45 @@ export function LoginForm({
                             }
                             placeholder={
                               registering
-                                ? '8 caractères minimum'
-                                : 'Votre mot de passe'
+                                ? t('8 caractères minimum')
+                                : t('Votre mot de passe')
                             }
                             onFocus={() => setFocused('password')}
                             onBlur={() => setFocused(null)}
                           />
-                          <motion.button
-                            className="auth-password-toggle"
-                            type="button"
-                            aria-label={
-                              showPassword
-                                ? 'Masquer le mot de passe'
-                                : 'Afficher le mot de passe'
-                            }
-                            aria-pressed={showPassword}
-                            onClick={() => setShowPassword(!showPassword)}
-                            whileTap={still ? undefined : { scale: 0.9 }}
-                          >
-                            <AnimatePresence mode="wait" initial={false}>
-                              <motion.span
-                                key={String(showPassword)}
-                                initial={{
-                                  opacity: 0,
-                                  rotate: still ? 0 : -25,
-                                }}
-                                animate={{ opacity: 1, rotate: 0 }}
-                                exit={{ opacity: 0, rotate: still ? 0 : 25 }}
-                                transition={{ duration: still ? 0 : 0.1 }}
-                              >
-                                {showPassword ? (
-                                  <EyeOff size={18} />
-                                ) : (
-                                  <Eye size={18} />
-                                )}
-                              </motion.span>
-                            </AnimatePresence>
-                          </motion.button>
+                          <Tooltip>
+                            <motion.button
+                              className="auth-password-toggle"
+                              type="button"
+                              aria-label={
+                                showPassword
+                                  ? t('Masquer le mot de passe')
+                                  : t('Afficher le mot de passe')
+                              }
+                              aria-pressed={showPassword}
+                              onClick={() => setShowPassword(!showPassword)}
+                              whileTap={still ? undefined : { scale: 0.9 }}
+                            >
+                              <AnimatePresence mode="wait" initial={false}>
+                                <motion.span
+                                  key={String(showPassword)}
+                                  initial={{
+                                    opacity: 0,
+                                    rotate: still ? 0 : -25,
+                                  }}
+                                  animate={{ opacity: 1, rotate: 0 }}
+                                  exit={{ opacity: 0, rotate: still ? 0 : 25 }}
+                                  transition={{ duration: still ? 0 : 0.1 }}
+                                >
+                                  {showPassword ? (
+                                    <EyeOff size={18} />
+                                  ) : (
+                                    <Eye size={18} />
+                                  )}
+                                </motion.span>
+                              </AnimatePresence>
+                            </motion.button>
+                          </Tooltip>
                         </div>
                         <AnimatePresence initial={false}>
                           {registering && (
@@ -414,7 +430,7 @@ export function LoginForm({
                                 id={id + '-password-hint'}
                                 className="auth-hint"
                               >
-                                Choisissez au moins 8 caractères.
+                                {t('Choisissez au moins 8 caractères.')}
                               </p>
                             </motion.div>
                           )}
@@ -457,13 +473,13 @@ export function LoginForm({
                                     repeat: still ? 0 : Infinity,
                                   }}
                                 />
-                                Envoi…
+                                {t('Envoi…')}
                               </>
                             ) : (
                               <>
                                 {registering
-                                  ? 'Envoyer la demande'
-                                  : 'Se connecter'}
+                                  ? t('Envoyer la demande')
+                                  : t('Se connecter')}
                                 <ArrowRight size={18} aria-hidden="true" />
                               </>
                             )}
@@ -472,13 +488,17 @@ export function LoginForm({
                       </motion.button>
                     </fieldset>
                     <span role="status" className="sr-only">
-                      {isSubmitting ? 'Envoi en cours…' : ''}
+                      {isSubmitting ? t('Envoi en cours…') : ''}
                     </span>
                     <AnimatePresence initial={false}>
                       {error && (
                         <motion.div {...feedback} className="auth-feedback">
                           <p role="alert" className="auth-error">
-                            {error}
+                            {localizeText(
+                              t,
+                              error,
+                              'La demande a échoué. Réessaie.',
+                            )}
                           </p>
                         </motion.div>
                       )}
@@ -487,7 +507,9 @@ export function LoginForm({
                   <motion.p className="auth-access" variants={enter} custom={7}>
                     <ShieldCheck size={15} aria-hidden="true" />
                     <span>
-                      L’accès nécessite l’approbation d’un administrateur.
+                      {t(
+                        'L’accès nécessite l’approbation d’un administrateur.',
+                      )}
                     </span>
                   </motion.p>
                 </motion.div>
@@ -533,15 +555,16 @@ export function LoginForm({
                           ref={successHeading}
                           tabIndex={-1}
                         >
-                          Demande envoyée.
+                          {t('Demande envoyée.')}
                         </h2>
                         <p>
-                          Votre compte est en attente d’approbation. Vous
-                          pourrez ensuite vous connecter avec vos identifiants.
+                          {t(
+                            'Votre compte est en attente d’approbation. Vous pourrez ensuite vous connecter avec vos identifiants.',
+                          )}
                         </p>
                         <div className="auth-success-status">
                           <Check size={14} aria-hidden="true" />
-                          Inscription enregistrée
+                          {t('Inscription enregistrée')}
                         </div>
                         <motion.button
                           type="button"
@@ -558,7 +581,7 @@ export function LoginForm({
                             )
                           }}
                         >
-                          Revenir à la connexion
+                          {t('Revenir à la connexion')}
                           <ArrowRight size={16} aria-hidden="true" />
                         </motion.button>
                       </div>

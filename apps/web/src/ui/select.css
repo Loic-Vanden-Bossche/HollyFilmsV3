@@ -1,0 +1,157 @@
+@reference '../index.css';
+.holly-select-trigger,
+.holly-select-native select {
+  @apply border border-glass-edge bg-glass-control text-foreground;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms,
+    box-shadow 160ms;
+}
+.holly-select-trigger:hover,
+.holly-select-trigger[data-popup-open] {
+  @apply border-link/60 bg-accent;
+}
+.holly-select-trigger:focus-visible,
+.holly-select-native select:focus-visible {
+  @apply outline-2 outline-offset-2 outline-ring;
+}
+.holly-select-trigger:disabled,
+.holly-select-native select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.holly-select-trigger[aria-invalid='true'],
+.holly-select-native select[aria-invalid='true'] {
+  @apply border-destructive;
+}
+.holly-select-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.holly-select-trigger > span:last-child {
+  @apply text-link;
+  flex-shrink: 0;
+}
+.holly-select-positioner {
+  z-index: 100;
+  outline: none;
+}
+.holly-select-popup {
+  @apply border border-glass-edge text-foreground shadow-glass-control;
+  background: linear-gradient(150deg, #162739f7, #0d1726fc);
+  backdrop-filter: blur(24px);
+  width: var(--anchor-width);
+  min-width: min(180px, var(--available-width));
+  max-width: var(--available-width);
+  max-height: min(320px, var(--available-height));
+  border-radius: 14px;
+  padding: 5px;
+  overflow: hidden;
+  transform-origin: var(--transform-origin);
+  outline: none;
+}
+.holly-select-list {
+  max-height: min(308px, calc(var(--available-height) - 12px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.holly-select-option {
+  gap: 10px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 9px 32px 9px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.holly-select-flag {
+  width: 20px;
+  height: 15px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.holly-select-native-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.holly-select-native:has(.holly-select-native-icon) select {
+  padding-left: 42px;
+}
+.holly-select-option[data-highlighted] {
+  @apply bg-accent text-accent-foreground;
+}
+.holly-select-option[data-selected] {
+  @apply text-link;
+  background: linear-gradient(100deg, #4ade8014, #3b82f614);
+}
+.holly-select-option[data-highlighted][data-selected] {
+  @apply bg-accent;
+}
+.holly-select-option[data-disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.holly-select-check {
+  position: absolute;
+  right: 10px;
+  display: grid;
+}
+.holly-select-native {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.holly-select-native select {
+  appearance: none;
+  padding-right: 36px;
+  min-height: 44px;
+  font-size: 16px;
+}
+.holly-select-native > svg {
+  @apply text-link;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .holly-select-trigger,
+  .holly-select-native select,
+  .holly-select-option {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .holly-select-popup {
+    @apply bg-card;
+    backdrop-filter: none;
+  }
+}

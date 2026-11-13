@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { MediaStream } from '@jellyfin/sdk/lib/generated-client/index.js'
 import type {
@@ -20,6 +20,12 @@ function useTrack(
   selected?: MediaStream,
 ) {
   const [caption, setCaption] = useState('')
+  const delayRef = useRef(delay)
+  const updateOffset = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => {
+    delayRef.current = delay
+    updateOffset.current?.()
+  }, [delay])
   useEffect(() => {
     const video = videoRef.current
     if (
@@ -37,11 +43,21 @@ function useTrack(
       '/' +
       encodeURIComponent(stream.source.Id)
     const subPath = path + '/Subtitles/' + selected.Index + '/0/Stream.'
-    const offset = stream.offset - delay
+    const offset = () => stream.offset - delayRef.current
     const fail = () =>
       onError('Cette piste de sous-titres ne peut pas être affichée.')
     let cancelled = false
     let dispose: (() => void) | undefined
+    let canvas: HTMLCanvasElement | undefined
+    const createCanvas = () => {
+      canvas = document.createElement('canvas')
+      canvas.className = 'player-subtitle-canvas'
+      canvas.style.position = 'absolute'
+      canvas.style.pointerEvents = 'none'
+      canvas.style.zIndex = '1'
+      video.insertAdjacentElement('afterend', canvas)
+      return canvas
+    }
 
     if (/^(ass|ssa)$/.test(codec)) {
       void (async () => {
@@ -56,8 +72,9 @@ function useTrack(
           .map((entry) => api.mediaUrl(path + '/Attachments/' + entry.Index))
         const renderer = new AssRenderer({
           video,
+          canvas: createCanvas(),
           subUrl: api.mediaUrl(subPath + 'ass'),
-          timeOffset: offset,
+          timeOffset: offset(),
           fonts,
           queryFonts: false,
         })
@@ -65,7 +82,26 @@ function useTrack(
           void renderer.destroy().catch(() => {})
         }
         await renderer.ready
-        if (!cancelled && video.videoWidth) await renderer.resize(true)
+        if (cancelled) return
+        updateOffset.current = () => {
+          renderer.timeOffset = offset()
+          if (video.videoWidth)
+            void renderer
+              .manualRender(
+                {
+                  mediaTime: video.currentTime,
+                  width: video.videoWidth,
+                  height: video.videoHeight,
+                  expectedDisplayTime: performance.now(),
+                },
+                true,
+              )
+              .catch(() => {
+                if (!cancelled) fail()
+              })
+        }
+        updateOffset.current()
+        if (video.videoWidth) await renderer.resize(true)
       })().catch((error) => {
         if (!cancelled) {
           console.warn(
@@ -85,8 +121,9 @@ function useTrack(
         const extension = pgs ? 'sup' : 'mks'
         const options = {
           video,
+          canvas: createCanvas(),
           subUrl: api.mediaUrl(subPath + extension),
-          timeOffset: offset,
+          timeOffset: offset(),
           onError: () => {
             if (!cancelled) fail()
           },
@@ -94,6 +131,10 @@ function useTrack(
         const renderer = pgs
           ? new PgsRenderer(options)
           : new VobSubRenderer({ ...options, fileName: 'subtitles.mks' })
+        updateOffset.current = () => {
+          renderer.timeOffset = offset()
+        }
+        updateOffset.current()
         dispose = () => renderer.dispose()
       })().catch(() => {
         if (!cancelled) fail()
@@ -106,7 +147,11 @@ function useTrack(
       element.srclang = selected.Language ?? 'und'
       element.src = api.mediaUrl(subPath + 'vtt')
       const read = () => {
-        const cues = Array.from(element.track.activeCues ?? [])
+        const cues = Array.from(element.track.cues ?? []).filter(
+          (cue) =>
+            cue.startTime <= video.currentTime &&
+            cue.endTime > video.currentTime,
+        )
         setCaption(
           cues
             .map((cue) =>
@@ -116,19 +161,39 @@ function useTrack(
             .join('\n'),
         )
       }
+      // Retain original timestamps so repeated adjustments never accumulate drift,
+      // and cues shifted before zero can be restored without a network reload.
+      let originals: {
+        cue: TextTrackCue
+        start: number
+        end: number
+        attached: boolean
+      }[] = []
       const adjust = () => {
-        for (const cue of Array.from(element.track.cues ?? [])) {
-          const end = cue.endTime - offset
-          if (end <= 0) element.track.removeCue(cue)
-          else {
-            const start = Math.max(0, cue.startTime - offset)
-            cue.endTime = end
-            cue.startTime = start
+        for (const entry of originals) {
+          const end = entry.end - offset()
+          if (end <= 0) {
+            if (entry.attached) element.track.removeCue(entry.cue)
+            entry.attached = false
+          } else {
+            entry.cue.endTime = end
+            entry.cue.startTime = Math.max(0, entry.start - offset())
+            if (!entry.attached) element.track.addCue(entry.cue)
+            entry.attached = true
           }
         }
         read()
       }
-      element.addEventListener('load', adjust)
+      updateOffset.current = adjust
+      element.addEventListener('load', () => {
+        originals = Array.from(element.track.cues ?? []).map((cue) => ({
+          cue,
+          start: cue.startTime,
+          end: cue.endTime,
+          attached: true,
+        }))
+        adjust()
+      })
       element.addEventListener('error', fail)
       element.track.addEventListener('cuechange', read)
       video.appendChild(element)
@@ -142,9 +207,11 @@ function useTrack(
     }
     return () => {
       cancelled = true
+      updateOffset.current = undefined
       dispose?.()
+      canvas?.remove()
     }
-  }, [api, videoRef, playback, selected, delay, onError])
+  }, [api, videoRef, playback, selected, onError])
   return selected ? caption : ''
 }
 

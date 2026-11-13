@@ -55,10 +55,15 @@ export const KeyboardAndSelection: Story = {
     const trigger = canvas.getByRole('button', { name: 'Explorer' })
     await userEvent.click(trigger)
     await userEvent.keyboard('{Escape}')
+    // Synthetic keys do not run the browser's native dialog cancellation.
+    canvas
+      .getByRole('dialog')
+      .dispatchEvent(new Event('cancel', { cancelable: true }))
     await waitFor(() =>
       expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
     )
-    await expect(trigger).toHaveFocus()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    await expect(getComputedStyle(document.body).overflowY).not.toBe('hidden')
     await userEvent.click(trigger)
     const menu = within(canvas.getByRole('dialog'))
     await userEvent.click(menu.getByRole('button', { name: '02 Films' }))
@@ -66,7 +71,8 @@ export const KeyboardAndSelection: Story = {
       expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
     )
     await expect(canvas.getByRole('status')).toHaveTextContent('movies')
-    await expect(trigger).toHaveFocus()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    await expect(getComputedStyle(document.body).overflowY).not.toBe('hidden')
   },
 }
 export const EmptyCatalogue: Story = {

@@ -8,11 +8,13 @@ import { Prisma } from './generated/prisma/client.ts'
 import type { PrismaClient, Registration } from './generated/prisma/client.ts'
 import { jellyfinAccounts } from './jellyfin.ts'
 import { decryptPassword, encryptPassword } from './passwords.ts'
+import { googlePictureUrl } from '@hollyfilms/shared/profile'
 
 export type GoogleIdentity = {
   issuer: string
   subject: string
   email: string | null
+  picture?: string | null
 }
 
 const registrationSummary = {
@@ -187,11 +189,15 @@ export function accountService(db: PrismaClient, config: ServerConfig) {
           ...googleIssuer_googleSubject,
           method: 'GOOGLE',
           googleEmail: identity.email,
+          googlePicture: googlePictureUrl(identity.picture),
           username,
           usernameKey: normalizeName(username),
           technicalName: technicalName(),
         },
-        update: { googleEmail: identity.email },
+        update: {
+          googleEmail: identity.email,
+          googlePicture: googlePictureUrl(identity.picture),
+        },
         select: { id: true },
       })
     },

@@ -1,10 +1,13 @@
+import { localizeText } from '../i18n/messages.ts'
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { Tooltip } from './Tooltip.tsx'
 import { useEffect, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { motion, useAnimate, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
 import {
   X,
   Star,
@@ -36,6 +39,8 @@ import {
 import { MediaRail } from './MediaRail.tsx'
 import { MediaCommunity } from './MediaCommunity.tsx'
 import { MediaTile } from './MediaTile.tsx'
+import { useMediaDetailsMotion } from './use-media-details-motion.ts'
+import { detailSections, useDetailSections } from './use-detail-sections.ts'
 import { formatTime } from '../playback/format-time.ts'
 import './media-card.css'
 import '../home.css'
@@ -75,9 +80,9 @@ export function MediaDetails({
   onWatched?: (item: MediaItem, value: boolean) => Promise<boolean>
   onClose: () => void
 }) {
-  const [scope, animate] = useAnimate<HTMLDialogElement>()
-  const reduced = useReducedMotion()
-  const closing = useRef(false)
+  const { t } = useI18n()
+  const { scope, reduced, dismiss } = useMediaDetailsMotion()
+  const activeSection = useDetailSections(scope, reduced)
   const collectionRequest = useRef<AbortController | null>(null)
   const outside = useRef(false)
   const queryClient = useQueryClient()
@@ -258,7 +263,7 @@ export function MediaDetails({
               controller.signal,
             )
         if (!next.items.length && next.total > queue.length)
-          throw new Error('Collection incomplète')
+          throw new Error(t('Collection incomplète'))
         queue.push(...next.items)
         total = next.total
       }
@@ -275,35 +280,13 @@ export function MediaDetails({
   }
   const navigate = onSelect ?? (() => {})
   useEffect(() => {
-    const dialog = scope.current
-    const overflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    dialog.showModal()
-    const animation = animate(
-      dialog,
-      {
-        opacity: [0, 1],
-      },
-      { duration: reduced ? 0 : 0.3 },
-    )
     return () => {
       collectionRequest.current?.abort()
-      animation.stop()
-      dialog.close()
-      document.body.style.overflow = overflow
     }
-  }, [scope, animate, reduced])
+  }, [])
   async function close() {
-    if (closing.current) return
-    closing.current = true
     collectionRequest.current?.abort()
-    await animate(
-      scope.current,
-      { opacity: 0 },
-      { duration: reduced ? 0 : 0.18 },
-    )
-    scope.current?.close()
-    onClose()
+    await dismiss(onClose)
   }
   function isOutside(x: number, y: number) {
     const rect = scope.current.getBoundingClientRect()
@@ -358,17 +341,15 @@ export function MediaDetails({
       }}
     >
       <div className="detail-toolbar">
-        <nav className="detail-section-nav" aria-label="Sections de la fiche">
-          {[
-            ['detail-overview', 'Présentation'],
-            ['detail-providers', 'Disponibilités'],
-            ['detail-reviews', 'Critiques'],
-            ['detail-cast', 'Distribution'],
-            ['detail-scenes', 'Scènes'],
-            ['detail-related', 'À découvrir'],
-          ].map(([id, label]) => (
+        <nav
+          className="detail-section-nav"
+          aria-label={t('Sections de la fiche')}
+        >
+          {detailSections.map(([id, label]) => (
             <button
               key={id}
+              aria-controls={id}
+              aria-current={activeSection === id ? 'location' : undefined}
               onClick={() =>
                 scope.current.querySelector('#' + id)?.scrollIntoView({
                   behavior: reduced ? 'instant' : 'smooth',
@@ -376,34 +357,33 @@ export function MediaDetails({
                 })
               }
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </nav>
-        <motion.button
-          className="media-detail-close glass-control"
-          aria-label="Fermer la fiche"
-          onClick={() => void close()}
-          whileTap={reduced ? undefined : { scale: 0.9 }}
-        >
-          <X size={20} />
-        </motion.button>
+        <Tooltip>
+          <motion.button
+            className="media-detail-close glass-control"
+            aria-label={t('Fermer la fiche')}
+            onClick={() => void close()}
+            whileTap={reduced ? undefined : { scale: 0.9 }}
+          >
+            <X size={20} />
+          </motion.button>
+        </Tooltip>
       </div>
       <div className="media-detail-art">
-        <MediaArtwork
-          source={item.backdrop ?? item.poster}
-          session={session}
-          width={2560}
-          eager
-        />
+        <div className="detail-art-reveal">
+          <MediaArtwork
+            source={item.backdrop ?? item.poster}
+            session={session}
+            width={2560}
+            eager
+          />
+        </div>
       </div>
 
-      <motion.div
-        className="media-detail-body"
-        initial={{ opacity: 0, y: reduced ? 0 : 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduced ? 0 : 0.35, delay: reduced ? 0 : 0.06 }}
-      >
+      <div className="media-detail-body">
         {item.poster && (
           <div className="media-detail-poster">
             <MediaArtwork
@@ -415,11 +395,11 @@ export function MediaDetails({
           </div>
         )}
         <p id="detail-overview" className="home-eyebrow">
-          {item.kind} {item.year && '· ' + item.year}
+          {t(item.kind)} {item.year && '· ' + item.year}
         </p>
         <h2 id="media-detail-title">{item.title}</h2>
         <div className="home-meta">
-          {item.minutes && <span>{formatDuration(item.minutes)}</span>}
+          {item.minutes && <span>{formatDuration(item.minutes, t)}</span>}
           {item.classification && (
             <span className="home-rating">{item.classification}</span>
           )}
@@ -430,17 +410,21 @@ export function MediaDetails({
             </span>
           )}
           {item.criticRating != null && (
-            <span aria-label={`Rotten Tomatoes : ${item.criticRating} %`}>
+            <span
+              aria-label={t('Rotten Tomatoes : {rating} %', {
+                rating: item.criticRating,
+              })}
+            >
               <span aria-hidden="true">🍅</span>
               {item.criticRating}%
             </span>
           )}
-          {item.watched && <span className="text-success">Déjà vu</span>}
+          {item.watched && <span className="text-success">{t('Déjà vu')}</span>}
         </div>
         {item.episode && <p className="media-detail-episode">{item.episode}</p>}
         <p className="media-detail-overview">
           {item.overview ||
-            'Le synopsis de ce titre n’est pas encore disponible.'}
+            t('Le synopsis de ce titre n’est pas encore disponible.')}
         </p>
         {item.genres.length > 0 && (
           <div className="media-genres">
@@ -459,10 +443,10 @@ export function MediaDetails({
               >
                 <Play size={18} fill="currentColor" />{' '}
                 {item.progress > 0
-                  ? 'Reprendre'
+                  ? t('Reprendre')
                   : item.kind === 'Série'
-                    ? 'Lire la série'
-                    : 'Lire'}
+                    ? t('Lire la série')
+                    : t('Lire')}
               </motion.button>
             )}
             {onPlay && item.progress > 0 && (
@@ -470,37 +454,45 @@ export function MediaDetails({
                 className="glass-control"
                 onClick={() => onPlay(item, false)}
               >
-                Depuis le début
+                {t('Depuis le début')}
               </button>
             )}
             {onFavorite && (
-              <button
-                className="glass-control"
-                aria-label={
-                  item.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'
-                }
-                aria-pressed={!!item.favorite}
-                disabled={!!pending}
-                onClick={() => void action('favorite')}
-              >
-                <Heart
-                  size={19}
-                  fill={item.favorite ? 'currentColor' : 'none'}
-                />
-              </button>
+              <Tooltip>
+                <button
+                  className="glass-control"
+                  aria-label={
+                    item.favorite
+                      ? t('Retirer des favoris')
+                      : t('Ajouter aux favoris')
+                  }
+                  aria-pressed={!!item.favorite}
+                  disabled={!!pending}
+                  onClick={() => void action('favorite')}
+                >
+                  <Heart
+                    size={19}
+                    fill={item.favorite ? 'currentColor' : 'none'}
+                  />
+                </button>
+              </Tooltip>
             )}
             {onWatched && (
-              <button
-                className="glass-control"
-                aria-label={
-                  item.watched ? 'Marquer comme non vu' : 'Marquer comme vu'
-                }
-                aria-pressed={!!item.watched}
-                disabled={!!pending}
-                onClick={() => void action('watched')}
-              >
-                <Check size={19} />
-              </button>
+              <Tooltip>
+                <button
+                  className="glass-control"
+                  aria-label={
+                    item.watched
+                      ? t('Marquer comme non vu')
+                      : t('Marquer comme vu')
+                  }
+                  aria-pressed={!!item.watched}
+                  disabled={!!pending}
+                  onClick={() => void action('watched')}
+                >
+                  <Check size={19} />
+                </button>
+              </Tooltip>
             )}
             {!!item.trailers?.length && (
               <a
@@ -511,21 +503,24 @@ export function MediaDetails({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Bande-annonce <ExternalLink size={15} />
+                {t('Bande-annonce')} <ExternalLink size={15} />
               </a>
             )}
           </div>
         )}
         {actionError && (
           <p role="alert" className="detail-error">
-            {actionError}
+            {localizeText(t, actionError)}
           </p>
         )}
         {item.progress > 0 && (
           <p className="media-detail-progress">
-            {Math.round(item.progress * 100)} % visionné
+            {Math.round(item.progress * 100)} {t('% visionné')}
             {item.remainingMinutes
-              ? ' · Encore ' + formatDuration(item.remainingMinutes)
+              ? ' · ' +
+                t('Encore {duration}', {
+                  duration: formatDuration(item.remainingMinutes, t),
+                })
               : ''}
           </p>
         )}
@@ -535,13 +530,13 @@ export function MediaDetails({
           <dl className="media-detail-specs">
             {item.quality && (
               <div>
-                <dt>Qualité disponible</dt>
+                <dt>{t('Qualité disponible')}</dt>
                 <dd>{item.quality}</dd>
               </div>
             )}
             {Boolean(item.audioLanguages?.length) && (
               <div>
-                <dt>Langues audio</dt>
+                <dt>{t('Langues audio')}</dt>
                 <dd>
                   <AudioLanguages languages={item.audioLanguages!} />
                 </dd>
@@ -549,27 +544,33 @@ export function MediaDetails({
             )}
             {Boolean(item.editions?.length) && (
               <div>
-                <dt>Éditions</dt>
-                <dd>{item.editions!.join(' · ')}</dd>
+                <dt>{t('Éditions')}</dt>
+                <dd>
+                  {item
+                    .editions!.map((edition) => localizeText(t, edition))
+                    .join(' · ')}
+                </dd>
               </div>
             )}
           </dl>
         ) : null}
         {enabled && details.isPending && (
           <p role="status" className="detail-status">
-            Chargement de la fiche complète…
+            {t('Chargement de la fiche complète…')}
           </p>
         )}
         {details.isError && (
           <p role="alert" className="detail-status">
-            La fiche complète n’a pas pu être chargée.{' '}
-            <button onClick={() => void details.refetch()}>Réessayer</button>
+            {t('La fiche complète n’a pas pu être chargée.')}{' '}
+            <button onClick={() => void details.refetch()}>
+              {t('Réessayer')}
+            </button>
           </p>
         )}
         {!!data?.tags.length && (
           <details className="detail-tags">
             <summary>
-              Étiquettes <span>{data.tags.length}</span>
+              {t('Étiquettes')} <span>{data.tags.length}</span>
             </summary>
             <div>
               {data.tags.map((tag) => (
@@ -579,7 +580,10 @@ export function MediaDetails({
           </details>
         )}
         {!!data?.links.length && (
-          <div className="detail-external-links" aria-label="Liens externes">
+          <div
+            className="detail-external-links"
+            aria-label={t('Liens externes')}
+          >
             {data.links.map((link) => (
               <a
                 key={link.url}
@@ -593,7 +597,7 @@ export function MediaDetails({
             ))}
           </div>
         )}
-      </motion.div>
+      </div>
       <div className="detail-sections">
         <MediaCommunity
           providers={providersData ?? providers.data}
@@ -646,10 +650,10 @@ export function MediaDetails({
         />
         <dl className="detail-credits">
           {[
-            ['Réalisation', data?.directors],
-            ['Scénario', data?.writers],
-            ['Studios', data?.studios],
-            ['Genres', item.genres],
+            [t('Réalisation'), data?.directors],
+            [t('Scénario'), data?.writers],
+            [t('Studios'), data?.studios],
+            [t('Genres'), item.genres],
           ].map(([label, values]) =>
             Array.isArray(values) && values.length ? (
               <div key={String(label)}>
@@ -661,7 +665,7 @@ export function MediaDetails({
         </dl>
         <div id="detail-cast">
           <MediaRail
-            title="Distribution & équipe"
+            title={t('Distribution & équipe')}
             kind="person"
             count={data?.people.length ?? 0}
           >
@@ -693,39 +697,41 @@ export function MediaDetails({
             ))}
           </MediaRail>
           {!data?.people.length && (
-            <p className="detail-status">Distribution non renseignée.</p>
+            <p className="detail-status">{t('Distribution non renseignée.')}</p>
           )}
         </div>
         {browsing && (
           <div ref={browser} className="detail-browser">
             <div className="detail-section-heading">
               <h3>
-                {browsing.type === 'person' ? 'Avec ' : ''}
+                {browsing.type === 'person' ? t('Avec') + ' ' : ''}
                 {browsing.title}
               </h3>
-              <button
-                className="glass-control"
-                aria-label="Fermer cette sélection"
-                onClick={() => {
-                  collectionRequest.current?.abort()
-                  setBrowsing(undefined)
-                }}
-              >
-                <X size={18} />
-              </button>
+              <Tooltip>
+                <button
+                  className="glass-control"
+                  aria-label={t('Fermer cette sélection')}
+                  onClick={() => {
+                    collectionRequest.current?.abort()
+                    setBrowsing(undefined)
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </Tooltip>
             </div>
             {actionError && (
               <p role="alert" className="detail-error">
-                {actionError}
+                {localizeText(t, actionError)}
               </p>
             )}
             {members.isPending ? (
-              <p role="status">Chargement des titres…</p>
+              <p role="status">{t('Chargement des titres…')}</p>
             ) : members.isError ? (
               <p role="alert">
-                Impossible de charger les titres.{' '}
+                {t('Impossible de charger les titres.')}{' '}
                 <button onClick={() => void members.refetch()}>
-                  Réessayer
+                  {t('Réessayer')}
                 </button>
               </p>
             ) : (
@@ -740,12 +746,12 @@ export function MediaDetails({
                     >
                       <Play size={16} />
                       {pending === 'collection'
-                        ? 'Préparation…'
-                        : 'Lire la collection'}
+                        ? t('Préparation…')
+                        : t('Lire la collection')}
                     </button>
                   )}
                 <MediaRail
-                  title="Dans votre bibliothèque"
+                  title={t('Dans votre bibliothèque')}
                   count={members.data?.pages[0]?.total}
                 >
                   {memberItems.map((entry) => (
@@ -761,7 +767,9 @@ export function MediaDetails({
                   ))}
                 </MediaRail>
                 {!memberItems.length && (
-                  <p className="detail-status">Aucun titre accessible.</p>
+                  <p className="detail-status">
+                    {t('Aucun titre accessible.')}
+                  </p>
                 )}
                 {members.hasNextPage && (
                   <button
@@ -770,8 +778,8 @@ export function MediaDetails({
                     onClick={() => void members.fetchNextPage()}
                   >
                     {members.isFetchingNextPage
-                      ? 'Chargement…'
-                      : 'Afficher plus de titres'}
+                      ? t('Chargement…')
+                      : t('Afficher plus de titres')}
                   </button>
                 )}
               </>
@@ -780,7 +788,7 @@ export function MediaDetails({
         )}
         <div id="detail-scenes">
           <MediaRail
-            title="Scènes"
+            title={t('Scènes')}
             kind="scene"
             count={data?.chapters.length ?? 0}
           >
@@ -796,7 +804,10 @@ export function MediaDetails({
                     true,
                   )
                 }
-                aria-label={`Lire ${chapter.name} à ${formatTime(chapter.position)}`}
+                aria-label={t('Lire {chapter} à {time}', {
+                  chapter: chapter.name,
+                  time: formatTime(chapter.position),
+                })}
               >
                 <MediaArtwork
                   source={chapter.image}
@@ -818,13 +829,13 @@ export function MediaDetails({
           </MediaRail>
           {!data?.chapters.length && (
             <p className="detail-status">
-              Aucune scène renseignée pour ce titre.
+              {t('Aucune scène renseignée pour ce titre.')}
             </p>
           )}
         </div>
         <div id="detail-related">
           <MediaRail
-            title="Collections"
+            title={t('Collections')}
             count={related?.collections.length ?? 0}
           >
             {related?.collections.map((collection) => (
@@ -848,7 +859,7 @@ export function MediaDetails({
                     />
                     <span>
                       <Layers size={14} />
-                      {collection.count ?? 'Collection'}
+                      {collection.count ?? t('Collection')}
                     </span>
                   </div>
                   <strong>{collection.title}</strong>
@@ -875,53 +886,63 @@ export function MediaDetails({
                           collection.item?.[kind] ??
                           false
                         return (
-                          <button
-                            key={kind}
-                            className="glass-control"
-                            aria-pressed={value}
-                            disabled={!!pending}
-                            aria-label={`${kind === 'favorite' ? (value ? 'Retirer des favoris' : 'Ajouter aux favoris') : value ? 'Marquer comme non vu' : 'Marquer comme vu'} : ${collection.title}`}
-                            onClick={async () => {
-                              setPending('collection-action')
-                              setActionError('')
-                              try {
-                                await update(collection.item!, kind, !value)
-                              } catch {
-                                setActionError(
-                                  'La modification n’a pas été enregistrée. Réessaie.',
-                                )
-                              } finally {
-                                setPending('')
-                              }
-                            }}
-                          >
-                            {kind === 'favorite' ? (
-                              <Heart
-                                size={16}
-                                fill={value ? 'currentColor' : 'none'}
-                              />
-                            ) : (
-                              <Check size={16} />
-                            )}
-                          </button>
+                          <Tooltip key={kind}>
+                            <button
+                              key={kind}
+                              className="glass-control"
+                              aria-pressed={value}
+                              disabled={!!pending}
+                              aria-label={`${kind === 'favorite' ? (value ? t('Retirer des favoris') : t('Ajouter aux favoris')) : value ? t('Marquer comme non vu') : t('Marquer comme vu')} : ${collection.title}`}
+                              onClick={async () => {
+                                setPending('collection-action')
+                                setActionError('')
+                                try {
+                                  await update(collection.item!, kind, !value)
+                                } catch {
+                                  setActionError(
+                                    'La modification n’a pas été enregistrée. Réessaie.',
+                                  )
+                                } finally {
+                                  setPending('')
+                                }
+                              }}
+                            >
+                              {kind === 'favorite' ? (
+                                <Heart
+                                  size={16}
+                                  fill={value ? 'currentColor' : 'none'}
+                                />
+                              ) : (
+                                <Check size={16} />
+                              )}
+                            </button>
+                          </Tooltip>
                         )
                       })}
                       {onPlay && (
-                        <button
-                          className="glass-control"
-                          disabled={!!pending}
-                          aria-label={`Lire la collection : ${collection.title}`}
-                          onClick={() => void playCollection(collection.id)}
-                        >
-                          <Play size={16} />
-                        </button>
+                        <Tooltip>
+                          <button
+                            className="glass-control"
+                            disabled={!!pending}
+                            aria-label={t('Lire la collection : {title}', {
+                              title: collection.title,
+                            })}
+                            onClick={() => void playCollection(collection.id)}
+                          >
+                            <Play size={16} />
+                          </button>
+                        </Tooltip>
                       )}
                       <details className="detail-card-menu">
-                        <summary
-                          aria-label={`Plus d’actions : ${collection.title}`}
-                        >
-                          <MoreHorizontal size={16} />
-                        </summary>
+                        <Tooltip>
+                          <summary
+                            aria-label={t('Plus d’actions : {title}', {
+                              title: collection.title,
+                            })}
+                          >
+                            <MoreHorizontal size={16} />
+                          </summary>
+                        </Tooltip>
                         <div>
                           <button
                             onClick={() =>
@@ -932,7 +953,7 @@ export function MediaDetails({
                               })
                             }
                           >
-                            Parcourir la collection
+                            {t('Parcourir la collection')}
                           </button>
                         </div>
                       </details>
@@ -944,12 +965,12 @@ export function MediaDetails({
           </MediaRail>
           {!related?.collections.length && (
             <p className="detail-status">
-              Ce titre n’appartient à aucune collection renseignée.
+              {t('Ce titre n’appartient à aucune collection renseignée.')}
             </p>
           )}
         </div>
         <MediaRail
-          title="Plus de ce genre"
+          title={t('Plus de ce genre')}
           count={related?.similar.length ?? 0}
         >
           {related?.similar.map((entry) => (
@@ -965,44 +986,62 @@ export function MediaDetails({
                 onWatched={
                   onWatched ? (i, v) => update(i, 'watched', v) : undefined
                 }
+                footerAction={
+                  <details className="detail-card-menu">
+                    <Tooltip>
+                      <summary
+                        aria-label={t('Plus d’actions pour {title}', {
+                          title: entry.title,
+                        })}
+                      >
+                        <MoreHorizontal size={18} />
+                      </summary>
+                    </Tooltip>
+                    <div>
+                      <button onClick={() => navigate(entry)}>
+                        {t('Voir la fiche')}
+                      </button>
+                      {onPlay && (
+                        <button onClick={() => onPlay(entry, false)}>
+                          {t('Lire depuis le début')}
+                        </button>
+                      )}
+                    </div>
+                  </details>
+                }
               />
-              <details className="detail-card-menu">
-                <summary aria-label={`Plus d’actions pour ${entry.title}`}>
-                  <MoreHorizontal size={18} />
-                </summary>
-                <div>
-                  <button onClick={() => navigate(entry)}>Voir la fiche</button>
-                  {onPlay && (
-                    <button onClick={() => onPlay(entry, false)}>
-                      Lire depuis le début
-                    </button>
-                  )}
-                </div>
-              </details>
             </div>
           ))}
         </MediaRail>
         {enabled && relations.isPending && (
           <p role="status" className="detail-status">
-            Chargement des titres associés…
+            {t('Chargement des titres associés…')}
           </p>
         )}
         {!!related?.errors.length && (
           <p role="alert" className="detail-status">
-            {related.errors.join(' ')}{' '}
-            <button onClick={() => void relations.refetch()}>Réessayer</button>
+            {related.errors
+              .map((message) =>
+                localizeText(t, message, 'Impossible de charger les titres.'),
+              )
+              .join(' ')}{' '}
+            <button onClick={() => void relations.refetch()}>
+              {t('Réessayer')}
+            </button>
           </p>
         )}
         {!related?.similar.length && !relations.isPending && (
-          <p className="detail-status">Aucune recommandation disponible.</p>
+          <p className="detail-status">
+            {t('Aucune recommandation disponible.')}
+          </p>
         )}
         <footer className="detail-attribution">
           <details>
-            <summary>Sources et crédits</summary>
+            <summary>{t('Sources et crédits')}</summary>
             <p>
-              Les fiches et images de votre bibliothèque proviennent de votre
-              serveur. Les critiques externes et disponibilités sont fournies
-              par TMDB ; les disponibilités proviennent de JustWatch.
+              {t(
+                'Les fiches et images de votre bibliothèque proviennent de votre serveur. Les critiques externes et disponibilités sont fournies par TMDB ; les disponibilités proviennent de JustWatch.',
+              )}
             </p>
             <a
               href="https://www.themoviedb.org/"
@@ -1018,8 +1057,9 @@ export function MediaDetails({
               />
             </a>
             <p>
-              This product uses the TMDB API but is not endorsed or certified by
-              TMDB.
+              {t(
+                'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+              )}
             </p>
           </details>
         </footer>

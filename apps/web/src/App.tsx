@@ -1,3 +1,5 @@
+import { localizeText } from './i18n/messages.ts'
+import { useI18n } from './i18n/I18nProvider.tsx'
 import { skipToken, useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import {
@@ -20,13 +22,25 @@ import { readSession, writeSession } from './session.ts'
 import { Button } from './ui/Button.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { GlassPanel } from './ui/GlassPanel.tsx'
+import { takeAppReturn } from './use-app-route.ts'
 
 const jellyfinUrl = new URL('/jellyfin', window.location.origin).href
 const isAdminPage = /^\/admin\/?$/.test(window.location.pathname)
-const isPrivatePage = isAdminPage || /^\/app\/?$/.test(window.location.pathname)
+const isProfilePage = /^\/profile\/?$/.test(window.location.pathname)
+const isPrivatePage =
+  isAdminPage ||
+  isProfilePage ||
+  /^\/app(?:\/(favorites|movies|series|collections))?\/?$/.test(
+    window.location.pathname,
+  )
 const secondaryButton = 'glass-control rounded-lg px-4 py-2 text-sm font-medium'
 const HomeScreen = lazy(() =>
   import('./HomeScreen.tsx').then((module) => ({ default: module.HomeScreen })),
+)
+const ProfileScreen = lazy(() =>
+  import('./ProfileScreen.tsx').then((module) => ({
+    default: module.ProfileScreen,
+  })),
 )
 
 export default function App({
@@ -34,6 +48,7 @@ export default function App({
 }: {
   googleReturn?: Promise<GoogleReturn>
 }) {
+  const { t } = useI18n()
   const [session, setSession] = useState(readSession)
   const [loginNotice, setLoginNotice] = useState<string>()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -82,7 +97,7 @@ export default function App({
         writeSession(response.result.session)
         setSession(response.result.session)
         setLoginNotice(undefined)
-        window.location.assign('/app')
+        window.location.assign(takeAppReturn())
       } else {
         setLoginNotice(statusNotice(response.result.status))
       }
@@ -103,7 +118,11 @@ export default function App({
       writeSession(result.session)
       setSession(result.session)
       setLoginNotice(undefined)
-      window.location.assign('/app')
+      window.location.assign(
+        isPrivatePage
+          ? window.location.pathname + window.location.search
+          : '/app',
+      )
     } else {
       setLoginNotice(statusNotice(result.status))
     }
@@ -136,7 +155,7 @@ export default function App({
           showcase.isPending ? 'loading' : showcase.isError ? 'error' : 'ready'
         }
         options={options.data}
-        notice={loginNotice}
+        notice={loginNotice ? localizeText(t, loginNotice) : undefined}
         completingGoogle={isCompletingGoogle}
         authenticated={Boolean(session && user.isSuccess)}
         initialAuth={isPrivatePage ? 'login' : null}
@@ -150,17 +169,25 @@ export default function App({
         fallback={
           <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
             <Wordmark />
-            <p role="status">Ouverture de votre bibliothèque…</p>
+            <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
           </main>
         }
       >
-        <HomeScreen
-          key={session.deviceId}
-          session={session}
-          user={user.data}
-          onSignOut={() => void signOut()}
-          signingOut={isSigningOut}
-        />
+        {isProfilePage ? (
+          <ProfileScreen
+            session={session}
+            onSignOut={() => void signOut()}
+            signingOut={isSigningOut}
+          />
+        ) : (
+          <HomeScreen
+            key={session.deviceId}
+            session={session}
+            user={user.data}
+            onSignOut={() => void signOut()}
+            signingOut={isSigningOut}
+          />
+        )}
       </Suspense>
     )
   }
@@ -169,7 +196,7 @@ export default function App({
     return (
       <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
         <Wordmark />
-        <p role="status">Ouverture de votre bibliothèque…</p>
+        <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
       </main>
     )
 
@@ -186,38 +213,38 @@ export default function App({
       ) : session ? (
         <GlassPanel aria-labelledby="session-heading">
           <h2 id="session-heading" className="text-2xl font-medium">
-            Compte HollyFilms
+            {t('Compte HollyFilms')}
           </h2>
           <div role="status" className="mt-3 text-sm text-muted-foreground">
             {(user.isPending || sessionRejected) && (
-              <p>Vérification de la session…</p>
+              <p>{t('Vérification de la session…')}</p>
             )}
             {user.isSuccess && (
               <p>
-                Connecté en tant que <strong>{user.data.name}</strong>.
+                {t('Connecté en tant que')} <strong>{user.data.name}</strong>.
               </p>
             )}
             {user.isError && !sessionRejected && (
               <p className="text-destructive">
-                Impossible de vérifier la session auprès du serveur.
+                {t('Impossible de vérifier la session auprès du serveur.')}
               </p>
             )}
           </div>
           {isAdminPage && user.isSuccess && !user.data.isAdministrator && (
             <p role="alert" className="mt-3 text-sm text-destructive">
-              Un compte administrateur est requis.
+              {t('Un compte administrateur est requis.')}
             </p>
           )}
 
           <div className="mt-6 flex flex-wrap gap-3">
             {user.data?.isAdministrator && (
               <a href="/admin" className={secondaryButton}>
-                Gérer les inscriptions
+                {t('Gérer les inscriptions')}
               </a>
             )}
             {isAdminPage && user.isSuccess && !user.data.isAdministrator && (
               <a href="/app" className={secondaryButton}>
-                Retour au compte
+                {t('Retour au compte')}
               </a>
             )}
             {user.isError && !sessionRejected && (
@@ -225,21 +252,21 @@ export default function App({
                 onClick={() => void user.refetch()}
                 disabled={user.isFetching || isSigningOut}
               >
-                Réessayer
+                {t('Réessayer')}
               </Button>
             )}
             <Button onClick={() => void signOut()} disabled={isSigningOut}>
-              {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
+              {isSigningOut ? t('Déconnexion…') : t('Se déconnecter')}
             </Button>
           </div>
         </GlassPanel>
       ) : isCompletingGoogle ? (
         <p role="status" className="glass-panel rounded-2xl p-6">
-          Connexion Google en cours…
+          {t('Connexion Google en cours…')}
         </p>
       ) : (
         <LoginForm
-          notice={loginNotice}
+          notice={loginNotice ? localizeText(t, loginNotice) : undefined}
           options={options.data}
           onSignIn={signIn}
         />
@@ -251,6 +278,7 @@ export default function App({
 }
 
 function JellyfinStatus() {
+  const { t } = useI18n()
   const server = useQuery({
     queryKey: ['jellyfin', 'public-system-info'],
     queryFn: ({ signal }) => getJellyfinServerInfo(jellyfinUrl, signal),
@@ -260,25 +288,29 @@ function JellyfinStatus() {
   return (
     <GlassPanel aria-labelledby="jellyfin-heading">
       <h2 id="jellyfin-heading" className="text-xl font-medium">
-        État du service
+        {t('État du service')}
       </h2>
 
       <div role="status" className="mt-3 space-y-2 text-sm">
         {server.isPending && (
-          <p className="text-muted-foreground">Vérification de la connexion…</p>
+          <p className="text-muted-foreground">
+            {t('Vérification de la connexion…')}
+          </p>
         )}
         {server.isError && (
-          <p className="text-destructive">Impossible de joindre le serveur.</p>
+          <p className="text-destructive">
+            {t('Impossible de joindre le serveur.')}
+          </p>
         )}
         {server.isSuccess && (
           <>
-            <p className="font-medium text-success">Connexion établie</p>
+            <p className="font-medium text-success">{t('Connexion établie')}</p>
             <p className="text-muted-foreground">
-              {'HollyFilms'} · Version {server.data.Version}
+              {'HollyFilms'} {t('· Version')} {server.data.Version}
             </p>
             {server.data.StartupWizardCompleted === false && (
               <p className="text-muted-foreground">
-                L’assistant de configuration du serveur reste à terminer.
+                {t('L’assistant de configuration du serveur reste à terminer.')}
               </p>
             )}
           </>
@@ -290,7 +322,7 @@ function JellyfinStatus() {
           onClick={() => void server.refetch()}
           disabled={server.isFetching}
         >
-          Vérifier la connexion
+          {t('Vérifier la connexion')}
         </Button>
       </div>
     </GlassPanel>

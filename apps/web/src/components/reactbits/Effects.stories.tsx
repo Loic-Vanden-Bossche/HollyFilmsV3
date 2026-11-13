@@ -59,11 +59,16 @@ export const Text: Story = {
       </>
     )
   },
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const highlight = canvasElement.querySelector('.rb-shiny-highlight')!
+    await expect(highlight).toHaveAttribute('aria-hidden', 'true')
+    await expect(getComputedStyle(highlight).backgroundClip).toBe('text')
     await userEvent.click(
       canvas.getByRole('button', { name: 'Fonctionnalité suivante' }),
     )
-    await expect(await canvas.findByText('Reprise de lecture')).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.getByText('Reprise de lecture')).toBeVisible(),
+    )
   },
 }
 export const Actions: Story = {

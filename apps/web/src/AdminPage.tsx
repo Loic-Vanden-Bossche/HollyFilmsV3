@@ -1,4 +1,6 @@
+import { useI18n } from './i18n/I18nProvider.tsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { localizeText } from './i18n/messages.ts'
 import { useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, Check, Clock3, ShieldCheck, Users } from 'lucide-react'
@@ -17,20 +19,20 @@ import {
 } from './components/reactbits/Effects.tsx'
 import './admin.css'
 
-const statuses: Record<RegistrationSummary['status'], string> = {
+const statuses = {
   PENDING: 'En attente',
   PROVISIONING: 'Création en cours',
   AWAITING_PASSWORD: 'Approuvée · Première connexion requise',
   ACTIVE: 'Active',
   REJECTED: 'Refusée',
-}
-
-const date = new Intl.DateTimeFormat('fr-FR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+} as const satisfies Record<RegistrationSummary['status'], string>
 
 export function AdminPage({ session }: { session: JellyfinSession }) {
+  const { t, locale } = useI18n()
+  const date = new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
   const [filter, setFilter] = useState<
     'all' | 'pending' | 'approved' | 'rejected'
   >('all')
@@ -80,16 +82,18 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
   return (
     <section className="admin-page" aria-labelledby="admin-heading">
       <a href="/app" className="admin-back">
-        <ArrowLeft size={16} /> Retour à la bibliothèque
+        <ArrowLeft size={16} /> {t('Retour à la bibliothèque')}
       </a>
       <header className="admin-heading">
         <div>
-          <p className="admin-eyebrow">ESPACE ADMINISTRATEUR</p>
+          <p className="admin-eyebrow">{t('ESPACE ADMINISTRATEUR')}</p>
           <h2 id="admin-heading">
-            <BlurText text="Inscriptions & accès." />
+            <BlurText text={t('Inscriptions & accès.')} />
           </h2>
           <p>
-            Gérez les inscriptions et choisissez qui rejoint votre bibliothèque.
+            {t(
+              'Gérez les inscriptions et choisissez qui rejoint votre bibliothèque.',
+            )}
           </p>
         </div>
         <div className="admin-emblem" aria-hidden="true">
@@ -98,9 +102,13 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
       </header>
       <MagicBento>
         {[
-          { label: 'Demandes reçues', value: requests.length, Icon: Users },
-          { label: 'À traiter', value: pending.length, Icon: Clock3 },
-          { label: 'Comptes approuvés', value: approved.length, Icon: Check },
+          { label: t('Demandes reçues'), value: requests.length, Icon: Users },
+          { label: t('À traiter'), value: pending.length, Icon: Clock3 },
+          {
+            label: t('Comptes approuvés'),
+            value: approved.length,
+            Icon: Check,
+          },
         ].map(({ label, value, Icon }) => (
           <dl key={label}>
             <dt>
@@ -113,24 +121,24 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
       </MagicBento>
       <div className="admin-inbox">
         <div className="admin-inbox-heading">
-          <h3>Demandes d’inscription</h3>
+          <h3>{t('Demandes d’inscription')}</h3>
           <span>
             {registrations.isSuccess
-              ? `${requests.length} au total`
-              : 'Synchronisation'}
+              ? t('{count} au total', { count: requests.length })
+              : t('Synchronisation')}
           </span>
         </div>
         <div
           className="admin-filters"
           role="group"
-          aria-label="Filtrer les demandes"
+          aria-label={t('Filtrer les demandes')}
         >
           {(
             [
-              ['all', 'Toutes'],
-              ['pending', 'À traiter'],
-              ['approved', 'Approuvées'],
-              ['rejected', 'Refusées'],
+              ['all', t('Toutes')],
+              ['pending', t('À traiter')],
+              ['approved', t('Approuvées')],
+              ['rejected', t('Refusées')],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -144,31 +152,39 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
         </div>
         {registrations.isPending && (
           <p role="status" className="mt-4">
-            Chargement…
+            {t('Chargement…')}
           </p>
         )}
         {registrations.isError && (
           <p role="alert" className="mt-4 text-destructive">
-            {registrations.error.message}
+            {localizeText(
+              t,
+              registrations.error.message,
+              'Impossible de consulter les comptes.',
+            )}
           </p>
         )}
         {registrations.isSuccess && visible.length === 0 && (
           <p className="admin-empty" role="status">
             {requests.length === 0
-              ? 'Aucune demande pour le moment.'
-              : 'Aucune demande dans cette catégorie.'}
+              ? t('Aucune demande pour le moment.')
+              : t('Aucune demande dans cette catégorie.')}
           </p>
         )}
         {decision.isError && (
           <p role="alert" className="mt-4 text-destructive">
-            {decision.error.message}
+            {localizeText(
+              t,
+              decision.error.message,
+              'Impossible d’effectuer cette action. Réessaie.',
+            )}
           </p>
         )}
         {registrations.isSuccess && (
           <AnimatedList
             as="ul"
             className="admin-requests"
-            label="Demandes d’inscription"
+            label={t('Demandes d’inscription')}
           >
             <AnimatePresence initial={false}>
               {visible.map((registration) => (
@@ -195,21 +211,23 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                     <p className="admin-request-meta">
                       {registration.method === 'GOOGLE'
                         ? 'Google'
-                        : 'Mot de passe'}{' '}
+                        : t('Mot de passe')}{' '}
                       · {date.format(new Date(registration.createdAt))}
                     </p>
                     {registration.decidedAt && registration.decidedBy && (
                       <p className="text-xs break-words text-muted-foreground">
-                        Décision du{' '}
-                        {date.format(new Date(registration.decidedAt))} · Admin{' '}
-                        {registration.decidedBy}
+                        {t('Décision du {date} · Admin {name}', {
+                          date: date.format(new Date(registration.decidedAt)),
+                          name: registration.decidedBy,
+                        })}
                       </p>
                     )}
                     {registration.lastError && (
                       <p className="text-sm text-destructive">
-                        {registration.lastError.replace(
-                          /\bjellyfin\b/gi,
-                          'HollyFilms',
+                        {localizeText(
+                          t,
+                          registration.lastError,
+                          'La création du compte a échoué. Réessaie.',
                         )}
                       </p>
                     )}
@@ -218,7 +236,7 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                     className="admin-status"
                     data-status={registration.status}
                   >
-                    {statuses[registration.status]}
+                    {t(statuses[registration.status])}
                   </span>
                   {(registration.status === 'PENDING' ||
                     registration.status === 'PROVISIONING') && (
@@ -234,8 +252,8 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                         }
                       >
                         {registration.status === 'PENDING'
-                          ? 'Approuver'
-                          : 'Réessayer'}
+                          ? t('Approuver')
+                          : t('Réessayer')}
                       </Button>
                       {registration.status === 'PENDING' && (
                         <Button
@@ -248,7 +266,7 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                             })
                           }
                         >
-                          Refuser
+                          {t('Refuser')}
                         </Button>
                       )}
                     </div>

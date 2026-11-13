@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx'
 import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
 import { useEffect, useRef } from 'react'
 import { animate } from 'motion/react'
@@ -27,6 +28,7 @@ export function CatalogueGallery({
   stopped?: boolean
   state?: 'loading' | 'ready' | 'error'
 }) {
+  const { t } = useI18n()
   const { ref, running, reduced } = useEffectActivity(stopped)
   const floating = useRef<ReturnType<typeof animate>[]>([])
   const entrances = useRef<ReturnType<typeof animate>[]>([])
@@ -130,7 +132,7 @@ export function CatalogueGallery({
                   )}
                   <div className="gallery-caption">
                     <span>
-                      {item.kind}
+                      {t(item.kind)}
                       {item.year ? ` · ${item.year}` : ''}
                     </span>
                     <strong>{item.title}</strong>
@@ -145,17 +147,17 @@ export function CatalogueGallery({
         <div className="gallery-status glass-panel">
           <p role="status">
             {state === 'loading'
-              ? 'Chargement du catalogue…'
+              ? t('Chargement du catalogue…')
               : state === 'error'
-                ? 'Catalogue momentanément indisponible.'
-                : 'Aucun titre dans le catalogue pour le moment.'}
+                ? t('Catalogue momentanément indisponible.')
+                : t('Aucun titre dans le catalogue pour le moment.')}
           </p>
         </div>
       )}
-      <ul className="sr-only" aria-label="Titres du catalogue">
+      <ul className="sr-only" aria-label={t('Titres du catalogue')}>
         {items.map((item) => (
           <li key={item.id}>
-            {item.title} · {item.kind}
+            {item.title} · {t(item.kind)}
             {item.year ? ' · ' + item.year : ''}
           </li>
         ))}

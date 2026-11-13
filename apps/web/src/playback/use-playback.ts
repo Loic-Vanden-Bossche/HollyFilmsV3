@@ -46,6 +46,7 @@ export function usePlayback(
   initial: PlaybackTarget,
   initialOptions: StreamOptions = {},
   initialSettings = { volume: 1, muted: false, rate: 1 },
+  initialPaused = false,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const cleanup = useRef<() => Promise<void>>(async () => {})
@@ -73,10 +74,12 @@ export function usePlayback(
   const [request, setRequest] = useState<Request>({
     target: initial,
     options: initialOptions,
+    paused: initialPaused,
   })
   const [playback, setPlayback] = useState<{
     target: PlaybackTarget
     stream: PlaybackStream
+    request: Request
   }>()
   const [state, setState] = useState<PlayerState>('loading')
   const [media, setMedia] = useState<MediaState>({
@@ -405,7 +408,7 @@ export function usePlayback(
         stream = { ...negotiated, sources }
         setLoadingPhase('buffer')
         active.current = { target, stream }
-        setPlayback(active.current)
+        setPlayback({ ...active.current, request })
         video.volume = settings.current.volume
         video.muted = settings.current.muted
         video.playbackRate = settings.current.rate
@@ -517,6 +520,10 @@ export function usePlayback(
     preferences,
     report,
     options: request.options,
+    requestedTarget:
+      playback?.request === request ? playback.target : request.target,
+    requestIsActive: playback?.request === request,
+    requestedPaused: request.paused,
     seek,
     toggle,
     replaceStream,

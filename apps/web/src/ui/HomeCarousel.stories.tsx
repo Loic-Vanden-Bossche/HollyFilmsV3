@@ -168,3 +168,45 @@ export const StagedEntrance: Story = {
     )
   },
 }
+
+export const Preloading: Story = {
+  name: 'Préchargement invisible puis entrée en cascade',
+  args: { reveal: false, onReady: fn() },
+  render: function Render(args) {
+    const [reveal, setReveal] = useState(args.reveal)
+    return (
+      <>
+        <button type="button" onClick={() => setReveal(true)}>
+          Révéler la sélection
+        </button>
+        <HomeCarousel {...args} reveal={reveal} />
+      </>
+    )
+  },
+  play: async ({ canvas, canvasElement, args, userEvent }) => {
+    const hero = canvasElement.querySelector('.home-carousel')!
+    await waitFor(() =>
+      expect(args.onReady).toHaveBeenCalledWith(args.items[0].id),
+    )
+    await expect(hero).toHaveAttribute('data-revealed', 'false')
+    await expect(hero.querySelector('.home-hero-actions')).toHaveStyle({
+      opacity: '0',
+    })
+    await expect(
+      hero.querySelector('.media-artwork-fallback'),
+    ).not.toBeInTheDocument()
+    const image = hero.querySelector('.hero-backdrop img')
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Révéler la sélection' }),
+    )
+    await expect(hero.querySelector('.home-hero-actions')).not.toHaveStyle({
+      opacity: '1',
+    })
+    await waitFor(() =>
+      expect(hero.querySelector('.home-hero-actions')).toHaveStyle({
+        opacity: '1',
+      }),
+    )
+    await expect(hero.querySelector('.hero-backdrop img')).toBe(image)
+  },
+}

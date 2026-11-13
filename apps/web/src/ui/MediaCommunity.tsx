@@ -1,3 +1,8 @@
+import { localizeError } from '../i18n/api-messages.ts'
+import { localizeText } from '../i18n/messages.ts'
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { Tooltip } from './Tooltip.tsx'
+import { Select } from './Select.tsx'
 import { useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
@@ -49,6 +54,7 @@ export function MediaCommunity({
   onSave,
   onDelete,
 }: MediaCommunityProps) {
+  const { t, locale } = useI18n()
   const reduced = useReducedMotion()
   const [settings, setSettings] = useState(false),
     [searching, setSearching] = useState(false),
@@ -58,21 +64,21 @@ export function MediaCommunity({
     [content, setContent] = useState(''),
     [rating, setRating] = useState('')
   const [saving, setSaving] = useState(false),
-    [error, setError] = useState(''),
+    [error, setError] = useState<Error>(),
     [saved, setSaved] = useState(''),
     [confirmDelete, setConfirmDelete] = useState(false)
-  const countries = new Intl.DisplayNames(['fr'], { type: 'region' })
+  const countries = new Intl.DisplayNames(locale, { type: 'region' })
   const regionName = countries.of(region) ?? region
   const openEditor = () => {
     setContent(reviews?.own?.content ?? '')
     setRating(reviews?.own?.rating?.toString() ?? '')
     setEditing(true)
     setSaved('')
-    setError('')
+    setError(undefined)
   }
   async function save(remove = false) {
     setSaving(true)
-    setError('')
+    setError(undefined)
     try {
       if (remove) await onDelete?.()
       else await onSave?.(content, rating === '' ? null : Number(rating))
@@ -82,11 +88,7 @@ export function MediaCommunity({
         remove ? 'Ton avis a été supprimé.' : 'Ton avis a été enregistré.',
       )
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'Impossible d’enregistrer ton avis. Réessaie.',
-      )
+      setError(e instanceof Error ? e : new Error())
     } finally {
       setSaving(false)
     }
@@ -100,32 +102,42 @@ export function MediaCommunity({
       >
         <div className="detail-section-heading">
           <div>
-            <p className="home-eyebrow">Ailleurs aussi</p>
-            <h3 id="detail-provider-title">Disponible en {regionName}</h3>
+            <p className="home-eyebrow">{t('Ailleurs aussi')}</p>
+            <h3 id="detail-provider-title">
+              {t('Disponible en {region}', { region: regionName })}
+            </h3>
           </div>
           <div className="detail-rail-controls">
-            <button
-              className="glass-control"
-              aria-label="Rechercher une plateforme"
-              aria-expanded={searching}
-              onClick={() => setSearching(!searching)}
-            >
-              <Search size={18} />
-            </button>
-            <button
-              className="glass-control"
-              aria-label="Paramètres des disponibilités"
-              aria-expanded={settings}
-              onClick={() => setSettings(!settings)}
-            >
-              <Settings2 size={18} />
-            </button>
+            <Tooltip>
+              <button
+                className="glass-control"
+                aria-label={t('Rechercher une plateforme')}
+                aria-expanded={searching}
+                onClick={() => setSearching(!searching)}
+              >
+                <Search size={18} />
+              </button>
+            </Tooltip>
+            <Tooltip>
+              <button
+                className="glass-control"
+                aria-label={t('Paramètres des disponibilités')}
+                aria-expanded={settings}
+                onClick={() => setSettings(!settings)}
+              >
+                <Settings2 size={18} />
+              </button>
+            </Tooltip>
           </div>
         </div>
         {settings && (
           <label className="detail-field">
-            Pays des disponibilités
-            <select value={region} onChange={(e) => onRegion(e.target.value)}>
+            {t('Pays des disponibilités')}
+            <Select
+              aria-label={t('Pays des disponibilités')}
+              value={region}
+              onValueChange={(value) => onRegion(value)}
+            >
               {[
                 ...new Set([
                   'FR',
@@ -148,37 +160,38 @@ export function MediaCommunity({
                     {countries.of(code)}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
         )}
         {searching && (
           <label className="detail-field">
-            Rechercher une plateforme
+            {t('Rechercher une plateforme')}
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Netflix, Prime Video…"
+              placeholder={t('Netflix, Prime Video…')}
             />
           </label>
         )}
         {providerLoading ? (
           <p className="detail-status" role="status">
-            Recherche des disponibilités…
+            {t('Recherche des disponibilités…')}
           </p>
         ) : providerError ? (
           <p className="detail-status" role="alert">
-            Impossible de charger les plateformes.{' '}
-            <button onClick={onRetryProviders}>Réessayer</button>
+            {t('Impossible de charger les plateformes.')}{' '}
+            <button onClick={onRetryProviders}>{t('Réessayer')}</button>
           </p>
         ) : providers?.status === 'unconfigured' ? (
           <p className="detail-status">
-            Les disponibilités seront accessibles après l’activation de TMDB par
-            l’administrateur.
+            {t(
+              'Les disponibilités seront accessibles après l’activation de TMDB par l’administrateur.',
+            )}
           </p>
         ) : providers?.status === 'unmatched' ? (
           <p className="detail-status">
-            Aucune correspondance TMDB n’est renseignée pour ce titre.
+            {t('Aucune correspondance TMDB n’est renseignée pour ce titre.')}
           </p>
         ) : (
           <>
@@ -219,7 +232,7 @@ export function MediaCommunity({
             </div>
             {!providers?.providers.length && (
               <p className="detail-status">
-                Aucune offre renseignée dans ce pays.
+                {t('Aucune offre renseignée dans ce pays.')}
               </p>
             )}
             {searching &&
@@ -228,13 +241,13 @@ export function MediaCommunity({
                 p.name.toLowerCase().includes(search.toLowerCase()),
               ) && (
                 <p className="detail-status">
-                  Aucune plateforme ne correspond à cette recherche.
+                  {t('Aucune plateforme ne correspond à cette recherche.')}
                 </p>
               )}
           </>
         )}
         <p className="detail-attribution">
-          Disponibilités :{' '}
+          {t('Disponibilités :')}{' '}
           <a
             href="https://www.justwatch.com/"
             target="_blank"
@@ -242,7 +255,7 @@ export function MediaCommunity({
           >
             JustWatch
           </a>{' '}
-          via{' '}
+          {t('via')}{' '}
           <a
             href="https://www.themoviedb.org/"
             target="_blank"
@@ -250,7 +263,7 @@ export function MediaCommunity({
           >
             TMDB
           </a>
-          . Les liens ouvrent les offres du titre, selon le pays.
+          {t('. Les liens ouvrent les offres du titre, selon le pays.')}
         </p>
       </section>
       <section
@@ -260,23 +273,27 @@ export function MediaCommunity({
       >
         <div className="detail-section-heading">
           <h3 id="detail-reviews-title">
-            Critiques <span>{reviews?.total ?? '—'}</span>
+            {t('Critiques')} <span>{reviews?.total ?? '—'}</span>
           </h3>
-          <button
-            className="glass-control"
-            aria-label={
-              collapsed ? 'Afficher les critiques' : 'Replier les critiques'
-            }
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            <ChevronDown
-              size={18}
-              style={{
-                transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-              }}
-            />
-          </button>
+          <Tooltip>
+            <button
+              className="glass-control"
+              aria-label={
+                collapsed
+                  ? t('Afficher les critiques')
+                  : t('Replier les critiques')
+              }
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <ChevronDown
+                size={18}
+                style={{
+                  transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+                }}
+              />
+            </button>
+          </Tooltip>
         </div>
         {!collapsed && (
           <>
@@ -286,7 +303,9 @@ export function MediaCommunity({
                 onClick={openEditor}
               >
                 <MessageSquarePlus size={17} />
-                {reviews?.own ? 'Modifier ma critique' : 'Écrire une critique'}
+                {reviews?.own
+                  ? t('Modifier ma critique')
+                  : t('Écrire une critique')}
               </button>
             )}
             <AnimatePresence initial={false}>
@@ -302,34 +321,37 @@ export function MediaCommunity({
                   }}
                 >
                   <label className="detail-field">
-                    Ta note sur 10
-                    <select
+                    {t('Ta note sur 10')}
+                    <Select
+                      aria-label={t('Ta note sur 10')}
                       value={rating}
-                      onChange={(e) => setRating(e.target.value)}
+                      onValueChange={(value) => setRating(value)}
                       disabled={saving}
                     >
-                      <option value="">Sans note</option>
+                      <option value="">{t('Sans note')}</option>
                       {Array.from({ length: 21 }, (_, i) => i / 2).map((n) => (
                         <option key={n} value={n}>
                           {n} / 10
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label className="detail-field">
-                    Ta critique
+                    {t('Ta critique')}
                     <textarea
                       rows={5}
                       maxLength={10000}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       disabled={saving}
-                      placeholder="Ton avis sur ce titre…"
+                      placeholder={t('Ton avis sur ce titre…')}
                     />
                   </label>
                   <p className="detail-status">
-                    {content.length.toLocaleString('fr')} / 10 000 caractères ·
-                    Visible par les membres ayant accès à ce titre.
+                    {content.length.toLocaleString(locale)}{' '}
+                    {t(
+                      '/ 10 000 caractères · Visible par les membres ayant accès à ce titre.',
+                    )}
                   </p>
                   <div className="detail-editor-actions">
                     <button
@@ -337,7 +359,7 @@ export function MediaCommunity({
                       className="home-primary"
                       disabled={saving || (!content.trim() && rating === '')}
                     >
-                      {saving ? 'Enregistrement…' : 'Enregistrer'}
+                      {saving ? t('Enregistrement…') : t('Enregistrer')}
                     </button>
                     <button
                       type="button"
@@ -345,7 +367,7 @@ export function MediaCommunity({
                       disabled={saving}
                       onClick={() => setEditing(false)}
                     >
-                      Annuler
+                      {t('Annuler')}
                     </button>
                     {reviews?.own && onDelete && (
                       <button
@@ -355,26 +377,26 @@ export function MediaCommunity({
                         onClick={() => setConfirmDelete(true)}
                       >
                         <Trash2 size={15} />
-                        Supprimer mon avis
+                        {t('Supprimer mon avis')}
                       </button>
                     )}
                   </div>
                   {confirmDelete && (
                     <div className="detail-delete-confirm">
-                      <p>Supprimer définitivement ton avis ?</p>
+                      <p>{t('Supprimer définitivement ton avis ?')}</p>
                       <button
                         type="button"
                         disabled={saving}
                         onClick={() => void save(true)}
                       >
-                        Oui, supprimer
+                        {t('Oui, supprimer')}
                       </button>
                       <button
                         type="button"
                         disabled={saving}
                         onClick={() => setConfirmDelete(false)}
                       >
-                        Conserver
+                        {t('Conserver')}
                       </button>
                     </div>
                   )}
@@ -383,27 +405,31 @@ export function MediaCommunity({
             </AnimatePresence>
             {error && (
               <p role="alert" className="detail-error">
-                {error}
+                {localizeError(
+                  t,
+                  error,
+                  'Impossible d’enregistrer ton avis. Réessaie.',
+                )}
               </p>
             )}
             {saved && (
               <p role="status" className="detail-success">
-                {saved}
+                {localizeText(t, saved)}
               </p>
             )}
             {reviewsLoading ? (
               <p className="detail-status" role="status">
-                Chargement des critiques…
+                {t('Chargement des critiques…')}
               </p>
             ) : reviewsError ? (
               <p role="alert" className="detail-status">
-                Impossible de charger les critiques.{' '}
-                <button onClick={onRetryReviews}>Réessayer</button>
+                {t('Impossible de charger les critiques.')}{' '}
+                <button onClick={onRetryReviews}>{t('Réessayer')}</button>
               </p>
             ) : (
               <>
                 {!!reviews?.items.length && (
-                  <MediaRail title="Les avis" kind="review">
+                  <MediaRail title={t('Les avis')} kind="review">
                     {reviews.items.map((review) => (
                       <ReviewCard key={review.id} review={review} />
                     ))}
@@ -411,19 +437,20 @@ export function MediaCommunity({
                 )}
                 {!reviews?.items.length && (
                   <p className="detail-status">
-                    Aucune critique pour le moment.
+                    {t('Aucune critique pour le moment.')}
                   </p>
                 )}
                 {reviews?.external === 'unavailable' && (
                   <p role="status" className="detail-status">
-                    Les critiques TMDB sont momentanément indisponibles.{' '}
-                    <button onClick={onRetryReviews}>Réessayer</button>
+                    {t('Les critiques TMDB sont momentanément indisponibles.')}{' '}
+                    <button onClick={onRetryReviews}>{t('Réessayer')}</button>
                   </p>
                 )}
                 {reviews?.external === 'unconfigured' && (
                   <p className="detail-status">
-                    Les avis des membres sont disponibles. L’ajout des critiques
-                    TMDB nécessite l’activation du service par l’administrateur.
+                    {t(
+                      'Les avis des membres sont disponibles. L’ajout des critiques TMDB nécessite l’activation du service par l’administrateur.',
+                    )}
                   </p>
                 )}
                 {(page > 1 || reviews?.hasMore) && (
@@ -433,15 +460,15 @@ export function MediaCommunity({
                       disabled={page === 1}
                       onClick={() => onPage(page - 1)}
                     >
-                      Précédent
+                      {t('Précédent')}
                     </button>
-                    <span>Page {page}</span>
+                    <span>{t('Page {page}', { page })}</span>
                     <button
                       className="glass-control"
                       disabled={!reviews?.hasMore}
                       onClick={() => onPage(page + 1)}
                     >
-                      Suivant
+                      {t('Suivant')}
                     </button>
                   </div>
                 )}
@@ -454,6 +481,7 @@ export function MediaCommunity({
   )
 }
 function ReviewCard({ review }: { review: MediaReview }) {
+  const { t, locale } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const date = new Date(review.date)
   return (
@@ -461,7 +489,7 @@ function ReviewCard({ review }: { review: MediaReview }) {
       <header>
         <strong>
           {review.author}
-          {review.own && <small>Ton avis</small>}
+          {review.own && <small>{t('Ton avis')}</small>}
         </strong>
         {review.rating != null && (
           <span className="detail-review-rating">
@@ -473,7 +501,7 @@ function ReviewCard({ review }: { review: MediaReview }) {
       </header>
       <p className="detail-review-source">
         {!Number.isNaN(date.getTime()) &&
-          date.toLocaleDateString('fr', {
+          date.toLocaleDateString(locale, {
             day: 'numeric',
             month: 'short',
             year: 'numeric',
@@ -498,7 +526,7 @@ function ReviewCard({ review }: { review: MediaReview }) {
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? 'Réduire' : 'Lire la suite'}
+          {expanded ? t('Réduire') : t('Lire la suite')}
         </button>
       )}
     </article>

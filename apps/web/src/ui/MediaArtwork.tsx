@@ -15,6 +15,7 @@ export const MediaArtwork = memo(function MediaArtwork({
   eager = false,
   className = '',
   fallback,
+  onReady,
 }: {
   source?: LibraryImage | string
   session?: JellyfinSession
@@ -22,6 +23,8 @@ export const MediaArtwork = memo(function MediaArtwork({
   eager?: boolean
   className?: string
   fallback?: ReactNode
+  /** Called once this source is decoded, or its fallback is ready. */
+  onReady?: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
@@ -87,6 +90,15 @@ export const MediaArtwork = memo(function MediaArtwork({
       : objectUrl?.blob === image.data
         ? objectUrl?.url
         : undefined
+  const settled =
+    !source ||
+    (remote && !session) ||
+    image.isError ||
+    (!image.isPlaceholderData &&
+      Boolean(src && (loadedSource === src || failedSource === src)))
+  useEffect(() => {
+    if (settled) onReady?.()
+  }, [settled, onReady])
   return (
     <div ref={ref} className={'media-artwork ' + className}>
       {(!src || loadedSource !== src || failedSource === src) && (
@@ -103,7 +115,17 @@ export const MediaArtwork = memo(function MediaArtwork({
           initial={{ opacity: 0 }}
           animate={{ opacity: loadedSource === src ? 1 : 0 }}
           transition={{ duration: reduced ? 0 : 0.4 }}
-          onLoad={() => setLoadedSource(src)}
+          onLoad={(event) => {
+            const element = event.currentTarget
+            // Decode before declaring the hero ready, including cached images.
+            void element
+              .decode()
+              .catch(() => undefined)
+              .then(() => {
+                if (element.isConnected && element.getAttribute('src') === src)
+                  setLoadedSource(src)
+              })
+          }}
           onError={() => setFailedSource(src)}
         />
       )}

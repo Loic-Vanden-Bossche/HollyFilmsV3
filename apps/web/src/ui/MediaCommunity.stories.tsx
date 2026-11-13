@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
-import { expect, fn, waitFor } from 'storybook/test'
+import { expect, fn, waitFor, within } from 'storybook/test'
 import { MediaCommunity } from './MediaCommunity.tsx'
 import { detailedProviders, detailedReviews } from './media-detail-fixtures.ts'
 import './media-details.css'
@@ -44,13 +44,15 @@ export const Complete: Story = {
       />
     )
   },
-  play: async ({ canvas, userEvent, args }) => {
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Paramètres des disponibilités' }),
     )
-    await userEvent.selectOptions(
-      canvas.getByLabelText('Pays des disponibilités'),
-      'CH',
+    await userEvent.click(canvas.getByLabelText('Pays des disponibilités'))
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole('option', {
+        name: 'Suisse',
+      }),
     )
     await expect(args.onRegion).toHaveBeenCalledWith('CH')
     await userEvent.click(
@@ -73,15 +75,67 @@ export const Complete: Story = {
       canvas.getByLabelText('Ta critique'),
       'Un très beau film.',
     )
-    await userEvent.selectOptions(
-      canvas.getByLabelText('Ta note sur 10'),
-      '8.5',
+    await userEvent.click(canvas.getByLabelText('Ta note sur 10'))
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole('option', {
+        name: '8.5 / 10',
+      }),
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Enregistrer' }))
     await expect(args.onSave).toHaveBeenCalledWith('Un très beau film.', 8.5)
     await expect(await canvas.findByRole('status')).toHaveTextContent(
       'Ton avis a été enregistré.',
     )
+  },
+}
+export const EqualHeightReviews: Story = {
+  args: {
+    reviews: {
+      ...detailedReviews,
+      items: detailedReviews.items.map((review, index) => ({
+        ...review,
+        content:
+          index === 1
+            ? 'Une belle découverte.'
+            : index === 2
+              ? 'Une mise en scène remarquable.\n\nDes personnages attachants et une bande originale mémorable.\n\n'.repeat(
+                  9,
+                )
+              : review.content,
+      })),
+    },
+  },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    const cards = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>('.detail-review-card'),
+    )
+    const assertEqualHeights = async () => {
+      await waitFor(() => {
+        const heights = cards.map((card) => card.offsetHeight)
+        expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2)
+      })
+    }
+    await assertEqualHeights()
+    const collapsedHeight = cards[0].offsetHeight
+    const links = canvas.getAllByRole('button', { name: 'Lire la suite' })
+    const bottomGap = (link: HTMLElement) => {
+      const card = link.closest<HTMLElement>('.detail-review-card')!
+      return card.offsetHeight - link.offsetTop - link.offsetHeight
+    }
+    await expect(
+      Math.abs(bottomGap(links[0]) - bottomGap(links[1])),
+    ).toBeLessThan(2)
+    await userEvent.click(links[1])
+    await waitFor(() =>
+      expect(cards[0].offsetHeight).toBeGreaterThan(collapsedHeight),
+    )
+    await expect(
+      cards[2].querySelector('.detail-review-content')?.textContent,
+    ).toBe(args.reviews!.items[2].content)
+    await assertEqualHeights()
+    await userEvent.click(canvas.getByRole('button', { name: 'Réduire' }))
+    await assertEqualHeights()
+    await expect(cards[0].offsetHeight).toBe(collapsedHeight)
   },
 }
 export const Loading: Story = {

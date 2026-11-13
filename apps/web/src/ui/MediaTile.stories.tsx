@@ -16,7 +16,9 @@ const meta = {
         <QueryClientProvider client={client}>
           <div
             style={{
-              width: parameters.cardGrid ? 'min(1100px, 100%)' : 270,
+              width:
+                parameters.cardWidth ??
+                (parameters.cardGrid ? 'min(1100px, 100%)' : 270),
               maxWidth: '100%',
               padding: 12,
             }}
@@ -77,6 +79,11 @@ export const Actions: Story = {
   },
   play: async ({ canvas, canvasElement, userEvent, args }) => {
     await userEvent.hover(canvas.getByRole('article'))
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Ajouter aux favoris' }),
+      ).toBeVisible(),
+    )
     await userEvent.click(
       canvas.getByRole('button', { name: 'Ajouter aux favoris' }),
     )
@@ -118,6 +125,11 @@ export const SaveFailure: Story = {
   },
   play: async ({ canvas, canvasElement, userEvent, args }) => {
     await userEvent.hover(canvas.getByRole('article'))
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Ajouter aux favoris' }),
+      ).toBeVisible(),
+    )
     await userEvent.click(
       canvas.getByRole('button', { name: 'Ajouter aux favoris' }),
     )
@@ -201,6 +213,35 @@ export const ResumePlay: Story = {
     )
     await expect(canvas.getByText('Encore 1 h 16')).toBeVisible()
     await expect(args.onPlay).toHaveBeenCalledOnce()
+    await expect(args.onPlay).toHaveBeenCalledWith(args.item, true)
+    await expect(args.onSelect).not.toHaveBeenCalled()
+  },
+}
+
+export const CompactEpisode: Story = {
+  name: 'Reprise compacte — épisode et titre long',
+  args: {
+    ...ResumePlay.args,
+    item: {
+      ...homeResume[0],
+      kind: 'Épisode',
+      title: 'Signal : les dernières transmissions de la station abandonnée',
+      episode: 'S02 · E04 — Une dernière transmission',
+    },
+  },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    const card = canvas.getByRole('article')
+    const height = card.getBoundingClientRect().height
+    await expect(canvas.getByText(args.item.episode!)).toBeVisible()
+    await expect(canvas.getByText('Encore 1 h 16')).toBeVisible()
+    const row = canvasElement.querySelector('.media-card-kicker')!
+    const episode = row.firstElementChild!.getBoundingClientRect()
+    const remaining = row.lastElementChild!.getBoundingClientRect()
+    expect(episode.right).toBeLessThan(remaining.left)
+    await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+    await expect(card.getBoundingClientRect().height).toBeCloseTo(height, 0)
+    await userEvent.click(canvas.getByRole('button', { name: /^Reprendre / }))
     await expect(args.onPlay).toHaveBeenCalledWith(args.item, true)
     await expect(args.onSelect).not.toHaveBeenCalled()
   },
@@ -350,5 +391,78 @@ export const QuietCard: Story = {
       canvasElement.querySelector('.media-card-expanded'),
     ).toHaveAttribute('aria-hidden', 'true')
     await expect(canvas.getByText('1 h 59')).not.toBeVisible()
+  },
+}
+
+export const BalancedActions: Story = {
+  ...HoverPlay,
+  name: 'Commandes alignées — lecture et actions secondaires',
+  play: async (context) => {
+    const { canvas, canvasElement, userEvent } = context
+    await userEvent.hover(canvas.getByRole('article'))
+    await waitFor(() => {
+      const play = canvasElement
+        .querySelector('.media-card-play')!
+        .getBoundingClientRect()
+      const actions = canvasElement
+        .querySelector('.media-card-actions')!
+        .getBoundingClientRect()
+      expect(
+        Math.abs(
+          (play.top + play.bottom) / 2 - (actions.top + actions.bottom) / 2,
+        ),
+      ).toBeLessThan(1)
+      expect(play.right).toBeLessThan(actions.left)
+      const overlay = canvasElement
+        .querySelector('.media-card-overlay')!
+        .getBoundingClientRect()
+      const information = canvasElement
+        .querySelector('.media-card-information')!
+        .getBoundingClientRect()
+      expect(Math.abs(overlay.bottom - information.top)).toBeLessThan(2)
+      expect(play.left).toBeGreaterThan(overlay.left)
+      expect(actions.right).toBeLessThan(overlay.right)
+    })
+    await HoverPlay.play?.(context)
+  },
+}
+
+export const NarrowActions: Story = {
+  name: 'Carte étroite — commandes sans chevauchement',
+  parameters: { cardWidth: 169 },
+  args: { ...HoverPlay.args, item: homeItems[0] },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    const card = canvas.getByRole('article')
+    await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+    const play = canvas.getByRole('button', { name: 'Lire ' + args.item.title })
+    const favorite = canvas.getByRole('button', { name: 'Ajouter aux favoris' })
+    await waitFor(() => {
+      if (card.dataset.touch === 'true') {
+        expect(play.getBoundingClientRect().bottom).toBeLessThan(
+          favorite.getBoundingClientRect().top,
+        )
+        expect(play.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
+        expect(favorite.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+          44,
+        )
+      } else {
+        expect(play.getBoundingClientRect().right).toBeLessThan(
+          favorite.getBoundingClientRect().left,
+        )
+      }
+    })
+    await userEvent.click(play)
+    await expect(args.onPlay).toHaveBeenCalledWith(args.item, true)
+    await userEvent.click(favorite)
+    await expect(args.onFavorite).toHaveBeenCalledWith(args.item, true)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Marquer comme vu' }),
+    )
+    await expect(args.onWatched).toHaveBeenCalled()
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(
+      canvasElement.clientWidth,
+    )
+    await expect(args.onSelect).not.toHaveBeenCalled()
   },
 }

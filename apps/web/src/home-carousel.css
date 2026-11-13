@@ -11,6 +11,30 @@
   position: absolute;
   inset: 0;
 }
+.home-hero-pending {
+  background:
+    radial-gradient(ellipse at 75% 35%, #16394866, transparent 65%), #080f1b;
+}
+.hero-pending-title,
+.hero-pending-meta,
+.hero-pending-copy {
+  border-radius: 12px;
+  background: linear-gradient(110deg, #accbda0a, #80c9c015, #accbda08);
+}
+.hero-pending-title {
+  width: 75%;
+  height: 120px;
+  margin-block: 28px;
+}
+.hero-pending-meta {
+  width: 58%;
+  height: 30px;
+}
+.hero-pending-copy {
+  width: 90%;
+  height: 52px;
+  margin-top: 28px;
+}
 .hero-video {
   overflow: hidden;
   pointer-events: none;

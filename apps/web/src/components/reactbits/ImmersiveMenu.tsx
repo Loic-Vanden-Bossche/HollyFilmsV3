@@ -1,3 +1,5 @@
+import { useI18n } from '../../i18n/I18nProvider.tsx'
+import { Tooltip } from '../../ui/Tooltip.tsx'
 // React Bits Staggered Menu + Flowing Menu adapted to native dialog, Motion and authenticated artwork.
 import { createContext, useContext, useEffect, useRef } from 'react'
 import { motion, useAnimate } from 'motion/react'
@@ -6,6 +8,7 @@ import type { LibraryFilter, MediaItem } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from '../../ui/MediaArtwork.tsx'
 import { Wordmark } from '../../ui/Wordmark.tsx'
+import { lockBodyScroll } from '../../ui/body-scroll-lock.ts'
 import { cinemaMotion, useMotionPolicy } from './policy.ts'
 import './effects.css'
 
@@ -22,19 +25,20 @@ export function FlowingMenu({
   selected: LibraryFilter
   onSelect: (value: LibraryFilter) => void
 }) {
+  const { t } = useI18n()
   const { reduced, pageVisible } = useMotionPolicy()
   const closeMenu = useContext(CloseMenu)
   return (
     <nav
       className="rb-flowing-menu"
       data-running={pageVisible && !reduced}
-      aria-label="Explorer HollyFilms"
+      aria-label={t('Explorer HollyFilms')}
     >
       {(
         [
-          ['all', 'Accueil'],
-          ['movies', 'Films'],
-          ['series', 'Séries'],
+          ['all', t('Accueil')],
+          ['movies', t('Films')],
+          ['series', t('Séries')],
         ] as const
       ).map(([value, label], index) => {
         const posters = items
@@ -96,6 +100,7 @@ export function StaggeredMenu({
   children: React.ReactNode
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const [scope, animate] = useAnimate<HTMLDialogElement>()
   const closing = useRef(false),
     backdrop = useRef(false)
@@ -103,8 +108,7 @@ export function StaggeredMenu({
   useEffect(() => {
     const dialog = scope.current
     const trigger = document.activeElement as HTMLElement | null
-    const overflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockBodyScroll()
     dialog.showModal()
     const controls = animate(
       '.rb-menu-panel',
@@ -120,7 +124,7 @@ export function StaggeredMenu({
     return () => {
       controls.stop()
       dialog.close()
-      document.body.style.overflow = overflow
+      unlockScroll()
       trigger?.focus({ preventScroll: true })
     }
   }, [scope, animate, reduced])
@@ -138,7 +142,7 @@ export function StaggeredMenu({
     <dialog
       ref={scope}
       className="rb-staggered-menu"
-      aria-label="Navigation HollyFilms"
+      aria-label={t('Navigation HollyFilms')}
       onCancel={(e) => {
         e.preventDefault()
         void close()
@@ -168,19 +172,21 @@ export function StaggeredMenu({
         </div>
         <header>
           <Wordmark compact />
-          <span>EXPLORER / HOLLYFILMS 3.0</span>
-          <button
-            type="button"
-            aria-label="Fermer la navigation"
-            onClick={() => void close()}
-          >
-            <X size={24} />
-          </button>
+          <span>{t('EXPLORER / HOLLYFILMS 3.0')}</span>
+          <Tooltip>
+            <button
+              type="button"
+              aria-label={t('Fermer la navigation')}
+              onClick={() => void close()}
+            >
+              <X size={24} />
+            </button>
+          </Tooltip>
         </header>
         <CloseMenu value={close}>{children}</CloseMenu>
         <footer>
-          <span>VOTRE BIBLIOTHÈQUE, EN GRAND.</span>
-          <span>Films · Séries · Reprise de lecture</span>
+          <span>{t('VOTRE BIBLIOTHÈQUE, EN GRAND.')}</span>
+          <span>{t('Films · Séries · Reprise de lecture')}</span>
         </footer>
       </div>
     </dialog>

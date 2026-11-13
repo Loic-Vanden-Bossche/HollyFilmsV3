@@ -1,5 +1,6 @@
 // React Bits Dome Gallery: spherical tile projection; passive Motion camera adaptation.
 // Dragging, enlargement, gestures and external demo images intentionally omitted.
+import { useI18n } from '../../i18n/I18nProvider.tsx'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { animate } from 'motion/react'
 import { Film } from 'lucide-react'
@@ -17,6 +18,7 @@ export function DomeGallery({
 }) {
   const { ref, running } = useEffectActivity(paused || items.length < 4)
   const [radius, setRadius] = useState(600)
+  const { t } = useI18n()
   const sphere = useRef<HTMLDivElement>(null)
   const orbit = useRef<ReturnType<typeof animate> | null>(null)
   const sparse = items.length < 4
@@ -112,7 +114,7 @@ export function DomeGallery({
                   )}
                   <div className="rb-dome-caption">
                     <span>
-                      {item.kind}
+                      {t(item.kind)}
                       {item.year ? ` · ${item.year}` : ''}
                     </span>
                     <strong>{item.title}</strong>

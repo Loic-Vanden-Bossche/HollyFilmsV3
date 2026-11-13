@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx'
 import {
   memo,
   useLayoutEffect,
@@ -9,12 +10,13 @@ import { motion, useInView, useReducedMotion } from 'motion/react'
 import { MediaTile } from './MediaTile.tsx'
 import { cinemaMotion } from '../components/reactbits/policy.ts'
 
-// Keep every title and its layout slot in the document, but mount the expensive
-// artwork/gesture/control tree only near the viewport (or on keyboard focus).
+// Inside each mounted virtual row, defer the expensive artwork/gesture/control
+// tree until near the viewport (or keyboard focus), preserving its layout slot.
 export const DeferredMediaTile = memo(function DeferredMediaTile({
   order = 0,
   ...props
 }: Omit<ComponentProps<typeof MediaTile>, 'wide'> & { order?: number }) {
+  const { t } = useI18n()
   const ref = useRef<HTMLDivElement>(null)
   const near = useInView(ref, { once: true, margin: '240px' })
   const reduced = useReducedMotion()
@@ -51,8 +53,7 @@ export const DeferredMediaTile = memo(function DeferredMediaTile({
           type="button"
           className="media-tile-placeholder"
           aria-label={
-            'Voir la fiche de ' +
-            props.item.title +
+            t('Voir la fiche de {title}', { title: props.item.title }) +
             (props.item.episode ? ', ' + props.item.episode : '')
           }
           onFocus={() => {

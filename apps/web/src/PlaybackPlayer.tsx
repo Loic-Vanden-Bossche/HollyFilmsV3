@@ -1,3 +1,10 @@
+import { localizeText, type Message } from './i18n/messages.ts'
+import { useI18n } from './i18n/I18nProvider.tsx'
+import { Tooltip } from './ui/Tooltip.tsx'
+import { languageFlag } from './ui/language-flags.ts'
+import { PlayerSessionActions } from './ui/PlayerSessionActions.tsx'
+import { SubtitleOffset } from './ui/SubtitleOffset.tsx'
+import { Select } from './ui/Select.tsx'
 import { AnimatedList } from './components/reactbits/Effects.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,17 +26,19 @@ import {
 } from './playback/playback-api.ts'
 import { usePlayback } from './playback/use-playback.ts'
 import { usePlayerSubtitles } from './playback/use-player-subtitles.ts'
+import { useSubtitleClearance } from './playback/use-subtitle-clearance.ts'
 import { useSyncPlay } from './playback/use-sync-play.ts'
 import { usePlaybackDevices } from './playback/use-playback-devices.ts'
 import { useMediaSession } from './playback/use-media-session.ts'
 import type { PlaybackTarget, StreamOptions } from './playback/playback-api.ts'
 import type { RemoteControlMessage } from './playback/remote-commands.ts'
+import type { AppRoute } from './app-route.ts'
 import {
   readPlaybackPreferences,
   savePlaybackPreferences,
 } from './playback/preferences.ts'
 
-const segmentLabels: Record<string, string> = {
+const segmentLabels: Partial<Record<string, Message>> = {
   Intro: 'Passer l’introduction',
   Outro: 'Passer le générique',
   Recap: 'Passer le résumé',
@@ -60,6 +69,8 @@ export function PlaybackPlayer({
   queuedNext,
   queuedLast,
   remoteCommand,
+  initialPaused,
+  onLocationChange,
 }: {
   item: MediaItem
   session: JellyfinSession
@@ -71,8 +82,12 @@ export function PlaybackPlayer({
   queuedNext?: PlaybackTarget[]
   queuedLast?: PlaybackTarget[]
   remoteCommand?: RemoteControlMessage
+  initialPaused?: boolean
+  onLocationChange?: (location: Partial<AppRoute>, previousId: string) => void
 }) {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
+  const stageRef = useRef<HTMLDivElement>(null)
   const api = useMemo(
     () => createPlaybackApi(session, userId),
     [session, userId],
@@ -93,6 +108,7 @@ export function PlaybackPlayer({
       muted: saved.muted,
       rate: saved.rate,
     },
+    initialPaused,
   )
   const {
     playback,
@@ -107,6 +123,48 @@ export function PlaybackPlayer({
   const state = devices.destination ? 'playing' : localState
   const target = devices.target ?? playback?.target
   const source = playback?.stream.source
+  const [selectedSubtitle, setSelectedSubtitle] = useState<number | undefined>(
+    initialOptions?.subtitle,
+  )
+  const locationSubtitle = selectedSubtitle ?? player.options.subtitle
+  const locationSource = player.requestIsActive
+    ? source?.Id
+    : player.options.sourceId
+  const requested = player.requestedTarget
+  const reportedId = useRef(item.id)
+  const locationReady =
+    (localState === 'ready' || localState === 'playing') &&
+    player.requestIsActive
+  const locationTime = Math.floor(
+    locationReady ? localMedia.position : requested.start,
+  )
+  const locationPaused = locationReady
+    ? localMedia.paused
+    : player.requestedPaused
+  useEffect(() => {
+    if (localState === 'stopped' || closing.current) return
+    onLocationChange?.(
+      {
+        play: requested.id,
+        time: locationTime,
+        paused: locationPaused,
+        source: locationSource,
+        audio: player.options.audio,
+        subtitle: locationSubtitle,
+      },
+      reportedId.current,
+    )
+    reportedId.current = requested.id
+  }, [
+    onLocationChange,
+    requested.id,
+    locationTime,
+    locationPaused,
+    localState,
+    locationSource,
+    player.options.audio,
+    locationSubtitle,
+  ])
   const reduced = useReducedMotion()
   const [menu, setMenu] = useState<
     | 'settings'
@@ -123,11 +181,18 @@ export function PlaybackPlayer({
   const [fullscreen, setFullscreen] = useState(false)
   const [pip, setPip] = useState(false)
   const [fit, setFit] = useState(saved.fit)
-  const [selectedSubtitle, setSelectedSubtitle] = useState<number | undefined>(
-    initialOptions?.subtitle,
-  )
   const [secondarySubtitle, setSecondarySubtitle] = useState(-1)
   const [subtitleDelay, setSubtitleDelay] = useState(0)
+  const [offsetOpen, setOffsetOpen] = useState(false)
+  const closeOffset = useCallback(() => {
+    setOffsetOpen(false)
+    videoRef.current
+      ?.closest('.player-viewport')
+      ?.querySelector<HTMLButtonElement>(
+        '.player-controls [data-subtitles-trigger]',
+      )
+      ?.focus({ preventScroll: true })
+  }, [videoRef])
   const [subtitleScale, setSubtitleScale] = useState(saved.subtitleScale)
   const [subtitleColor, setSubtitleColor] = useState(saved.subtitleColor)
   const [autoNext, setAutoNext] = useState(saved.autoNext)
@@ -245,11 +310,16 @@ export function PlaybackPlayer({
   const statusVisible = state === 'playing' || state === 'ready'
   const showControls =
     statusVisible &&
-    (controlsVisible || controlsHovered || media.paused || Boolean(menu))
+    (controlsVisible ||
+      controlsHovered ||
+      media.paused ||
+      Boolean(menu) ||
+      offsetOpen)
   const currentLyric = lyrics.data?.findLastIndex(
     (line) =>
       line.Start != null && line.Start / ticksPerSecond <= media.position,
   )
+  useSubtitleClearance(stageRef, showControls)
 
   const scheduleControlsHide = useCallback(() => {
     clearTimeout(controlsTimer.current)
@@ -564,8 +634,35 @@ export function PlaybackPlayer({
       onBackHover={holdControls}
       onClose={() => void close()}
       onRetry={player.retry}
+      actions={
+        <PlayerSessionActions
+          casting={Boolean(devices.destination)}
+          syncing={Boolean(sync.group)}
+          disabled={!statusVisible}
+          onCast={() => {
+            setOffsetOpen(false)
+            setMenu('devices')
+            void devices.list()
+          }}
+          onSync={() => {
+            setOffsetOpen(false)
+            setMenu('sync')
+            void sync.list()
+          }}
+        />
+      }
     >
+      <AnimatePresence>
+        {offsetOpen && (
+          <SubtitleOffset
+            value={subtitleDelay}
+            onChange={setSubtitleDelay}
+            onClose={closeOffset}
+          />
+        )}
+      </AnimatePresence>
       <div
+        ref={stageRef}
         className="player-stage"
         onKeyDown={(event) => {
           if (
@@ -573,7 +670,11 @@ export function PlaybackPlayer({
             event.ctrlKey ||
             event.metaKey ||
             event.target instanceof HTMLInputElement ||
-            event.target instanceof HTMLSelectElement
+            event.target instanceof HTMLSelectElement ||
+            (event.target instanceof HTMLElement &&
+              event.target.closest(
+                '[role="combobox"], [role="listbox"], [role="option"]',
+              ))
           )
             return
           const key = event.key.toLowerCase()
@@ -626,7 +727,9 @@ export function PlaybackPlayer({
           playsInline
           preload="auto"
           tabIndex={0}
-          aria-label={'Lecture de ' + (target?.title ?? item.title)}
+          aria-label={t('Lecture de {title}', {
+            title: target?.title ?? item.title,
+          })}
           style={{ objectFit: fit }}
           onClick={statusVisible ? toggle : undefined}
           onDoubleClick={fullscreenToggle}
@@ -656,21 +759,27 @@ export function PlaybackPlayer({
           </div>
         )}
         {state === 'ready' && media.paused && (
-          <motion.button
-            type="button"
-            className="player-big-play"
-            aria-label="Démarrer la lecture"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: reduced ? 0 : 0.2 }}
-            onClick={toggle}
-          >
-            <Play fill="currentColor" />
-          </motion.button>
+          <Tooltip>
+            <motion.button
+              type="button"
+              className="player-big-play"
+              aria-label={t('Démarrer la lecture')}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduced ? 0 : 0.2 }}
+              onClick={toggle}
+            >
+              <Play fill="currentColor" />
+            </motion.button>
+          </Tooltip>
         )}
         {devices.destination && (
           <div className="player-remote-status">
-            <p>Diffusion sur {devices.destination.label}</p>
+            <p>
+              {t('Diffusion sur {device}', {
+                device: devices.destination.label,
+              })}
+            </p>
           </div>
         )}
         <PlayerLoading
@@ -699,7 +808,7 @@ export function PlaybackPlayer({
               player.seek((activeSegment.EndTicks ?? 0) / ticksPerSecond)
             }
           >
-            {segmentLabels[activeSegment.Type]}
+            {t(segmentLabels[activeSegment.Type]!)}
           </motion.button>
         )}
         {statusVisible && player.ended && !autoNext && next && (
@@ -711,7 +820,7 @@ export function PlaybackPlayer({
             type="button"
             onClick={() => open(next)}
           >
-            Lire l’épisode suivant
+            {t('Lire l’épisode suivant')}
           </motion.button>
         )}
         {continueNext && (
@@ -726,7 +835,7 @@ export function PlaybackPlayer({
               open(continueNext)
             }}
           >
-            Toujours là ? Continuer
+            {t('Toujours là ? Continuer')}
           </motion.button>
         )}
         {statusVisible && (
@@ -783,7 +892,7 @@ export function PlaybackPlayer({
               loadPreview={api.previewImage}
               markers={chapters.map((chapter) => ({
                 position: (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
-                label: chapter.Name ?? 'Chapitre',
+                label: chapter.Name ?? t('Chapitre'),
               }))}
             />
           </motion.div>
@@ -793,7 +902,7 @@ export function PlaybackPlayer({
             <motion.section
               key={menu}
               className="player-menu glass-panel"
-              aria-label="Options du lecteur"
+              aria-label={t('Options du lecteur')}
               initial={{
                 opacity: 0,
                 y: reduced ? 0 : 12,
@@ -816,44 +925,46 @@ export function PlaybackPlayer({
                 <h2>
                   {
                     {
-                      settings: 'Lecture',
-                      subtitles: 'Sous-titres',
-                      queue: 'File de lecture',
-                      stats: 'Statistiques',
-                      chapters: 'Chapitres',
-                      trailers: 'Bandes-annonces',
+                      settings: t('Lecture'),
+                      subtitles: t('Sous-titres'),
+                      queue: t('File de lecture'),
+                      stats: t('Statistiques'),
+                      chapters: t('Chapitres'),
+                      trailers: t('Bandes-annonces'),
                       sync: 'SyncPlay',
-                      devices: 'Diffusion',
-                      lyrics: 'Paroles',
+                      devices: t('Diffusion'),
+                      lyrics: t('Paroles'),
                     }[menu]
                   }
                 </h2>
-                <button
-                  className="player-icon"
-                  type="button"
-                  aria-label="Fermer les options"
-                  onClick={() => setMenu(undefined)}
-                >
-                  <X size={18} />
-                </button>
+                <Tooltip>
+                  <button
+                    className="player-icon"
+                    type="button"
+                    aria-label={t('Fermer les options')}
+                    onClick={() => setMenu(undefined)}
+                  >
+                    <X size={18} />
+                  </button>
+                </Tooltip>
               </header>
               <AnimatedList>
                 {menu === 'settings' && devices.destination && (
                   <div className="player-menu-actions">
                     <button type="button" onClick={() => setMenu('devices')}>
-                      Diffusion
+                      {t('Diffusion')}
                     </button>
                   </div>
                 )}
                 {menu === 'settings' && !devices.destination && (
                   <>
                     <label>
-                      Qualité
-                      <select
-                        aria-label="Qualité"
+                      {t('Qualité')}
+                      <Select
+                        aria-label={t('Qualité')}
                         value={player.options.bitrate ?? 0}
-                        onChange={(event) => {
-                          const bitrate = Number(event.target.value)
+                        onValueChange={(value) => {
+                          const bitrate = Number(value)
                           player.replaceStream({
                             bitrate: bitrate || undefined,
                             forceTranscode: Boolean(
@@ -867,43 +978,58 @@ export function PlaybackPlayer({
                       >
                         {qualities.map(([value, text]) => (
                           <option key={value} value={value}>
-                            {text}
+                            {localizeText(t, text)}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     {audio.length > 0 && (
                       <label>
-                        Audio
-                        <select
-                          aria-label="Audio"
+                        {t('Audio')}
+                        <Select
+                          aria-label={t('Audio')}
+                          optionIcon={(value) => {
+                            const flag = languageFlag(
+                              audio.find(
+                                (track) => String(track.Index) === value,
+                              )?.Language,
+                            )
+                            return flag ? (
+                              <img
+                                className="holly-select-flag"
+                                src={flag}
+                                alt=""
+                                width={20}
+                                height={15}
+                              />
+                            ) : null
+                          }}
                           value={
                             player.options.audio ??
                             source?.DefaultAudioStreamIndex ??
                             audio[0].Index
                           }
-                          onChange={(event) =>
-                            audioSelect(Number(event.target.value))
-                          }
+                          onValueChange={(value) => audioSelect(Number(value))}
                         >
                           {audio.map((track) => (
                             <option key={track.Index} value={track.Index}>
-                              {trackName(track)}
+                              {trackName(track, t)}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                     )}
                     {playback && playback.stream.sources.length > 1 && (
                       <label>
-                        Version
-                        <select
+                        {t('Version')}
+                        <Select
+                          aria-label={t('Version')}
                           value={source?.Id}
-                          onChange={(event) => {
+                          onValueChange={(value) => {
                             setSelectedSubtitle(undefined)
                             setSecondarySubtitle(-1)
                             player.replaceStream({
-                              sourceId: event.target.value,
+                              sourceId: value,
                               audio: undefined,
                               subtitle: undefined,
                               burnSubtitle: false,
@@ -918,18 +1044,17 @@ export function PlaybackPlayer({
                                 {version.Name ?? version.Container}
                               </option>
                             ))}
-                        </select>
+                        </Select>
                       </label>
                     )}
                     <label>
-                      Vitesse
-                      <select
+                      {t('Vitesse')}
+                      <Select
+                        aria-label={t('Vitesse')}
                         value={media.rate}
-                        onChange={(event) => {
+                        onValueChange={(value) => {
                           if (videoRef.current)
-                            videoRef.current.playbackRate = Number(
-                              event.target.value,
-                            )
+                            videoRef.current.playbackRate = Number(value)
                         }}
                       >
                         {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
@@ -937,36 +1062,36 @@ export function PlaybackPlayer({
                             {rate}×
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label>
-                      Image
-                      <select
+                      {t('Image')}
+                      <Select
+                        aria-label={t('Image')}
                         value={fit}
-                        onChange={(event) =>
-                          setFit(event.target.value as typeof fit)
-                        }
+                        onValueChange={(value) => setFit(value as typeof fit)}
                       >
-                        <option value="contain">Originale</option>
-                        <option value="cover">Remplir</option>
-                        <option value="fill">Étirer</option>
-                      </select>
+                        <option value="contain">{t('Originale')}</option>
+                        <option value="cover">{t('Remplir')}</option>
+                        <option value="fill">{t('Étirer')}</option>
+                      </Select>
                     </label>
                     <label>
-                      Répéter
-                      <select
+                      {t('Répéter')}
+                      <Select
+                        aria-label={t('Répéter')}
                         value={repeat}
-                        onChange={(event) =>
-                          setRepeat(event.target.value as typeof repeat)
+                        onValueChange={(value) =>
+                          setRepeat(value as typeof repeat)
                         }
                       >
-                        <option value="RepeatNone">Désactivé</option>
-                        <option value="RepeatOne">Titre actuel</option>
-                        <option value="RepeatAll">Toute la file</option>
-                      </select>
+                        <option value="RepeatNone">{t('Désactivé')}</option>
+                        <option value="RepeatOne">{t('Titre actuel')}</option>
+                        <option value="RepeatAll">{t('Toute la file')}</option>
+                      </Select>
                     </label>
                     <label>
-                      Lecture automatique
+                      {t('Lecture automatique')}
                       <input
                         type="checkbox"
                         checked={autoNext}
@@ -974,7 +1099,7 @@ export function PlaybackPlayer({
                       />
                     </label>
                     <label>
-                      Confirmer après 3 épisodes
+                      {t('Confirmer après 3 épisodes')}
                       <input
                         type="checkbox"
                         checked={askAfterEpisodes}
@@ -985,7 +1110,7 @@ export function PlaybackPlayer({
                     </label>
                     {currentQueue.length > 1 && (
                       <label>
-                        Lecture aléatoire
+                        {t('Lecture aléatoire')}
                         <input
                           type="checkbox"
                           checked={shuffle}
@@ -999,12 +1124,12 @@ export function PlaybackPlayer({
                           type="button"
                           onClick={() => setMenu('subtitles')}
                         >
-                          Sous-titres
+                          {t('Sous-titres')}
                         </button>
                       )}
                       {currentQueue.length > 1 && !sync.group && (
                         <button type="button" onClick={() => setMenu('queue')}>
-                          File de lecture
+                          {t('File de lecture')}
                         </button>
                       )}
                       {chapters.length > 0 && (
@@ -1012,18 +1137,18 @@ export function PlaybackPlayer({
                           type="button"
                           onClick={() => setMenu('chapters')}
                         >
-                          Chapitres
+                          {t('Chapitres')}
                         </button>
                       )}
                       <button type="button" onClick={() => setMenu('trailers')}>
-                        Bandes-annonces
+                        {t('Bandes-annonces')}
                       </button>
                       <button type="button" onClick={() => setMenu('stats')}>
-                        Statistiques
+                        {t('Statistiques')}
                       </button>
                       {audioOnly && (
                         <button type="button" onClick={() => setMenu('lyrics')}>
-                          Paroles
+                          {t('Paroles')}
                         </button>
                       )}
                       <button
@@ -1043,7 +1168,7 @@ export function PlaybackPlayer({
                             void devices.list()
                           }}
                         >
-                          Diffusion
+                          {t('Diffusion')}
                         </button>
                       )}
                       {video && 'webkitShowPlaybackTargetPicker' in video && (
@@ -1066,31 +1191,62 @@ export function PlaybackPlayer({
                 {menu === 'subtitles' && (
                   <>
                     <label>
-                      Langue
-                      <select
-                        aria-label="Langue"
+                      {t('Langue')}
+                      <Select
+                        aria-label={t('Langue')}
+                        optionIcon={(value) => {
+                          const flag = languageFlag(
+                            subtitles.find(
+                              (track) => String(track.Index) === value,
+                            )?.Language,
+                          )
+                          return flag ? (
+                            <img
+                              className="holly-select-flag"
+                              src={flag}
+                              alt=""
+                              width={20}
+                              height={15}
+                            />
+                          ) : null
+                        }}
                         value={primary}
-                        onChange={(event) =>
-                          subtitle(Number(event.target.value))
-                        }
+                        onValueChange={(value) => subtitle(Number(value))}
                       >
-                        <option value={-1}>Désactivés</option>
+                        <option value={-1}>{t('Désactivés')}</option>
                         {subtitles.map((track) => (
                           <option key={track.Index} value={track.Index}>
-                            {trackName(track)}
+                            {trackName(track, t)}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label>
-                      Deuxième piste
-                      <select
+                      {t('Deuxième piste')}
+                      <Select
+                        aria-label={t('Deuxième piste')}
+                        optionIcon={(value) => {
+                          const flag = languageFlag(
+                            subtitles.find(
+                              (track) => String(track.Index) === value,
+                            )?.Language,
+                          )
+                          return flag ? (
+                            <img
+                              className="holly-select-flag"
+                              src={flag}
+                              alt=""
+                              width={20}
+                              height={15}
+                            />
+                          ) : null
+                        }}
                         value={secondarySubtitle}
-                        onChange={(event) =>
-                          setSecondarySubtitle(Number(event.target.value))
+                        onValueChange={(value) =>
+                          setSecondarySubtitle(Number(value))
                         }
                       >
-                        <option value={-1}>Désactivée</option>
+                        <option value={-1}>{t('Désactivée')}</option>
                         {subtitles
                           .filter(
                             (track) =>
@@ -1099,26 +1255,39 @@ export function PlaybackPlayer({
                           )
                           .map((track) => (
                             <option key={track.Index} value={track.Index}>
-                              {trackName(track)}
+                              {trackName(track, t)}
                             </option>
                           ))}
-                      </select>
+                      </Select>
                     </label>
+                    <button
+                      type="button"
+                      className="player-offset-launch"
+                      disabled={
+                        Boolean(devices.destination) ||
+                        Boolean(player.options.burnSubtitle) ||
+                        (!primaryTrack && !secondaryTrack)
+                      }
+                      title={
+                        player.options.burnSubtitle
+                          ? t(
+                              'Désactivez l’incrustation pour régler le décalage',
+                            )
+                          : undefined
+                      }
+                      onClick={() => {
+                        setMenu(undefined)
+                        setOffsetOpen(true)
+                      }}
+                    >
+                      {t('Régler le décalage')}{' '}
+                      <span>
+                        {subtitleDelay > 0 ? '+' : ''}
+                        {subtitleDelay.toFixed(1)} {t('s')}
+                      </span>
+                    </button>
                     <label>
-                      Décalage (s)
-                      <input
-                        type="number"
-                        step={0.1}
-                        min={-120}
-                        max={120}
-                        value={subtitleDelay}
-                        onChange={(event) =>
-                          setSubtitleDelay(Number(event.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Taille
+                      {t('Taille')}
                       <input
                         type="range"
                         min={0.7}
@@ -1131,7 +1300,7 @@ export function PlaybackPlayer({
                       />
                     </label>
                     <label>
-                      Couleur
+                      {t('Couleur')}
                       <input
                         type="color"
                         value={subtitleColor}
@@ -1140,7 +1309,15 @@ export function PlaybackPlayer({
                         }
                       />
                     </label>
-                    {subtitleProblem && <p role="alert">{subtitleProblem}</p>}
+                    {subtitleProblem && (
+                      <p role="alert">
+                        {localizeText(
+                          t,
+                          subtitleProblem,
+                          'Cette piste de sous-titres ne peut pas être affichée.',
+                        )}
+                      </p>
+                    )}
                     {primary >= 0 &&
                       (subtitleProblem || player.options.burnSubtitle) && (
                         <button
@@ -1161,8 +1338,8 @@ export function PlaybackPlayer({
                           }}
                         >
                           {player.options.burnSubtitle
-                            ? 'Afficher dans le navigateur'
-                            : 'Incruster dans la vidéo'}
+                            ? t('Afficher dans le navigateur')
+                            : t('Incruster dans la vidéo')}
                         </button>
                       )}
                   </>
@@ -1195,14 +1372,16 @@ export function PlaybackPlayer({
                       {formatTime(
                         (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
                       )}{' '}
-                      · {chapter.Name ?? 'Chapitre ' + (chapterIndex + 1)}
+                      ·{' '}
+                      {chapter.Name ??
+                        t('Chapitre {number}', { number: chapterIndex + 1 })}
                     </button>
                   ))}
                 {menu === 'trailers' && (
                   <>
-                    {trailers.isPending && <p>Chargement…</p>}
+                    {trailers.isPending && <p>{t('Chargement…')}</p>}
                     {trailers.isError && (
-                      <p>Impossible de charger les bandes-annonces.</p>
+                      <p>{t('Impossible de charger les bandes-annonces.')}</p>
                     )}
                     {trailers.data?.map((entry) => {
                       const preview = itemTarget(entry)
@@ -1229,14 +1408,14 @@ export function PlaybackPlayer({
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {entry.Name ?? 'Bande-annonce'}
+                        {entry.Name ?? t('Bande-annonce')}
                       </a>
                     ))}
                     {!trailers.isPending &&
                       !trailers.isError &&
                       !trailers.data?.length &&
                       !details.data?.RemoteTrailers?.length && (
-                        <p>Aucune bande-annonce disponible.</p>
+                        <p>{t('Aucune bande-annonce disponible.')}</p>
                       )}
                   </>
                 )}
@@ -1246,16 +1425,21 @@ export function PlaybackPlayer({
                       <>
                         <p>
                           {sync.group.GroupName} ·{' '}
-                          {sync.group.Participants?.length ?? 1} participant(s)
+                          {t(
+                            (sync.group.Participants?.length ?? 1) === 1
+                              ? '{count} participant'
+                              : '{count} participants',
+                            { count: sync.group.Participants?.length ?? 1 },
+                          )}
                         </p>
                         <button type="button" onClick={() => void sync.leave()}>
-                          Quitter le groupe
+                          {t('Quitter le groupe')}
                         </button>
                       </>
                     ) : (
                       <>
                         <label>
-                          Nom du groupe
+                          {t('Nom du groupe')}
                           <input
                             type="text"
                             value={groupName}
@@ -1268,7 +1452,7 @@ export function PlaybackPlayer({
                           type="button"
                           onClick={() => void sync.create(groupName)}
                         >
-                          Créer un groupe
+                          {t('Créer un groupe')}
                         </button>
                         {sync.groups
                           .filter((group) => group.GroupId)
@@ -1283,11 +1467,19 @@ export function PlaybackPlayer({
                             </button>
                           ))}
                         <button type="button" onClick={() => void sync.list()}>
-                          Actualiser
+                          {t('Actualiser')}
                         </button>
                       </>
                     )}
-                    {sync.error && <p role="alert">{sync.error}</p>}
+                    {sync.error && (
+                      <p role="alert">
+                        {localizeText(
+                          t,
+                          sync.error,
+                          'Impossible de synchroniser la lecture avec ce groupe.',
+                        )}
+                      </p>
+                    )}
                   </>
                 )}
                 {menu === 'devices' && (
@@ -1305,7 +1497,7 @@ export function PlaybackPlayer({
                             })
                           }}
                         >
-                          Reprendre ici
+                          {t('Reprendre ici')}
                         </button>
                       </>
                     ) : (
@@ -1346,63 +1538,78 @@ export function PlaybackPlayer({
                             Google Cast
                           </button>
                         )}
+                        {!devices.canCast && (
+                          <p>
+                            {t(
+                              'Pour utiliser Chromecast, ouvrez HollyFilms depuis son adresse HTTPS accessible à votre téléviseur.',
+                            )}
+                          </p>
+                        )}
                         {!devices.devices.length && (
-                          <p>Aucun autre appareil connecté.</p>
+                          <p>{t('Aucun autre appareil connecté.')}</p>
                         )}
                         <button
                           type="button"
                           onClick={() => void devices.list()}
                         >
-                          Actualiser
+                          {t('Actualiser')}
                         </button>
                       </>
                     )}
-                    {devices.error && <p role="alert">{devices.error}</p>}
+                    {devices.error && (
+                      <p role="alert">
+                        {localizeText(
+                          t,
+                          devices.error,
+                          'Impossible de communiquer avec l’appareil.',
+                        )}
+                      </p>
+                    )}
                   </>
                 )}
                 {menu === 'stats' && playback && (
                   <dl className="player-stats">
                     <div>
-                      <dt>Lecture</dt>
+                      <dt>{t('Lecture')}</dt>
                       <dd>
                         {
                           {
-                            DirectPlay: 'Directe',
-                            DirectStream: 'Remux',
-                            Transcode: 'Transcodage',
+                            DirectPlay: t('Lecture directe'),
+                            DirectStream: t('Remux'),
+                            Transcode: t('Transcodage'),
                           }[playback.stream.method]
                         }
                       </dd>
                     </div>
                     <div>
-                      <dt>Flux</dt>
+                      <dt>{t('Flux')}</dt>
                       <dd>{playback.stream.hls ? 'HLS' : source?.Container}</dd>
                     </div>
                     <div>
-                      <dt>Résolution</dt>
+                      <dt>{t('Résolution')}</dt>
                       <dd>
                         {video?.videoWidth} × {video?.videoHeight}
                       </dd>
                     </div>
                     <div>
-                      <dt>Images perdues</dt>
+                      <dt>{t('Images perdues')}</dt>
                       <dd>
                         {video?.getVideoPlaybackQuality?.()
                           .droppedVideoFrames ?? 0}
                       </dd>
                     </div>
                     <div>
-                      <dt>Tampon</dt>
+                      <dt>{t('Tampon')}</dt>
                       <dd>
                         {Math.max(0, media.buffered - media.position).toFixed(
                           1,
                         )}{' '}
-                        s
+                        {t('s')}
                       </dd>
                     </div>
                     {source?.Bitrate && (
                       <div>
-                        <dt>Débit source</dt>
+                        <dt>{t('Débit source')}</dt>
                         <dd>{(source.Bitrate / 1_000_000).toFixed(1)} Mb/s</dd>
                       </div>
                     )}
@@ -1410,9 +1617,9 @@ export function PlaybackPlayer({
                 )}
                 {menu === 'lyrics' && (
                   <>
-                    {lyrics.isPending && <p>Chargement…</p>}
+                    {lyrics.isPending && <p>{t('Chargement…')}</p>}
                     {(lyrics.isError || lyrics.data?.length === 0) && (
-                      <p>Paroles indisponibles.</p>
+                      <p>{t('Paroles indisponibles.')}</p>
                     )}
                     {lyrics.data?.map((line, index) =>
                       line.Start != null ? (

@@ -56,7 +56,7 @@ export function useLandingMotion(paused: boolean, modalOpen: boolean) {
 
   useLayoutEffect(() => {
     intro.current = animate(
-      '.title-line',
+      '.title-brand',
       { y: [26, 0], opacity: [0, 1], filter: ['blur(8px)', 'blur(0px)'] },
       { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: reduced ? 0 : 0.15 },
     )

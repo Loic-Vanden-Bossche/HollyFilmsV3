@@ -1,10 +1,12 @@
 import { getLibraryApi } from '@jellyfin/sdk/lib/utils/api/library-api.js'
 import { getImageApi } from '@jellyfin/sdk/lib/utils/api/image-api.js'
 import { getUserDataApi } from '@jellyfin/sdk/lib/utils/api/user-data-api.js'
+import { getUserViewApi } from '@jellyfin/sdk/lib/utils/api/user-view-api.js'
 import type { BaseItemDto } from '@jellyfin/sdk/lib/generated-client/models/base-item-dto.js'
 import type { JellyfinSession } from './accounts.ts'
 import { createJellyfinApi } from './jellyfin.ts'
 import { mediaMetadata } from './media-metadata.ts'
+export { normalizeAudioLanguage } from './media-metadata.ts'
 
 export type LibraryImage = {
   itemId: string
@@ -39,7 +41,15 @@ export type MediaItem = {
   backdrop?: LibraryImage | string
 }
 export type LibraryPage = { items: MediaItem[]; total: number }
-export type LibraryFilter = 'all' | 'movies' | 'series'
+export type LibraryFilter =
+  'all' | 'favorites' | 'movies' | 'series' | 'collections'
+export type LibrarySort = 'recent' | 'title' | 'rating' | 'year'
+export type LibraryOptions = { sort?: LibrarySort; collectionId?: string }
+export type CollectionItem = Pick<
+  MediaItem,
+  'id' | 'title' | 'overview' | 'poster' | 'backdrop'
+> & { count?: number }
+export type CollectionsPage = { items: CollectionItem[]; total: number }
 
 export function toMediaItem(item: BaseItemDto): MediaItem | null {
   if (!item.Id || !item.Name) return null
@@ -123,12 +133,16 @@ export async function getLibraryPage(
   search: string,
   startIndex: number,
   signal?: AbortSignal,
+  options: LibraryOptions = {},
 ): Promise<LibraryPage> {
   const api = createJellyfinApi(baseUrl, session.deviceId, session.accessToken)
   const { data } = await getLibraryApi(api).getItems(
     {
       userId,
       recursive: true,
+      parentId: options.collectionId,
+      collapseBoxSetItems: false,
+      isFavorite: filter === 'favorites' ? true : undefined,
       includeItemTypes:
         filter === 'movies'
           ? ['Movie']
@@ -138,8 +152,15 @@ export async function getLibraryPage(
       searchTerm: search || undefined,
       startIndex,
       limit: 36,
-      sortBy: ['DateCreated', 'SortName'],
-      sortOrder: ['Descending'],
+      sortBy:
+        options.sort === 'title'
+          ? ['SortName']
+          : options.sort === 'rating'
+            ? ['CommunityRating', 'SortName']
+            : options.sort === 'year'
+              ? ['ProductionYear', 'SortName']
+              : ['DateCreated', 'SortName'],
+      sortOrder: [options.sort === 'title' ? 'Ascending' : 'Descending'],
       fields: [
         'Overview',
         'Genres',
@@ -162,11 +183,93 @@ export async function getLibraryPage(
   }
 }
 
+function toCollection(item: BaseItemDto): CollectionItem | null {
+  const media = toMediaItem(item)
+  if (!media || item.Type !== 'BoxSet') return null
+  return {
+    id: media.id,
+    title: media.title,
+    overview: media.overview,
+    poster: media.poster,
+    backdrop: media.backdrop,
+    count: item.ChildCount ?? undefined,
+  }
+}
+
+export async function getCollectionsPage(
+  baseUrl: string,
+  session: JellyfinSession,
+  userId: string,
+  startIndex: number,
+  search = '',
+  signal?: AbortSignal,
+): Promise<CollectionsPage> {
+  const api = createJellyfinApi(baseUrl, session.deviceId, session.accessToken)
+  const options = { signal, timeout: 10000 }
+  const { data: views } = await getUserViewApi(api).getUserViews(
+    { userId, includeHidden: true, includeExternalContent: false },
+    options,
+  )
+  const collectionViews = (views.Items ?? []).filter(
+    (view) => view.CollectionType === 'boxsets' && view.Id,
+  )
+  // Use the user's Collections library, including when hidden from My Media.
+  // Explicit BoxSet filtering re-roots this query in Jellyfin 12; the library
+  // itself supplies that filter when ParentId is used without IncludeItemTypes.
+  // With no single collection library, retain the global, user-scoped listing.
+  const parentId =
+    collectionViews.length === 1 ? collectionViews[0].Id : undefined
+  const { data } = await getLibraryApi(api).getItems(
+    {
+      userId,
+      parentId,
+      includeItemTypes: parentId ? undefined : ['BoxSet'],
+      collapseBoxSetItems: false,
+      recursive: true,
+      startIndex,
+      limit: 24,
+      searchTerm: search || undefined,
+      sortBy: ['SortName'],
+      sortOrder: ['Ascending'],
+      fields: ['Overview', 'ChildCount'],
+      enableImages: true,
+      imageTypeLimit: 1,
+      enableUserData: true,
+      enableTotalRecordCount: true,
+    },
+    options,
+  )
+  return {
+    items: (data.Items ?? [])
+      .map(toCollection)
+      .filter((item): item is CollectionItem => item !== null),
+    total: data.TotalRecordCount ?? 0,
+  }
+}
+
+export async function getCollection(
+  baseUrl: string,
+  session: JellyfinSession,
+  userId: string,
+  id: string,
+  signal?: AbortSignal,
+) {
+  const api = createJellyfinApi(baseUrl, session.deviceId, session.accessToken)
+  const { data } = await getLibraryApi(api).getItem(
+    { userId, itemId: id },
+    { signal, timeout: 10000 },
+  )
+  const collection = toCollection(data)
+  if (!collection) throw new Error('Cette collection est indisponible.')
+  return collection
+}
+
 export async function getResumeItems(
   baseUrl: string,
   session: JellyfinSession,
   userId: string,
   signal?: AbortSignal,
+  options: { episodesOnly?: boolean } = {},
 ) {
   const api = createJellyfinApi(baseUrl, session.deviceId, session.accessToken)
   const { data } = await getLibraryApi(api).getResumeItems(
@@ -174,6 +277,7 @@ export async function getResumeItems(
       userId,
       limit: 12,
       mediaTypes: ['Video'],
+      includeItemTypes: options.episodesOnly ? ['Episode'] : undefined,
       fields: ['Overview', 'Genres', 'MediaSources', 'MediaStreams'],
       enableUserData: true,
       enableImages: true,

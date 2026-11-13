@@ -86,6 +86,25 @@
 .player-heading[data-visible='true'] .player-back {
   pointer-events: auto;
 }
+.player-heading-actions {
+  grid-area: back;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.player-heading[data-visible='true'] .player-session-actions {
+  pointer-events: auto;
+}
+.player-session-actions {
+  display: flex;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 1px solid #ffffff26;
+}
+.player-session-actions .player-icon[aria-pressed='true'] {
+  color: #86efac;
+  background: linear-gradient(120deg, #4ade8029, #3b82f629);
+}
 .player-brand {
   grid-area: brand;
   display: flex;
@@ -254,9 +273,210 @@
 .player-clock span {
   color: #a7b6cc;
 }
-.player-volume {
-  width: min(9vw, 95px);
-  accent-color: #4ade80;
+.player-volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.player-volume-adjust {
+  position: relative;
+  width: clamp(64px, 7vw, 100px);
+  height: 36px;
+}
+.player-volume-meter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.player-volume-meter i {
+  flex: 1;
+  border-radius: 3px;
+  background: #7dd3c5;
+  transform-origin: center;
+}
+.player-volume-meter i:nth-child(n + 14) {
+  background: #60a5fa;
+}
+.player-volume-adjust input {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.player-volume-adjust:focus-within {
+  outline: 2px solid #86efac;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.player-volume-value {
+  width: 34px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #cee8e7;
+  text-align: right;
+}
+.player-volume-value small {
+  opacity: 0.6;
+  margin-left: 2px;
+}
+.player-subtitle-offset {
+  position: absolute;
+  z-index: 5;
+  top: max(20px, env(safe-area-inset-top));
+  left: 50%;
+  translate: -50% 0;
+  width: min(520px, calc(100% - 32px));
+  padding: 10px 16px 12px;
+  color: #edf4fc;
+  background: linear-gradient(140deg, #142538f2, #080f1bf5);
+  border: 1px solid #a1c8d02e;
+  border-radius: 20px;
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 16px 60px #0006,
+    inset 0 1px #ffffff0d;
+}
+.player-subtitle-offset header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #a3d9d0;
+}
+.player-subtitle-offset h2 {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.player-offset-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.player-offset-controls output {
+  width: 62px;
+  text-align: right;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.player-offset-controls small {
+  color: #9eafc5;
+}
+.player-offset-range {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+}
+.player-offset-track {
+  position: absolute;
+  top: 16px;
+  width: 100%;
+  height: 4px;
+  background: #ffffff26;
+  border-radius: 6px;
+}
+.player-offset-track i {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #3b82f6);
+  border-radius: inherit;
+}
+.player-offset-track span {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  height: 10px;
+  width: 1px;
+  background: #cee8e7;
+}
+.player-offset-range input {
+  appearance: none;
+  position: relative;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.player-offset-range input::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #a5e7cf;
+  border: 2px solid #edf4fc;
+  box-shadow: 0 0 12px #4ade8055;
+}
+.player-offset-range input::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a5e7cf;
+  border: 2px solid #edf4fc;
+}
+.player-subtitle-offset p {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 48px;
+  font-size: 10px;
+  color: #9eafc5;
+}
+.player-offset-launch {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+.player-offset-launch span {
+  color: #a3d9d0;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+  .player-subtitle-offset {
+    top: max(76px, calc(env(safe-area-inset-top) + 64px));
+  }
+}
+@media (max-width: 600px) {
+  .player-heading-actions {
+    gap: 5px;
+  }
+  .player-session-actions {
+    padding-left: 5px;
+    gap: 0;
+  }
+  .player-back span {
+    display: none;
+  }
+  .player-volume-control {
+    gap: 0;
+  }
+  .player-volume-adjust {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    translate: -50% 0;
+    width: 120px;
+    height: 44px;
+    padding: 0 12px;
+    border-radius: 12px;
+    background: #102033;
+    visibility: hidden;
+  }
+  .player-volume-adjust .player-volume-meter {
+    inset: 0 12px;
+  }
+  .player-volume-control:focus-within .player-volume-adjust {
+    visibility: visible;
+  }
+  .player-volume-value {
+    display: none;
+  }
 }
 .player-timeline {
   position: relative;
@@ -411,9 +631,20 @@
   pointer-events: none;
   white-space: pre-line;
   text-shadow: 0 2px 4px #000;
+  z-index: 1;
+  transform: translateY(calc(-1 * var(--subtitle-lift, 0px)));
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.player-captions[data-controls='true'] {
-  bottom: 100px;
+.player-subtitle-canvas {
+  transform-origin: top center;
+  transform: scale(var(--subtitle-plane-scale, 1));
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-captions,
+  .player-subtitle-canvas {
+    transition: none;
+  }
 }
 .player-captions p {
   width: fit-content;
@@ -459,7 +690,12 @@
   padding: 7px 5px;
   font-size: 13px;
 }
-.player-menu select,
+.player-menu label > .holly-select-trigger,
+.player-menu label > .holly-select-native {
+  width: 58%;
+  min-width: 0;
+  flex-shrink: 0;
+}
 .player-menu input[type='number'] {
   min-width: 0;
   max-width: 58%;
@@ -579,14 +815,10 @@
     bottom: 138px;
     max-height: calc(100% - 150px);
   }
-  .player-captions[data-controls='true'] {
-    bottom: 130px;
-  }
   .player-icon {
     width: 32px;
     height: 36px;
   }
-  .player-volume,
   .player-seek-step,
   .player-pip {
     display: none;

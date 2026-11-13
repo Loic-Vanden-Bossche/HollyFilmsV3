@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { motion, useSpring, useTransform } from 'motion/react'
 import type { LoadingPhase } from '../playback/loading-progress.ts'
@@ -21,6 +22,7 @@ export function PlayerLoading({
   phase: LoadingPhase
   complete?: boolean
 }) {
+  const { t } = useI18n()
   const { reduced, pageVisible } = useMotionPolicy()
   const [shown, setShown] = useState(false)
   const target = !visible && complete ? 100 : progressByPhase[phase]
@@ -49,11 +51,13 @@ export function PlayerLoading({
     <motion.div
       className="player-loading"
       role="progressbar"
-      aria-label="Préparation de la lecture"
+      aria-label={t('Préparation de la lecture')}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={target}
-      aria-valuetext={target + ' % des étapes de préparation'}
+      aria-valuetext={t('{value} % des étapes de préparation', {
+        value: target,
+      })}
       initial={{ opacity: 0, y: reduced ? 0 : 6 }}
       animate={{ opacity: visible ? 1 : 0, y: 0 }}
       transition={{

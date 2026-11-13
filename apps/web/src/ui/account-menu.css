@@ -1,0 +1,97 @@
+@reference '../index.css';
+
+.account-menu {
+  position: relative;
+  z-index: 15;
+  flex-shrink: 0;
+}
+.account-menu-trigger {
+  @apply text-muted-foreground;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border-radius: 999px;
+  min-height: 44px;
+}
+.account-menu-avatar {
+  @apply border border-glass-edge;
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  transition: border-color 180ms;
+}
+.account-menu-trigger:hover .account-menu-avatar,
+.account-menu-trigger[aria-expanded='true'] .account-menu-avatar {
+  @apply border-link;
+}
+.account-menu-trigger:focus-visible,
+.account-menu-panel a:focus-visible {
+  @apply outline-2 outline-offset-2 outline-ring;
+}
+.account-menu-chevron {
+  transition: transform 180ms;
+}
+.account-menu-trigger[aria-expanded='true'] .account-menu-chevron {
+  transform: rotate(180deg);
+}
+.account-menu-panel {
+  @apply border border-glass-edge bg-glass-strong text-foreground shadow-glass-control;
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(270px, calc(100vw - 80px));
+  padding: 6px;
+  border-radius: 16px;
+  backdrop-filter: blur(24px);
+  transform-origin: top right;
+}
+.account-menu-heading {
+  @apply border-b border-glass-edge;
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  margin-bottom: 5px;
+  overflow-wrap: anywhere;
+}
+.account-menu-heading strong {
+  font-size: 14px;
+}
+.account-menu-heading > span {
+  @apply text-muted-foreground;
+  font-size: 11px;
+}
+.account-menu-panel a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+.account-menu-panel a svg {
+  @apply text-link;
+  flex-shrink: 0;
+}
+.account-menu-panel a:hover,
+.account-menu-panel a:focus-visible {
+  @apply bg-accent text-accent-foreground;
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-menu-chevron,
+  .account-menu-avatar,
+  .account-menu-panel a {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .account-menu-panel {
+    @apply bg-card;
+    backdrop-filter: none;
+  }
+}

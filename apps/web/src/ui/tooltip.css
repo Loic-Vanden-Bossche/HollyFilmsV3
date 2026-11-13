@@ -1,0 +1,43 @@
+@reference '../index.css';
+
+.holly-tooltip-positioner {
+  z-index: 200;
+  max-width: min(280px, var(--available-width));
+}
+.holly-tooltip {
+  @apply border border-glass-edge text-foreground;
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: linear-gradient(135deg, #162a3af5, #0b1525fa);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 8px 24px #0005,
+    inset 0 1px #ffffff0a;
+  transform-origin: var(--transform-origin);
+}
+.holly-tooltip::after {
+  content: '';
+  position: absolute;
+  inset: auto 20% 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #4ade80,
+    #3b82f6,
+    transparent
+  );
+}
+@media (prefers-reduced-transparency: reduce) {
+  .holly-tooltip {
+    background: #0d1929;
+    backdrop-filter: none;
+  }
+}

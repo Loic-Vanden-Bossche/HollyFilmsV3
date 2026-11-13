@@ -1,0 +1,203 @@
+@reference '../index.css';
+
+.home-topbar .cinema-search {
+  position: relative;
+  display: block;
+  isolation: isolate;
+  overflow: hidden;
+  cursor: text;
+}
+.cinema-search-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+.cinema-search-icon {
+  display: flex;
+  flex: none;
+  color: #9eb3c9;
+}
+.cinema-search-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.cinema-search input {
+  flex: 1;
+}
+.cinema-search-glow {
+  display: none;
+}
+.home-topbar[data-search='true'] {
+  height: auto;
+  flex-wrap: wrap;
+  padding-top: 24px;
+  padding-bottom: 0;
+  gap: 24px 20px;
+}
+.home-topbar[data-search='true'] > nav {
+  margin-right: auto;
+}
+.home-topbar[data-search='true'] .home-tools {
+  display: contents;
+}
+.home-topbar[data-search='true'] .cinema-search {
+  order: 4;
+  flex: 1 0 100%;
+  width: 100%;
+  margin: 0;
+  padding: clamp(22px, 3vw, 42px);
+  border-radius: 28px;
+  background: linear-gradient(120deg, #132638f2, #101b2cf5 55%, #111d35f2);
+  border-color: #7dded836;
+  box-shadow:
+    0 20px 60px #02071144,
+    inset 0 1px 0 #ecf4fb12;
+}
+.cinema-search[data-expanded='true'] .cinema-search-glow {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 0 0, #4ade8015, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, #3b82f618, transparent 60%);
+}
+.cinema-search-eyebrow,
+.cinema-search-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cinema-search-eyebrow {
+  color: #a7ded7;
+  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+.home-topbar .cinema-search[data-expanded='true'] input {
+  font-size: clamp(20px, 3.2vw, 44px);
+  width: 100%;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.cinema-search[data-expanded='true'] .cinema-search-icon {
+  color: #a7ded7;
+}
+.cinema-search[data-expanded='true'] .cinema-search-icon svg {
+  width: clamp(22px, 3vw, 36px);
+  height: clamp(22px, 3vw, 36px);
+}
+.cinema-search-hint {
+  margin-top: 24px;
+  color: #93a7bf;
+  font-size: 12px;
+}
+.cinema-search button {
+  min-width: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  flex: none;
+}
+.cinema-search button:hover {
+  background: #ecf4fb0d;
+  color: #ecf4fb;
+}
+.cinema-search-close {
+  gap: 8px;
+  padding-inline: 12px;
+  border: 1px solid #ecf4fb1a;
+  color: #c6d3e0;
+  font-size: 12px;
+}
+.cinema-search-close kbd {
+  color: #8da3bb;
+  font-size: 10px;
+}
+.cinema-search-line {
+  position: absolute;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  transform-origin: left;
+  background: linear-gradient(90deg, #4ade80, #3b82f6);
+  opacity: 0.8;
+}
+.cinema-search-line i {
+  display: block;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #ecf4fb, transparent);
+}
+.home-search-view {
+  padding-top: 32px;
+}
+.home-search-view .home-section-header {
+  margin-bottom: 28px;
+}
+.home-search-view h2 {
+  overflow-wrap: anywhere;
+}
+.search-idle {
+  min-height: 200px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  color: #93a7bf;
+}
+.search-idle > svg {
+  color: #7dded8;
+  margin-bottom: 8px;
+}
+.search-idle h2 {
+  font-size: clamp(22px, 3vw, 34px);
+  color: #ecf4fb;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.search-idle p {
+  font-size: 14px;
+}
+@media (max-width: 740px) {
+  .home-topbar[data-search='true'] {
+    gap: 16px 8px;
+  }
+  .home-topbar[data-search='true'] .cinema-search {
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+  .cinema-search-eyebrow {
+    margin-bottom: 20px;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+  }
+  .cinema-search-hint {
+    font-size: 11px;
+    margin-top: 20px;
+  }
+  .cinema-search-keyboard,
+  .cinema-search-close span,
+  .cinema-search-close kbd {
+    display: none;
+  }
+  .cinema-search-field {
+    gap: 8px;
+  }
+  .cinema-search-close {
+    padding: 0;
+  }
+  .cinema-search button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+  .home-search-view {
+    padding-top: 24px;
+  }
+}

@@ -1,4 +1,5 @@
 // Application adaptations of React Bits. See SOURCES.md and ../react-bits.LICENSE.md.
+import { useI18n } from '../../i18n/I18nProvider.tsx'
 import { Children, useEffect, useId, useRef, type ReactNode } from 'react'
 import {
   animate,
@@ -47,13 +48,16 @@ export function GradualBlur({
 export function BlurText({
   text,
   className = '',
+  delay = 0,
 }: {
   text: string
   className?: string
+  delay?: number
 }) {
   const { running } = useMotionPolicy()
   return (
-    <span className={`rb-blur-text ${className}`} aria-label={text}>
+    <span className={`rb-blur-text ${className}`}>
+      <span className="sr-only">{text}</span>
       {text.split(' ').map((word, i) => (
         <motion.span
           aria-hidden="true"
@@ -62,7 +66,7 @@ export function BlurText({
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{
             duration: running ? cinemaMotion.reveal : 0,
-            delay: running ? Math.min(i * 0.045, 0.3) : 0,
+            delay: running ? delay + Math.min(i * 0.08, 0.4) : 0,
             ease: cinemaMotion.ease,
           }}
         >
@@ -77,6 +81,9 @@ export function ShinyText({ children }: { children: ReactNode }) {
   return (
     <span className="rb-shiny-text" data-running={running}>
       {children}
+      <span className="rb-shiny-highlight" aria-hidden="true">
+        {children}
+      </span>
     </span>
   )
 }
@@ -296,10 +303,11 @@ export function AnimatedList({
   )
 }
 export function CountUp({ value }: { value: number }) {
+  const { locale } = useI18n()
   const { running } = useMotionPolicy()
   const number = useMotionValue(value)
   const formatted = useTransform(number, (n) =>
-    Math.round(n).toLocaleString('fr-FR'),
+    Math.round(n).toLocaleString(locale),
   )
   useEffect(() => {
     const controls = animate(number, value, {
@@ -357,17 +365,18 @@ export function GooeyNav<T extends string>({
   items,
   value,
   onChange,
-  label = 'Bibliothèque',
+  label,
 }: {
   items: { value: T; label: string }[]
   value: T
   onChange: (value: T) => void
   label?: string
 }) {
+  const { t } = useI18n()
   const id = useId(),
     { running } = useMotionPolicy()
   return (
-    <nav className="rb-gooey-nav" aria-label={label}>
+    <nav className="rb-gooey-nav" aria-label={label ?? t('Bibliothèque')}>
       {items.map((item) => (
         <button
           type="button"

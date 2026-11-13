@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, fn, waitFor, within } from 'storybook/test'
+import { expect, fn, mocked, waitFor, within } from 'storybook/test'
+import { getLibraryImage } from '@hollyfilms/shared/library'
 import { HomePage } from './HomePage.tsx'
 import { homeItems, homeResume } from './home-fixtures.ts'
 import type { LibraryFilter } from '@hollyfilms/shared/library'
+import { avatarFixture } from './profile-fixtures.ts'
+import { collectionFixtures, episodeFixtures } from './library-fixtures.ts'
 
 const meta = {
   title: 'HollyFilms/Accueil',
@@ -37,24 +40,48 @@ const meta = {
   render: function Render(args) {
     const [filter, setFilter] = useState<LibraryFilter>(args.filter)
     const [search, setSearch] = useState(args.search)
+    const [collectionId, setCollectionId] = useState(args.collectionId)
     const items = args.items.filter(
       (item) =>
-        (filter === 'all' ||
-          (filter === 'movies'
+        filter === 'all' ||
+        filter === 'collections' ||
+        (filter === 'favorites'
+          ? item.favorite
+          : filter === 'movies'
             ? item.kind === 'Film'
-            : item.kind === 'Série')) &&
-        item.title.toLowerCase().includes(search.trim().toLowerCase()),
+            : item.kind === 'Série'),
+    )
+    const results = items.filter((item) =>
+      item.title.toLowerCase().includes(search.trim().toLowerCase()),
     )
     return (
       <HomePage
         {...args}
         items={items}
-        total={items.length}
+        total={
+          filter === 'collections' && !collectionId
+            ? (args.collections?.length ?? 0)
+            : items.length
+        }
+        collectionId={collectionId}
+        collection={args.collections?.find((item) => item.id === collectionId)}
+        onCollection={(id) => {
+          args.onCollection?.(id)
+          setCollectionId(id)
+        }}
         filter={filter}
         search={search}
+        searchResults={{
+          items: results,
+          total: results.length,
+          state: args.state,
+          onLoadMore: args.onLoadMore,
+          onRetry: args.onRetry,
+        }}
         onFilter={(value) => {
           args.onFilter(value)
           setFilter(value)
+          setCollectionId(undefined)
         }}
         onSearch={(value) => {
           args.onSearch(value)
@@ -77,6 +104,23 @@ export const Opening: Story = {
       canvasElement.querySelector('.home-page-content'),
     ).not.toHaveAttribute('inert')
     await expect(getComputedStyle(document.body).overflow).not.toBe('hidden')
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.home-carousel')).toHaveAttribute(
+        'data-revealed',
+        'true',
+      ),
+    )
+    await expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
+      'data-opening',
+      'true',
+    )
+    await expect(
+      Number(
+        getComputedStyle(canvasElement.querySelector('.home-aperture')!)
+          .opacity,
+      ),
+    ).toBeGreaterThan(0)
+
     await waitFor(
       () =>
         expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
@@ -85,8 +129,14 @@ export const Opening: Story = {
         ),
       { timeout: 3000 },
     )
-    await expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle(
-      { opacity: '1' },
+    // The cascade is still running as the overlapping intro finishes.
+    await expect(
+      canvasElement.querySelector('.home-hero-actions'),
+    ).not.toHaveStyle({ opacity: '1' })
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle({
+        opacity: '1',
+      }),
     )
   },
 }
@@ -98,12 +148,15 @@ export const DelayedHero: Story = {
       id: 'arrival-' + index,
     })),
   },
-  render: function Render(args) {
+  render: function Render(args, { parameters }) {
     const [ready, setReady] = useState(false)
     useEffect(() => {
-      const timer = setTimeout(() => setReady(true), 400)
+      const timer = setTimeout(
+        () => setReady(true),
+        parameters.catalogueDelay ?? 400,
+      )
       return () => clearTimeout(timer)
-    }, [])
+    }, [parameters.catalogueDelay])
     return (
       <HomePage
         {...args}
@@ -114,7 +167,24 @@ export const DelayedHero: Story = {
     )
   },
   play: async ({ canvas, canvasElement }) => {
-    await canvas.findByRole('region', { name: 'À l’affiche' })
+    const pending = canvas.getByRole('region', {
+      name: 'Chargement de la sélection à l’affiche',
+    })
+    const height = pending.getBoundingClientRect().height
+    await expect(
+      canvas.queryByRole('heading', { name: 'Votre bibliothèque.' }),
+    ).not.toBeInTheDocument()
+    const hero = await canvas.findByRole(
+      'region',
+      { name: 'À l’affiche' },
+      { timeout: 4000 },
+    )
+    await expect(
+      Math.abs(hero.getBoundingClientRect().height - height),
+    ).toBeLessThan(2)
+    await expect(
+      canvas.queryByRole('heading', { name: 'Votre bibliothèque.' }),
+    ).not.toBeInTheDocument()
     await expect(
       canvasElement.querySelector('.home-page-content'),
     ).not.toHaveAttribute('inert')
@@ -127,6 +197,130 @@ export const DelayedHero: Story = {
     )
   },
 }
+export const SlowReload: Story = {
+  ...DelayedHero,
+  name: 'Rechargement lent — cadre stable sans faux écran vide',
+  parameters: { catalogueDelay: 1800 },
+}
+
+export const PreloadedHero: Story = {
+  name: 'À l’affiche — images décodées avant la révélation',
+  args: {
+    session: { deviceId: 'preload-story', accessToken: 'story-token' },
+    items: [
+      {
+        ...homeItems[0],
+        backdrop: { itemId: 'preload', type: 'Backdrop', tag: 'backdrop' },
+        logo: { itemId: 'preload', type: 'Logo', tag: 'logo' },
+      },
+    ],
+    resumeItems: [],
+  },
+  beforeEach: () => {
+    mocked(getLibraryImage)
+      .mockReset()
+      .mockImplementation(async (_base, _session, image) => {
+        await new Promise((resolve) =>
+          setTimeout(resolve, image.type === 'Logo' ? 1900 : 1600),
+        )
+        return new Blob(
+          [
+            decodeURIComponent(
+              String(
+                image.type === 'Logo'
+                  ? homeItems[0].logo
+                  : homeItems[0].backdrop,
+              ).split(',')[1],
+            ),
+          ],
+          { type: 'image/svg+xml' },
+        )
+      })
+  },
+  play: async ({ canvasElement }) => {
+    const page = canvasElement.querySelector('.home-page')!
+    const hero = canvasElement.querySelector('.home-carousel')!
+    await waitFor(() => expect(getLibraryImage).toHaveBeenCalledTimes(2))
+    await expect(page).toHaveAttribute('data-opening', 'true')
+    await expect(hero).toHaveAttribute('data-revealed', 'false')
+    await expect(getComputedStyle(document.body).overflow).not.toBe('hidden')
+    await waitFor(() =>
+      expect(
+        Number(
+          getComputedStyle(canvasElement.querySelector('.home-aperture')!)
+            .opacity,
+        ),
+      ).toBeGreaterThan(0.84),
+    )
+    await expect(hero).toHaveAttribute('data-revealed', 'false')
+    await waitFor(() => expect(hero).toHaveAttribute('data-revealed', 'true'), {
+      timeout: 4000,
+    })
+    await expect(page).toHaveAttribute('data-opening', 'true')
+    await waitFor(() =>
+      expect(
+        Number(getComputedStyle(hero.querySelector('.home-eyebrow')!).opacity),
+      ).toBeGreaterThan(0.1),
+    )
+    await expect(
+      Number(
+        getComputedStyle(canvasElement.querySelector('.home-aperture')!)
+          .opacity,
+      ),
+    ).toBeGreaterThan(0)
+
+    await waitFor(() => expect(page).toHaveAttribute('data-opening', 'false'), {
+      timeout: 4000,
+    })
+    await expect(hero.querySelectorAll('.media-artwork-fallback')).toHaveLength(
+      0,
+    )
+    const images = Array.from(
+      hero.querySelectorAll<HTMLImageElement>('.media-artwork img'),
+    )
+    await expect(images).toHaveLength(2)
+    await expect(
+      images.every((image) => image.complete && image.naturalWidth > 0),
+    ).toBe(true)
+    await expect(hero.querySelector('.home-hero-actions')).not.toHaveStyle({
+      opacity: '1',
+    })
+    await waitFor(() =>
+      expect(hero.querySelector('.home-hero-actions')).toHaveStyle({
+        opacity: '1',
+      }),
+    )
+    await expect(getLibraryImage).toHaveBeenCalledTimes(2)
+  },
+}
+export const FailedHeroArtwork: Story = {
+  ...PreloadedHero,
+  name: 'À l’affiche — repli après erreur des images',
+  beforeEach: () => {
+    mocked(getLibraryImage)
+      .mockReset()
+      .mockRejectedValue(new Error('Artwork unavailable'))
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
+          'data-opening',
+          'false',
+        ),
+      { timeout: 3000 },
+    )
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle({
+        opacity: '1',
+      }),
+    )
+    await expect(canvasElement.querySelector('.hero-logo')).toHaveTextContent(
+      homeItems[0].title,
+    )
+  },
+}
+
 export const Background: Story = {
   name: 'Fond animé et pause',
   play: async ({ canvas, canvasElement, userEvent }) => {
@@ -165,6 +359,7 @@ export const CardPlayback: Story = {
       name: args.items[0].title,
     })
     await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
     await userEvent.click(
       within(card).getByRole('button', { name: 'Lire ' + args.items[0].title }),
     )
@@ -188,7 +383,7 @@ export const CardPlayback: Story = {
 }
 export const Browse: Story = {
   name: 'Explorer le catalogue',
-  play: async ({ canvas, userEvent, args }) => {
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
     await waitFor(() =>
       expect(
         canvas.getByRole('navigation', { name: 'Bibliothèque' }),
@@ -196,11 +391,18 @@ export const Browse: Story = {
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Films' }))
     await expect(args.onFilter).toHaveBeenCalledWith('movies')
-    await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Les films.',
+    await waitFor(() =>
+      expect(canvas.getByRole('heading', { name: 'Les films.' })).toBeVisible(),
     )
     await userEvent.type(canvas.getByRole('searchbox'), 'Signal')
     await expect(args.onSearch).toHaveBeenLastCalledWith('Signal')
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector(
+          '[data-page="movies::search"][data-present="true"]',
+        ),
+      ).toHaveStyle({ opacity: '1' }),
+    )
     const card = await canvas.findByRole('button', {
       name: 'Voir la fiche de Signal',
     })
@@ -238,9 +440,13 @@ export const Unavailable: Story = {
 export const Administrator: Story = {
   args: { isAdmin: true },
   play: async ({ canvas, userEvent, args }) => {
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Menu du compte : Alex' }),
+    )
     await expect(
-      canvas.getByRole('link', { name: 'Administration' }),
+      canvas.getByRole('link', { name: 'Demandes d’approbation' }),
     ).toHaveAttribute('href', '/admin')
+    await userEvent.keyboard('{Escape}')
     await userEvent.click(
       canvas.getByRole('button', { name: 'Se déconnecter' }),
     )
@@ -267,23 +473,48 @@ export const NoArtwork: Story = {
   },
 }
 
-export const ImmersiveNavigation: Story = {
+export const UnifiedNavigation: Story = {
+  name: 'Navigation unique — onglets, clavier et recherche',
   play: async ({ canvas, userEvent, args }) => {
-    const trigger = canvas.getByRole('button', { name: 'Explorer HollyFilms' })
-    await userEvent.click(trigger)
-    await userEvent.click(
-      within(canvas.getByRole('dialog')).getByRole('button', {
-        name: '02 Films',
-      }),
-    )
-    await waitFor(() =>
-      expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
-    )
+    const navigation = canvas.getByRole('navigation', { name: 'Bibliothèque' })
+    await expect(
+      canvas.getAllByRole('navigation', { name: 'Bibliothèque' }),
+    ).toHaveLength(1)
+    for (const name of [
+      'Accueil',
+      'Favoris',
+      'Films',
+      'Séries',
+      'Collections',
+    ]) {
+      await expect(canvas.getAllByRole('button', { name })).toHaveLength(1)
+    }
+    await expect(
+      canvas.queryByRole('button', { name: 'Explorer HollyFilms' }),
+    ).not.toBeInTheDocument()
+    await userEvent.type(canvas.getByRole('searchbox'), 'Signal')
+    const films = within(navigation).getByRole('button', { name: 'Films' })
+    films.focus()
+    await userEvent.keyboard('{Enter}')
     await expect(args.onFilter).toHaveBeenCalledWith('movies')
-    await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Les films.',
+    await expect(canvas.getByRole('searchbox')).toHaveValue('')
+    await expect(films).toHaveAttribute('aria-current', 'page')
+    await waitFor(() =>
+      expect(canvas.getByRole('heading', { name: 'Les films.' })).toBeVisible(),
     )
-    await expect(trigger).toHaveFocus()
+    await userEvent.tab()
+    await expect(
+      within(navigation).getByRole('button', { name: 'Séries' }),
+    ).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect(args.onFilter).toHaveBeenLastCalledWith('series')
+    await userEvent.click(
+      within(navigation).getByRole('button', { name: 'Accueil' }),
+    )
+    await expect(args.onFilter).toHaveBeenLastCalledWith('all')
+    await expect(
+      within(navigation).getByRole('button', { name: 'Accueil' }),
+    ).toHaveAttribute('aria-current', 'page')
   },
 }
 export const PlaybackSuspendsDecorations: Story = {
@@ -315,6 +546,69 @@ export const PerformanceCatalogue: Story = {
           'false',
         ),
       { timeout: 3000 },
+    )
+  },
+}
+
+export const ProfileAccess: Story = {
+  args: { avatarUrl: avatarFixture },
+  play: async ({ canvas, userEvent }) => {
+    const trigger = canvas.getByRole('button', {
+      name: 'Menu du compte : Alex',
+    })
+    await expect(trigger.querySelector('img')).toHaveAttribute(
+      'src',
+      avatarFixture,
+    )
+    await userEvent.click(trigger)
+    await expect(
+      canvas.getByRole('link', { name: /^Profil$/ }),
+    ).toHaveAttribute('href', '/profile')
+    await expect(
+      canvas.queryByRole('link', { name: 'Demandes d’approbation' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+export const FiveDestinations: Story = {
+  name: 'Cinq pages — compositions et transitions',
+  args: {
+    items: homeItems.map((item, index) => ({ ...item, favorite: index < 3 })),
+    collections: collectionFixtures,
+    resumeItems: episodeFixtures,
+    onCollection: fn(),
+  },
+  play: async ({ canvas, userEvent }) => {
+    for (const [tab, title] of [
+      ['Favoris', 'Vos favoris.'],
+      ['Films', 'Les films.'],
+      ['Séries', 'Les séries.'],
+      ['Collections', 'Les collections.'],
+    ]) {
+      await userEvent.click(canvas.getByRole('button', { name: tab }))
+      await waitFor(() =>
+        expect(canvas.getByRole('heading', { name: title })).toBeVisible(),
+      )
+    }
+    await userEvent.click(
+      canvas.getByRole('button', {
+        name: new RegExp(collectionFixtures[0].title),
+      }),
+    )
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('heading', {
+          name: collectionFixtures[0].title + '.',
+        }),
+      ).toBeVisible(),
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Toutes les collections' }),
+    )
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('heading', { name: 'Les collections.' }),
+      ).toBeVisible(),
     )
   },
 }

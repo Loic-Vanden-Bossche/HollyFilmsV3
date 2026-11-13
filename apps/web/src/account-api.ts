@@ -1,3 +1,4 @@
+import { apiMessage } from './i18n/api-messages.ts'
 import type {
   AuthOptions,
   AuthResult,
@@ -5,6 +6,57 @@ import type {
   RegistrationSummary,
 } from '@hollyfilms/shared/accounts'
 import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
+import type { AccountProfile } from '@hollyfilms/shared/profile'
+
+export const getProfile = (session: JellyfinSession, signal?: AbortSignal) =>
+  request<AccountProfile>('/profile', {
+    headers: adminHeaders(session),
+    signal,
+  })
+export async function getProfileImage(
+  session: JellyfinSession,
+  signal?: AbortSignal,
+) {
+  const response = await fetch('/api/profile/image', {
+    headers: adminHeaders(session),
+    signal,
+  })
+  if (!response.ok) throw new Error('Impossible de charger la photo.')
+  return response.blob()
+}
+export async function updateProfileImage(session: JellyfinSession, file: File) {
+  if (
+    !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+    file.size > 2_097_152
+  )
+    throw new Error('Choisis une image JPG, PNG ou WebP de moins de 2 Mo.')
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.onerror = () => reject(new Error('Impossible de lire cette image.'))
+    reader.readAsDataURL(file)
+  })
+  return request<void>('/profile/image', {
+    method: 'PUT',
+    headers: { ...adminHeaders(session), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data, type: file.type }),
+  })
+}
+export const deleteProfileImage = (session: JellyfinSession) =>
+  request<void>('/profile/image', {
+    method: 'DELETE',
+    headers: adminHeaders(session),
+  })
+export const updateProfilePassword = (
+  session: JellyfinSession,
+  currentPassword: string,
+  newPassword: string,
+) =>
+  request<void>('/profile/password', {
+    method: 'PUT',
+    headers: { ...adminHeaders(session), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
 
 export const getShowcase = (signal: AbortSignal) =>
   request<{ items: ShowcaseItem[] }>('/showcase', { signal })
@@ -16,12 +68,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ? undefined
       : await response.json().catch(() => undefined)
   if (!response.ok || (data === undefined && response.status !== 204)) {
-    throw new Error(
-      (typeof data?.message === 'string'
-        ? data.message.replace(/\bjellyfin\b/gi, 'HollyFilms')
-        : undefined) ??
-        'HollyFilms est temporairement indisponible. Réessaie dans un instant.',
-    )
+    const message =
+      apiMessage(data?.code) ??
+      'HollyFilms est temporairement indisponible. Réessaie dans un instant.'
+    throw new Error(message)
   }
   return data as T
 }

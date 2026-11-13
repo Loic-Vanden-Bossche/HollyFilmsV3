@@ -56,6 +56,7 @@ function googleProvider(
       return {
         issuer: claims.iss,
         subject: claims.sub,
+        picture: typeof claims.picture === 'string' ? claims.picture : null,
         email:
           claims.email_verified === true && typeof claims.email === 'string'
             ? claims.email
@@ -94,7 +95,7 @@ export function addGoogleRoutes(
     const verifier = oidc.randomPKCECodeVerifier()
     const authorizationUrl = await provider.authorizationUrl({
       redirect_uri: redirectUri,
-      scope: 'openid email',
+      scope: 'openid email profile',
       state,
       nonce,
       code_challenge: await oidc.calculatePKCECodeChallenge(verifier),

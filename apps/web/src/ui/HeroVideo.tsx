@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n/I18nProvider.tsx'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import type { HeroPreview } from '@hollyfilms/shared/library'
@@ -16,6 +17,7 @@ export function HeroVideo({
   muted: boolean
   onStatus: (status: 'playing' | 'unavailable') => void
 }) {
+  const { t } = useI18n()
   const host = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
   const youtube = useRef<YouTubePlayer | null>(null)
@@ -24,6 +26,7 @@ export function HeroVideo({
   const notify = useEffectEvent(onStatus)
   const start = useEffectEvent((player: YouTubePlayer) => {
     youtube.current = player
+    player.getIframe().title = t('Bande-annonce en arrière-plan')
     if (muted) player.mute()
     else player.unMute()
     if (running) player.playVideo()
@@ -65,7 +68,6 @@ export function HeroVideo({
             onReady: ({ target }) => {
               if (disposed) return
               target.getIframe().tabIndex = -1
-              target.getIframe().title = 'Bande-annonce en arrière-plan'
               start(target)
             },
             onStateChange: ({ data }) => {
@@ -93,6 +95,7 @@ export function HeroVideo({
   useEffect(() => {
     const player = youtube.current
     if (player) {
+      player.getIframe().title = t('Bande-annonce en arrière-plan')
       if (muted) player.mute()
       else player.unMute()
       if (running) player.playVideo()
@@ -115,7 +118,7 @@ export function HeroVideo({
       current = false
       element.pause()
     }
-  }, [running, muted, source])
+  }, [running, muted, source, t])
 
   useEffect(() => {
     const element = video.current

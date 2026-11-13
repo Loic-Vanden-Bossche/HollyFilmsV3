@@ -1,3 +1,5 @@
+import { useI18n } from './i18n/I18nProvider.tsx'
+import { Tooltip } from './ui/Tooltip.tsx'
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import {
@@ -24,6 +26,7 @@ import type { AuthOptions } from '@hollyfilms/shared/accounts'
 import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
 import { LoginForm } from './LoginForm.tsx'
 import googleLogo from './assets/logos/google-gradient.png'
+import { LanguageSelect } from './ui/LanguageSelect.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { ProjectorBackdrop } from './ui/ProjectorBackdrop.tsx'
 import { useLandingMotion } from './use-landing-motion.ts'
@@ -62,7 +65,7 @@ const features = [
     detail: 'Films et séries réunis, organisés et accessibles.',
     label: 'Films & séries',
   },
-]
+] as const
 
 type Props = {
   items: ShowcaseItem[]
@@ -85,6 +88,7 @@ export function LandingPage({
   initialAuth = null,
   onSignIn,
 }: Props) {
+  const { t } = useI18n()
   const [paused, setPaused] = useState(false)
   const [auth, setAuth] = useState<'login' | 'register' | null>(
     notice || completingGoogle ? 'login' : initialAuth,
@@ -146,7 +150,7 @@ export function LandingPage({
     <MotionEnvironment paused={paused}>
       <div ref={scope} className="showcase" data-still={stopped}>
         <a className="skip-link" href="#main">
-          Aller au contenu
+          {t('Aller au contenu')}
         </a>
         <div className="cinema-atmosphere" aria-hidden="true">
           <ProjectorBackdrop paused={stopped} enabled={!reduced} />
@@ -156,31 +160,37 @@ export function LandingPage({
           <a
             href="/"
             className="showcase-logo"
-            aria-label="HollyFilms, accueil"
+            aria-label={t('HollyFilms, accueil')}
           >
             <Wordmark compact />
           </a>
-          {authenticated ? (
-            <a className="nav-signin glass-control" href="/app">
-              Mon espace <ArrowUpRight size={16} />
-            </a>
-          ) : (
-            <button
-              className="nav-signin glass-control"
-              onClick={() => setAuth('login')}
-            >
-              Se connecter <ArrowUpRight size={16} />
-            </button>
-          )}
+          <div className="showcase-nav-actions">
+            <LanguageSelect compact />
+            {authenticated ? (
+              <a className="nav-signin glass-control" href="/app">
+                {t('Mon espace')} <ArrowUpRight size={16} />
+              </a>
+            ) : (
+              <button
+                className="nav-signin glass-control"
+                onClick={() => setAuth('login')}
+              >
+                {t('Se connecter')} <ArrowUpRight size={16} />
+              </button>
+            )}
+          </div>
         </header>
 
         <main id="main" className="cinema-stage" tabIndex={-1}>
           <section className="hero-copy" aria-labelledby="hero-title">
             <p className="eyebrow">
-              <span className="eyebrow-line" /> VOTRE BIBLIOTHÈQUE, AU MÊME
-              ENDROIT.
+              <span className="eyebrow-line" />{' '}
+              {t('VOTRE BIBLIOTHÈQUE, AU MÊME ENDROIT.')}
             </p>
-            <h1 id="hero-title" aria-label="HollyFilms 3.0 — Films et séries">
+            <h1
+              id="hero-title"
+              aria-label={t('HollyFilms 3.0 — Films et séries')}
+            >
               <span className="title-mask">
                 <span className="title-line title-brand font-logo">
                   HollyFilms{' '}
@@ -191,13 +201,13 @@ export function LandingPage({
               </span>
               <span className="title-mask">
                 <span className="title-line title-accent">
-                  <BlurText text="Films & séries." />
+                  <BlurText text={t('Films & séries.')} delay={0.28} />
                 </span>
               </span>
             </h1>
             <div
               className="feature-reel"
-              aria-label="Fonctionnalités HollyFilms"
+              aria-label={t('Fonctionnalités HollyFilms')}
             >
               <div aria-hidden="true">
                 <RotatingText
@@ -208,8 +218,8 @@ export function LandingPage({
                         <Icon size={21} />
                       </span>
                       <div>
-                        <p className="feature-title">{title}</p>
-                        <p className="feature-detail">{detail}</p>
+                        <p className="feature-title">{t(title)}</p>
+                        <p className="feature-detail">{t(detail)}</p>
                       </div>
                     </div>
                   ))}
@@ -218,7 +228,7 @@ export function LandingPage({
               <ul className="sr-only">
                 {features.map(({ title, detail }) => (
                   <li key={title}>
-                    {title} {detail}
+                    {t(title)} {t(detail)}
                   </li>
                 ))}
               </ul>
@@ -231,7 +241,7 @@ export function LandingPage({
             <div className="hero-actions">
               {authenticated ? (
                 <a className="cinema-cta" href="/app">
-                  Ouvrir HollyFilms <ArrowUpRight size={18} />
+                  {t('Ouvrir HollyFilms')} <ArrowUpRight size={18} />
                 </a>
               ) : (
                 <>
@@ -241,7 +251,7 @@ export function LandingPage({
                       onClick={() => setAuth('register')}
                     >
                       <Magnet>
-                        Créer un compte <ArrowUpRight size={18} />
+                        {t('Créer un compte')} <ArrowUpRight size={18} />
                       </Magnet>
                     </button>
                   </StarBorder>
@@ -260,15 +270,15 @@ export function LandingPage({
                       >
                         <image href={googleLogo} width={2820} height={2820} />
                       </svg>
-                      Continuer avec Google
+                      {t('Continuer avec Google')}
                     </a>
                   )}
                 </>
               )}
             </div>
             <p className="access-note">
-              <ShieldCheck size={14} /> Accès après approbation d’un
-              administrateur.
+              <ShieldCheck size={14} />{' '}
+              {t('Accès après approbation d’un administrateur.')}
             </p>
           </section>
 
@@ -278,8 +288,10 @@ export function LandingPage({
           >
             <div className="catalogue-label glass-control">
               <span className="live-dot" />
-              <h2 id="catalogue-heading">Au catalogue</h2>
-              <span className="catalogue-label-detail">FILMS & SÉRIES</span>
+              <h2 id="catalogue-heading">{t('Au catalogue')}</h2>
+              <span className="catalogue-label-detail">
+                {t('FILMS & SÉRIES')}
+              </span>
             </div>
             <CatalogueGallery
               key={items.map((item) => item.id).join(',')}
@@ -289,7 +301,7 @@ export function LandingPage({
             />
             <div className="catalogue-note">
               <span className="catalogue-note-line" />
-              <span>Aperçu du catalogue</span>
+              <span>{t('Aperçu du catalogue')}</span>
               <span className="catalogue-note-line" />
             </div>
           </section>
@@ -297,7 +309,7 @@ export function LandingPage({
 
         <footer className="showcase-footer">
           <span className="footer-access">
-            <ShieldCheck size={13} /> Lecture réservée aux membres
+            <ShieldCheck size={13} /> {t('Lecture réservée aux membres')}
           </span>
           <button
             className="animation-toggle"
@@ -305,12 +317,12 @@ export function LandingPage({
             aria-pressed={paused}
             aria-label={
               paused
-                ? 'Reprendre les animations'
-                : 'Mettre les animations en pause'
+                ? t('Reprendre les animations')
+                : t('Mettre les animations en pause')
             }
           >
             {paused ? <Play size={13} /> : <Pause size={13} />}
-            <span>{paused ? 'Reprendre' : 'Pause'}</span>
+            <span>{paused ? t('Reprendre') : t('Pause')}</span>
           </button>
         </footer>
 
@@ -348,22 +360,24 @@ export function LandingPage({
           onClose={() => {
             if (!dialog.current?.open) setAuth(null)
           }}
-          aria-label="Connexion et inscription à HollyFilms"
+          aria-label={t('Connexion et inscription à HollyFilms')}
         >
-          <motion.button
-            className="close-dialog"
-            aria-label="Fermer"
-            onClick={() => void closeAuth()}
-            whileHover={
-              reduced || paused ? undefined : { rotate: 90, scale: 1.08 }
-            }
-            whileTap={reduced || paused ? undefined : { scale: 0.9 }}
-          >
-            <X size={21} />
-          </motion.button>
+          <Tooltip>
+            <motion.button
+              className="close-dialog"
+              aria-label={t('Fermer')}
+              onClick={() => void closeAuth()}
+              whileHover={
+                reduced || paused ? undefined : { rotate: 90, scale: 1.08 }
+              }
+              whileTap={reduced || paused ? undefined : { scale: 0.9 }}
+            >
+              <X size={21} />
+            </motion.button>
+          </Tooltip>
           {completingGoogle ? (
             <p role="status" className="p-10">
-              Connexion Google en cours…
+              {t('Connexion Google en cours…')}
             </p>
           ) : (
             auth && (

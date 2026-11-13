@@ -12,9 +12,11 @@
     "test:player": "node --test tests/player.e2e.mjs"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@hollyfilms/shared": "workspace:*",
     "@jellyfin/sdk": "^1.0.2",
     "@tanstack/react-query": "^5.107.1",
+    "@tanstack/react-virtual": "^3.14.26",
     "axios": "^1.21.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",

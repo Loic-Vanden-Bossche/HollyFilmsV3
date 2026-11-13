@@ -17,6 +17,44 @@
 }
 .media-dialog .media-detail-art {
   height: clamp(240px, 28vw, 410px);
+  overflow: hidden;
+}
+.detail-art-reveal {
+  position: absolute;
+  inset: 0;
+}
+.media-dialog::backdrop {
+  animation: detail-backdrop-in 0.32s ease-out both;
+}
+.media-dialog[data-phase='closing']::backdrop {
+  animation: detail-backdrop-out 0.24s ease-in both;
+}
+@keyframes detail-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes detail-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.detail-rail-entry {
+  min-width: 0;
+}
+.detail-rail-entry > :is(.detail-person, .detail-chapter, .detail-collection) {
+  width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-dialog::backdrop {
+    animation: none;
+  }
 }
 .media-dialog .media-detail-art::after {
   background:
@@ -70,6 +108,7 @@
   border-block: 1px solid #c3e2f112;
 }
 .detail-section-nav > button {
+  position: relative;
   padding: 10px 14px;
   border-radius: 100px;
   font-size: 12px;
@@ -83,6 +122,34 @@
 .detail-section-nav > button:hover {
   background: #4ade8012;
   color: #c5f9e5;
+}
+.detail-section-nav > button[aria-current='location'] {
+  background: #4ade8014;
+  color: #c5f9e5;
+}
+.detail-section-nav > button::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 22%;
+  right: 22%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4ade80, #3b82f6);
+  opacity: 0;
+  transform: scaleX(0.4);
+  transition:
+    opacity 0.18s,
+    transform 0.22s;
+}
+.detail-section-nav > button[aria-current='location']::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-section-nav > button::after {
+    transition: none;
+  }
 }
 .detail-sections {
   padding: 0 clamp(20px, 4vw, 64px) 40px;
@@ -288,7 +355,7 @@
   margin: 16px 0;
   max-width: 100%;
 }
-.detail-field :is(input, select, textarea) {
+.detail-field :is(input, textarea) {
   min-height: 42px;
   background: #080f1b;
   border: 1px solid #d6ecff26;
@@ -389,7 +456,6 @@
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
   padding: 7px 4px 18px;
-  scrollbar-width: thin;
 }
 .detail-rail-track > * {
   min-width: 0;
@@ -415,10 +481,13 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
-.detail-rail-review .detail-rail-track {
-  align-items: start;
+.detail-rail-review .detail-rail-entry {
+  display: flex;
 }
 .detail-review-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   min-height: 275px;
   padding: 25px;
   border-radius: 16px;
@@ -471,11 +540,15 @@
   color: #9bdbcc;
 }
 .detail-review-content {
+  flex: 1;
   white-space: pre-line;
   overflow-wrap: anywhere;
   font-size: 14px;
   line-height: 1.8;
   color: #c0cede;
+}
+.detail-review-card > .detail-text-button {
+  align-self: flex-start;
 }
 .detail-text-button {
   font-size: 12px;
@@ -663,6 +736,25 @@
 }
 .detail-card-menu summary::-webkit-details-marker {
   display: none;
+}
+.media-card-heading > .detail-card-menu {
+  position: relative;
+  inset: auto;
+  flex-shrink: 0;
+  align-self: start;
+  pointer-events: auto;
+}
+.media-card-heading > .detail-card-menu > div {
+  min-width: min(150px, calc(100cqw - 20px));
+  bottom: calc(100% + 6px);
+}
+@media (hover: none), (pointer: coarse) {
+  .media-card-heading > .detail-card-menu summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+  }
 }
 .detail-card-menu > div {
   position: absolute;

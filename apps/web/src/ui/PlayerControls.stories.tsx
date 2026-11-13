@@ -1,3 +1,4 @@
+import { detectLocale, translate, type Message } from '../i18n/messages.ts'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useEffect, useRef, useState } from 'react'
 import { expect, fireEvent, fn, waitFor } from 'storybook/test'
@@ -44,15 +45,28 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Playing: Story = {
-  play: async ({ canvas, args, userEvent }) => {
-    await userEvent.click(canvas.getByRole('button', { name: 'Pause' }))
+  play: async ({ canvas, canvasElement, args, userEvent }) => {
+    const locale = detectLocale([
+      canvasElement.ownerDocument.documentElement.lang,
+    ])
+    const t = (message: Message) => translate(locale, message)
+    await userEvent.click(canvas.getByRole('button', { name: t('Pause') }))
     await expect(args.onToggle).toHaveBeenCalledOnce()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Avancer de 30 secondes' }),
-    )
+    const forward = canvas.queryByRole('button', {
+      name: t('Avancer de 30 secondes'),
+    })
+    if (forward) await userEvent.click(forward)
+    else
+      fireEvent.change(
+        canvas.getByRole('slider', { name: t('Position de lecture') }),
+        { target: { value: '96' } },
+      )
     await expect(args.onSeek).toHaveBeenCalledWith(96)
-    await userEvent.click(canvas.getByRole('button', { name: 'Suivant' }))
+    await userEvent.click(canvas.getByRole('button', { name: t('Suivant') }))
     await expect(args.onNext).toHaveBeenCalledOnce()
+    await expect(
+      canvas.queryByRole('button', { name: t('Précédent') }),
+    ).not.toBeInTheDocument()
   },
 }
 
@@ -63,7 +77,12 @@ export const Paused: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('button', { name: 'Lire' })).toBeEnabled()
-    await expect(canvas.getByRole('button', { name: 'Suivant' })).toBeDisabled()
+    await expect(
+      canvas.queryByRole('button', { name: 'Suivant' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('button', { name: 'Précédent' }),
+    ).not.toBeInTheDocument()
   },
 }
 

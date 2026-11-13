@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, fn, waitFor } from 'storybook/test'
+import { expect, fn, waitFor, within } from 'storybook/test'
 import { MediaDetails } from './MediaDetails.tsx'
 import { homeItems, homeResume } from '../home-fixtures.ts'
 import {
@@ -109,6 +109,39 @@ export const CollectionActions: Story = {
     )
   },
 }
+export const RelatedCards: Story = {
+  ...Complete,
+  name: 'Plus de ce genre — titre, menu et lecture',
+  play: async ({ canvas, userEvent, args }) => {
+    const rail = canvas.getByRole('region', { name: 'Plus de ce genre' })
+    rail.scrollIntoView()
+    const card = within(rail).getAllByRole('article')[0]
+    await userEvent.hover(card)
+    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+    const menu = within(card).getByLabelText(
+      'Plus d’actions pour ' + detailedRelations.similar[0].title,
+    )
+    const title = card.querySelector('.media-tile-title')!
+    await expect(title.getBoundingClientRect().right).toBeLessThan(
+      menu.getBoundingClientRect().left,
+    )
+    await userEvent.click(menu)
+    await expect(menu.parentElement).toHaveAttribute('open')
+    await userEvent.click(
+      within(card).getByRole('button', { name: 'Lire depuis le début' }),
+    )
+    await expect(args.onPlay).toHaveBeenCalledWith(
+      detailedRelations.similar[0],
+      false,
+    )
+    await userEvent.click(
+      within(card).getByRole('button', { name: /^Voir la fiche$/ }),
+    )
+    await expect(args.onSelect).toHaveBeenCalledWith(
+      detailedRelations.similar[0],
+    )
+  },
+}
 export const KeyboardClose: Story = {
   ...Complete,
   render: function Render(args) {
@@ -135,6 +168,123 @@ export const KeyboardClose: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(args.onClose).toHaveBeenCalledOnce())
     await waitFor(() => expect(trigger).toHaveFocus())
+  },
+}
+export const OpeningAndScroll: Story = {
+  ...Complete,
+  name: 'Ouverture en séquence et révélations au défilement',
+  render: KeyboardClose.render,
+  play: async ({ canvas, userEvent, args }) => {
+    const trigger = canvas.getByRole('button', { name: 'Ouvrir la fiche' })
+    await userEvent.click(trigger)
+    const dialog = canvas.getByRole('dialog')
+    // Scrolling remains available while the entrance is still in progress.
+    dialog.scrollTo({ top: 300, behavior: 'instant' })
+    await expect(dialog.scrollTop).toBeGreaterThan(0)
+    await userEvent.click(canvas.getByRole('button', { name: 'Distribution' }))
+    const cast = canvas.getByRole('region', { name: 'Distribution & équipe' })
+    await waitFor(
+      () =>
+        expect(
+          getComputedStyle(cast.querySelector('.detail-rail-entry')!).opacity,
+        ).toBe('1'),
+      { timeout: 2500 },
+    )
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Fermer la fiche' }),
+    )
+    await waitFor(() => expect(args.onClose).toHaveBeenCalledOnce())
+    await expect(trigger).toHaveFocus()
+    await userEvent.click(trigger)
+    await waitFor(() =>
+      expect(canvas.getByRole('dialog')).toHaveAttribute('data-phase', 'open'),
+    )
+  },
+}
+export const DelayedDetails: Story = {
+  ...Complete,
+  name: 'Métadonnées reçues après l’ouverture',
+  render: function Render(args) {
+    const [loaded, setLoaded] = useState(false)
+    useEffect(() => {
+      const timer = window.setTimeout(() => setLoaded(true), 700)
+      return () => window.clearTimeout(timer)
+    }, [])
+    return (
+      <MediaDetails
+        {...args}
+        detailsData={loaded ? args.detailsData : undefined}
+        relationsData={loaded ? args.relationsData : undefined}
+      />
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByRole(
+      'button',
+      { name: /Maya Laurent/ },
+      { timeout: 2500 },
+    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Distribution' }))
+    const cast = canvas.getByRole('region', { name: 'Distribution & équipe' })
+    await waitFor(
+      () =>
+        expect(
+          getComputedStyle(cast.querySelector('.detail-rail-entry')!).opacity,
+        ).toBe('1'),
+      { timeout: 2500 },
+    )
+  },
+}
+export const ScrollTracking: Story = {
+  ...Complete,
+  name: 'Navigation synchronisée avec le défilement',
+  play: async ({ canvas, userEvent }) => {
+    const dialog = canvas.getByRole('dialog')
+    const nav = canvas.getByRole('navigation', { name: 'Sections de la fiche' })
+    await waitFor(() => expect(dialog).toHaveAttribute('data-phase', 'open'))
+    const sections = [
+      ['detail-providers', 'Disponibilités'],
+      ['detail-reviews', 'Critiques'],
+      ['detail-cast', 'Distribution'],
+      ['detail-scenes', 'Scènes'],
+      ['detail-related', 'À découvrir'],
+      ['detail-cast', 'Distribution'],
+      ['detail-providers', 'Disponibilités'],
+    ]
+    for (const [id, name] of sections) {
+      dialog
+        .querySelector('#' + id)!
+        .scrollIntoView({ behavior: 'instant', block: 'start' })
+      await waitFor(() =>
+        expect(within(nav).getByRole('button', { name })).toHaveAttribute(
+          'aria-current',
+          'location',
+        ),
+      )
+      await expect(
+        nav.querySelectorAll('[aria-current="location"]'),
+      ).toHaveLength(1)
+    }
+    await userEvent.click(within(nav).getByRole('button', { name: 'Scènes' }))
+    await waitFor(
+      () =>
+        expect(
+          within(nav).getByRole('button', { name: 'Scènes' }),
+        ).toHaveAttribute('aria-current', 'location'),
+      { timeout: 2000 },
+    )
+    dialog.scrollTo({ top: dialog.scrollHeight, behavior: 'instant' })
+    await waitFor(() =>
+      expect(
+        within(nav).getByRole('button', { name: 'À découvrir' }),
+      ).toHaveAttribute('aria-current', 'location'),
+    )
+    dialog.scrollTo({ top: 0, behavior: 'instant' })
+    await waitFor(() =>
+      expect(
+        within(nav).getByRole('button', { name: 'Présentation' }),
+      ).toHaveAttribute('aria-current', 'location'),
+    )
   },
 }
 export const RichMetadata: Story = {

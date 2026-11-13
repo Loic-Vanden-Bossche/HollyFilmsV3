@@ -261,6 +261,7 @@ export async function mediaRequest<T>(
     const error = await response.json().catch(() => null)
     throw new Error(
       error?.message || 'Impossible de charger ces informations. Réessaie.',
+      { cause: typeof error?.code === 'string' ? error.code : undefined },
     )
   }
   return response.status === 204 ? (undefined as T) : response.json()
