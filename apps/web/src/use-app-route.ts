@@ -52,13 +52,25 @@ export function navigateApp(
   if (mode !== 'progress') window.dispatchEvent(new Event(routeEvent))
 }
 
-export function useAppRoute() {
+function readLocation(
+  previous?: AppRoute & { openedAt?: number },
+  initialOpenedAt?: number,
+) {
+  const route = readAppRoute(window.location.search, window.location.pathname)
+  const openedAt = route.play
+    ? route.play === previous?.play
+      ? previous.openedAt
+      : (initialOpenedAt ?? Date.now())
+    : undefined
+  return { ...route, openedAt }
+}
+
+export function useAppRoute(initialOpenedAt?: number) {
   const [route, setRoute] = useState(() =>
-    readAppRoute(window.location.search, window.location.pathname),
+    readLocation(undefined, initialOpenedAt),
   )
   useEffect(() => {
-    const update = () =>
-      setRoute(readAppRoute(window.location.search, window.location.pathname))
+    const update = () => setRoute(readLocation)
     window.addEventListener('popstate', update)
     window.addEventListener(routeEvent, update)
     return () => {
@@ -66,5 +78,10 @@ export function useAppRoute() {
       window.removeEventListener(routeEvent, update)
     }
   }, [])
-  return route
+  return {
+    ...route,
+    restartOpening() {
+      setRoute((current) => ({ ...current, openedAt: Date.now() }))
+    },
+  }
 }

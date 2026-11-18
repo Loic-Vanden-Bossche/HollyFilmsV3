@@ -12,6 +12,7 @@ import '../player.css'
 
 export function PlayerShell({
   title,
+  continueOpening = false,
   state,
   onClose,
   onRetry,
@@ -19,10 +20,14 @@ export function PlayerShell({
   onInteraction,
   onBackHover,
   problem,
+  interrupted = false,
   actions,
+  loading,
+  alternativeRecovery,
   children,
 }: {
   title: string
+  continueOpening?: boolean
   state: PlayerState
   onClose: () => void
   onRetry: () => void
@@ -30,7 +35,10 @@ export function PlayerShell({
   onInteraction?: () => void
   onBackHover?: (hovered: boolean) => void
   problem?: string
+  interrupted?: boolean
   actions?: ReactNode
+  loading?: ReactNode
+  alternativeRecovery?: ReactNode
   children?: ReactNode
 }) {
   const { t } = useI18n()
@@ -50,7 +58,7 @@ export function PlayerShell({
       ref={dialog}
       className="player-shell"
       aria-label={t('Lecteur · {title}', { title: title })}
-      initial={{ opacity: 0 }}
+      initial={continueOpening ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: reduced ? 0.12 : 0.45, ease: [0.16, 1, 0.3, 1] }}
       onCancel={(event) => {
@@ -111,7 +119,9 @@ export function PlayerShell({
           </div>
           <motion.div
             className="player-title-block"
-            initial={{ opacity: 0, y: reduced ? 0 : 18 }}
+            initial={
+              continueOpening ? false : { opacity: 0, y: reduced ? 0 : 18 }
+            }
             animate={{ opacity: 1, y: 0 }}
             transition={{
               duration: reduced ? 0 : 0.65,
@@ -131,6 +141,7 @@ export function PlayerShell({
                 {title}
               </motion.p>
             </AnimatePresence>
+            {loading}
           </motion.div>
           <motion.div
             className="player-brand"
@@ -154,7 +165,13 @@ export function PlayerShell({
             transition={{ duration: reduced ? 0 : 0.2 }}
           >
             <div className="player-status-glow" aria-hidden="true" />
-            <h2>{t('La lecture n’a pas pu démarrer')}</h2>
+            <h2>
+              {t(
+                interrupted
+                  ? 'Lecture interrompue'
+                  : 'La lecture n’a pas pu démarrer',
+              )}
+            </h2>
             <p>
               {problem
                 ? localizeText(
@@ -169,6 +186,7 @@ export function PlayerShell({
             <button type="button" className="home-primary" onClick={onRetry}>
               <RotateCcw size={18} /> {t('Réessayer')}
             </button>
+            {alternativeRecovery}
           </motion.div>
         )}
       </div>

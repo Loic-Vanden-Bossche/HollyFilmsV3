@@ -550,11 +550,32 @@ test(
         'no opening splash',
       )
       assert.equal(await playerView.locator('iframe').count(), 0)
-      const preparation = playerView.getByRole('progressbar', {
-        name: 'Préparation de la lecture',
+      await playerView
+        .getByText('Préparation de la lecture…', { exact: true })
+        .first()
+        .waitFor()
+      assert.equal(await playerView.getByRole('progressbar').count(), 0)
+      const details = playerView.getByRole('button', {
+        name: 'Détails',
+        exact: true,
       })
-      await preparation.waitFor()
-      assert.equal(await preparation.getAttribute('aria-valuenow'), '25')
+      await details.waitFor({ timeout: 6000 })
+      await details.focus()
+      await page.keyboard.press('Enter')
+      assert.equal(await details.getAttribute('aria-expanded'), 'true')
+      // Deliver decoded media normally while withholding individual startup
+      // notifications from the player.
+      await video.evaluate((element) => {
+        for (const type of ['loadedmetadata', 'playing'])
+          element.addEventListener(
+            type,
+            (event) => event.stopImmediatePropagation(),
+            {
+              capture: true,
+              once: true,
+            },
+          )
+      })
       assert.equal(await playerView.locator('.player-spinner').count(), 0)
       await until(
         () =>
@@ -572,8 +593,12 @@ test(
       .locator('.player-viewport[data-state="playing"]')
       .waitFor({ timeout: 30_000 })
     await playerView
-      .getByRole('progressbar', { name: 'Préparation de la lecture' })
-      .waitFor({ state: 'detached', timeout: 2000 })
+      .locator('.player-loading')
+      .waitFor({ state: 'detached', timeout: 1000 })
+    assert(
+      await video.evaluate((element) => document.activeElement === element),
+      'focus returns to the player when playback dismisses Details',
+    )
     t.diagnostic(
       'Direct playback after releasing the negotiation request: ' +
         Math.round(performance.now() - negotiationReleasedAt) +
@@ -591,10 +616,47 @@ test(
           ),
       'decoded video',
     )
-    await expectContinuousPlayback('video keeps advancing after startup')
+    await expectContinuousPlayback('video advances without the playing event')
+    assert.equal(
+      reports.filter((report) => report.path.endsWith('/Playing')).length,
+      1,
+      'the stream reports its start once',
+    )
     await playerView
       .locator('.player-artwork-hero')
       .waitFor({ state: 'detached' })
+    // Hold only the observations exposed by Chrome during a buffer gap. Let
+    // the decoder run underneath so releasing the clock gives real progress.
+    await video.evaluate((element) => {
+      const position = element.currentTime
+      Object.defineProperties(element, {
+        currentTime: { configurable: true, get: () => position },
+        readyState: {
+          configurable: true,
+          get: () => HTMLMediaElement.HAVE_CURRENT_DATA,
+        },
+      })
+      element.dispatchEvent(new Event('waiting'))
+    })
+    try {
+      await playerView
+        .locator('.player-loading[data-operation="buffering"]')
+        .waitFor({ timeout: 2500 })
+      assert.equal(
+        await playerView.locator('.player-artwork-hero').count(),
+        0,
+        'the decoded picture stays on screen during buffering',
+      )
+    } finally {
+      await video.evaluate((element) => {
+        delete element.currentTime
+        delete element.readyState
+        element.dispatchEvent(new Event('timeupdate'))
+      })
+    }
+    await playerView
+      .locator('.player-loading')
+      .waitFor({ state: 'detached', timeout: 1000 })
     await page.locator('[data-artwork-flight]').waitFor({ state: 'detached' })
     const heading = playerView.locator('.player-heading')
     assert(await heading.getByText('HollyFilms', { exact: true }).isVisible())
@@ -737,6 +799,10 @@ test(
         'accumulated skip',
         2000,
       )
+      const seekStatus = playerView.locator('.player-seek-status')
+      await seekStatus
+        .filter({ hasText: 'Recherche à 1:00…' })
+        .waitFor({ timeout: 2000 })
       await playerView
         .getByRole('button', { name: 'Reculer de 10 secondes' })
         .click()
@@ -745,6 +811,9 @@ test(
         'immediate backward skip',
         2000,
       )
+      await seekStatus
+        .filter({ hasText: 'Recherche à 0:50…' })
+        .waitFor({ timeout: 2000 })
       const bounds = await timeline.boundingBox()
       await timeline.click({
         position: { x: bounds.width * 0.7, y: bounds.height / 2 },
@@ -1515,6 +1584,15 @@ test(
     assert(page.workers().some((worker) => worker.url().includes('hls.worker')))
     stage = 'restoring active playback from the URL'
     const metadataGate = Promise.withResolvers()
+    const restoredStreamGate = Promise.withResolvers()
+    await page.route(
+      playbackInfo,
+      async (route) => {
+        await restoredStreamGate.promise
+        await route.continue()
+      },
+      { times: 1 },
+    )
     let restoringMetadata = false
     await page.route(
       (url) => url.pathname.endsWith('/Items/' + item.Id),
@@ -1541,8 +1619,19 @@ test(
         await page.locator('.home-topbar, .home-intro, .media-dialog').count(),
         0,
       )
+      await page
+        .locator('.playback-route-status')
+        .getByRole('button', { name: 'Détails', exact: true })
+        .waitFor()
+      metadataGate.resolve()
+      await playerView.waitFor()
+      // The route has already spent four seconds opening this title.
+      await playerView
+        .getByRole('button', { name: 'Détails', exact: true })
+        .waitFor({ timeout: 1000 })
     } finally {
       metadataGate.resolve()
+      restoredStreamGate.resolve()
     }
     await page.locator('.player-viewport[data-state="playing"]').waitFor()
     await expectContinuousPlayback('video keeps advancing after reload')
@@ -1901,6 +1990,9 @@ test(
       'the test collection contains its movie: ' +
         JSON.stringify(collectionItems),
     )
+    // This fixture creates its collection directly through Jellyfin. Load a
+    // fresh catalogue so a previously cached empty collection list can expire.
+    await page.reload()
     await page.getByRole('button', { name: 'Collections', exact: true }).click()
     await page.getByRole('button', { name: /Collection Test/ }).click()
     await page.getByRole('heading', { name: 'Collection Test.' }).waitFor()
@@ -1921,6 +2013,183 @@ test(
     await page.getByRole('heading', { name: 'Collection Test.' }).waitFor()
     await page.getByRole('button', { name: 'Accueil', exact: true }).click()
     await page.getByRole('region', { name: 'À l’affiche' }).waitFor()
+    stage = 'slow startup with measurable progress'
+    const mediaRequest = (url) =>
+      /\/Videos\/[^/]+\/(stream\.[^/]+|[^/]+\.m3u8)$/i.test(url.pathname)
+    const waitForStream = () =>
+      page.waitForRequest((request) => mediaRequest(new URL(request.url())), {
+        timeout: 15_000,
+      })
+    const playbackKey = 'hollyfilms.playback.' + auth.User.Id
+    await page.evaluate((key) => localStorage.removeItem(key), playbackKey)
+    // The first audio track can play directly; start at a known position so
+    // recovery requests can be checked against Jellyfin's actual input.
+    const recoveryUrl = origin + '/app?play=' + item.Id + '&audio=1&sub=-1&t=42'
+    const allowData = Promise.withResolvers()
+    await page.route(
+      mediaRequest,
+      async (route) => {
+        await allowData.promise
+        await route.continue()
+      },
+      { times: 1 },
+    )
+    await page.clock.install()
+    try {
+      await Promise.all([
+        waitForStream(),
+        page.goto(recoveryUrl, { waitUntil: 'domcontentloaded' }),
+      ])
+      // Separate real data arrival and the browser's play acknowledgement.
+      await video.evaluate((element) => {
+        const play = element.play.bind(element)
+        const gate = Promise.withResolvers()
+        window.allowVideoPlay = () => gate.resolve()
+        element.play = async () => {
+          await gate.promise
+          return play()
+        }
+      })
+      await page.clock.fastForward(20_000)
+      allowData.resolve()
+      await until(
+        () => video.evaluate((element) => element.readyState >= 2),
+        'decoded data after a slow start',
+      )
+      await page.clock.fastForward(13_000)
+      assert.equal(
+        await playerView.locator('.player-viewport').getAttribute('data-state'),
+        'loading',
+        'new playable data buys time while Chrome prepares to play',
+      )
+      await page.evaluate(() => window.allowVideoPlay())
+      await playerView
+        .locator('.player-viewport[data-state="playing"]')
+        .waitFor()
+      await playerView.locator('.player-loading').waitFor({ state: 'detached' })
+    } finally {
+      allowData.resolve()
+    }
+    stage = 'stalled startup and recovery'
+    const releaseStream = Promise.withResolvers()
+    let holdStream = true
+    await page.route(mediaRequest, async (route) => {
+      if (!holdStream) return route.continue()
+      await releaseStream.promise
+      await route.abort()
+    })
+    try {
+      await Promise.all([
+        waitForStream(),
+        page.goto(recoveryUrl, { waitUntil: 'domcontentloaded' }),
+      ])
+      await page.clock.fastForward(20_000)
+      await video.evaluate((element) =>
+        element.dispatchEvent(new Event('progress')),
+      )
+      await page.clock.fastForward(11_000)
+      await playerView
+        .getByRole('alert')
+        .getByText('Le serveur met trop de temps à fournir la vidéo.')
+        .waitFor()
+      const [retry] = await Promise.all([
+        page.waitForRequest(playbackInfo),
+        waitForStream(),
+        playerView
+          .getByRole('button', { name: 'Réessayer', exact: true })
+          .click(),
+      ])
+      const retryOptions = retry.postDataJSON()
+      assert.equal(retryOptions.StartTimeTicks, 420_000_000)
+      assert.equal(retryOptions.AudioStreamIndex, 1)
+      assert.equal(retryOptions.SubtitleStreamIndex, -1)
+      await page.clock.fastForward(8_100)
+      const lower = playerView.getByRole('button', {
+        name: /Réduire la qualité/,
+      })
+      await lower.waitFor()
+      const offeredRate =
+        Number(
+          (await lower.innerText()).match(/[\d.,]+/)[0].replace(',', '.'),
+        ) * 1_000_000
+      holdStream = false
+      const [replacement] = await Promise.all([
+        page.waitForRequest(playbackInfo),
+        lower.click(),
+      ])
+      const nextOptions = replacement.postDataJSON()
+      assert.equal(nextOptions.MaxStreamingBitrate, offeredRate)
+      assert.equal(nextOptions.StartTimeTicks, retryOptions.StartTimeTicks)
+      assert.equal(nextOptions.AudioStreamIndex, retryOptions.AudioStreamIndex)
+      assert.equal(
+        nextOptions.SubtitleStreamIndex,
+        retryOptions.SubtitleStreamIndex,
+      )
+      await playerView
+        .locator('.player-viewport[data-state="playing"]')
+        .waitFor()
+      await until(
+        () => video.evaluate((el) => el.currentTime >= 42 && !el.paused),
+        'lower quality resumes at the requested scene',
+      )
+      assert.equal(
+        await page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key)).bitrate,
+          playbackKey,
+        ),
+        0,
+        'lower quality recovery applies only to this viewing session',
+      )
+    } finally {
+      releaseStream.resolve()
+    }
+    stage = 'audio-only playback'
+    await exec('docker', ['exec', name, 'mkdir', '-p', '/music/Signal/Fixture'])
+    await exec('docker', [
+      'exec',
+      name,
+      '/usr/lib/jellyfin-ffmpeg/ffmpeg',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=12',
+      '-metadata',
+      'title=Audio sample',
+      '/music/Signal/Fixture/Audio sample.mp3',
+    ])
+    await api(
+      '/Library/VirtualFolders?name=Player%20Audio&collectionType=music&refreshLibrary=true',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          LibraryOptions: {
+            PathInfos: [{ Path: '/music' }],
+            EnableRealtimeMonitor: false,
+          },
+        }),
+      },
+    )
+    const audioItem = await until(async () => {
+      const result = await (
+        await api(
+          `/Items?userId=${auth.User.Id}&recursive=true&includeItemTypes=Audio`,
+          { headers },
+        )
+      ).json()
+      return result.Items.find((entry) => entry.Name === 'Audio sample')
+    }, 'audio fixture scan')
+    await page.goto(origin + '/app?play=' + audioItem.Id)
+    await playerView.locator('.player-viewport[data-state="playing"]').waitFor()
+    await expectContinuousPlayback(
+      'audio advances without a decoded video frame',
+    )
+    assert.equal(await video.evaluate((element) => element.videoWidth), 0)
+    await playerView.locator('.player-artwork-hero').waitFor()
+    assert.equal(await playerView.locator('.player-loading').count(), 0)
     assert.deepEqual(errors, [])
     t.diagnostic(
       'Verified on Jellyfin 12.4: decoded video, audio, SRT, HLS, resume, episode queue, retry, remote playback, SyncPlay, favorites, sorting and collection URL restoration.',

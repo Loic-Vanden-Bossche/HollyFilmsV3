@@ -86,6 +86,27 @@ export const Paused: Story = {
   },
 }
 
+export const Seeking: Story = {
+  args: {
+    media: {
+      ...meta.args.media,
+      seeking: true,
+      position: 2538,
+      duration: 6400,
+      bufferedAhead: 0,
+    },
+    seekPosition: 2538,
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText(/42:18/, { selector: '.player-seek-status' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('slider', { name: 'Position de lecture' }),
+    ).toHaveValue('2538')
+  },
+}
+
 const previewSheet =
   'data:image/svg+xml,' +
   encodeURIComponent(

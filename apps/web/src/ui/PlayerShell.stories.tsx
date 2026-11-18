@@ -37,6 +37,20 @@ export const Unavailable: Story = {
     await expect(args.onRetry).toHaveBeenCalledOnce()
   },
 }
+export const Interrupted: Story = {
+  args: {
+    state: 'error',
+    interrupted: true,
+    problem: 'Le serveur met trop de temps à fournir la vidéo.',
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    await expect(
+      canvas.getByRole('heading', { name: 'Lecture interrompue' }),
+    ).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
+    await expect(args.onRetry).toHaveBeenCalledOnce()
+  },
+}
 export const Playing: Story = {
   args: {
     title: 'Signal',

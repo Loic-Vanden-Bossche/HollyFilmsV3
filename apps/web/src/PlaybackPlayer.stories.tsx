@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createJellyfinApi } from '@hollyfilms/shared/jellyfin'
-import { expect, fn, mocked } from 'storybook/test'
+import { expect, fn, mocked, waitFor } from 'storybook/test'
 import { PlaybackPlayer } from './PlaybackPlayer.tsx'
 import { createPlaybackApi } from './playback/playback-api.ts'
 import type { PlaybackApi } from './playback/playback-api.ts'
@@ -50,9 +50,10 @@ type Story = StoryObj<typeof meta>
 
 export const Loading: Story = {
   play: async ({ canvas, canvasElement, args, userEvent }) => {
-    await expect(await canvas.findByRole('progressbar')).toHaveAttribute(
-      'aria-valuenow',
-      '0',
+    await waitFor(() =>
+      expect(canvas.getByRole('status')).toHaveTextContent(
+        'Ouverture du titre…',
+      ),
     )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
     const video = canvasElement.querySelector('video')!

@@ -1,4 +1,13 @@
 export default {
+  'Lecture interrompue': '播放中断',
+  'Ouverture du titre…': '正在打开影片…',
+  'Préparation de la lecture…': '正在准备播放…',
+  'Mise en mémoire tampon…': '缓冲中…',
+  'Recherche à {time}…': '正在跳转至 {time}…',
+  Détails: '详情',
+  '{seconds} s en mémoire à {time}': '从 {time} 起已缓冲 {seconds} 秒',
+  'En attente des informations de lecture.': '正在等待播放信息。',
+  'Réduire la qualité · {rate} Mbit/s': '降低画质 · {rate} Mbit/s',
   'Le serveur média n’a pas pu fournir le fichier. Vérifiez son accès, puis réessayez.':
     '媒体服务器无法提供此文件。请检查访问权限后重试。',
   'La piste audio sélectionnée est introuvable dans cette version. Choisissez une autre piste audio.':
@@ -95,12 +104,10 @@ export default {
   '{minutes} min': '{minutes} 分钟',
   '{title} : précédent': '{title}：上一项',
   '{title} : suivant': '{title}：下一项',
-  '{value} % des étapes de préparation': '已完成 {value}% 的准备步骤',
   '{value} s': '{value} 秒',
   '{value} secondes': '{value} 秒',
   '/ 10 000 caractères · Visible par les membres ayant accès à ce titre.':
     '/ 10,000 字符 · 对有权访问此影片的会员可见。',
-  '% des étapes de préparation': '% 的准备步骤',
   '% visionné': '% 已观看',
   '↓ pour explorer les résultats': '按 ↓ 浏览结果',
   '− Plus tôt': '− 提前',

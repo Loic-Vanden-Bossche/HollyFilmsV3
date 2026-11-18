@@ -1,4 +1,14 @@
 export default {
+  'Lecture interrompue': 'Playback interrupted',
+  'Ouverture du titre…': 'Opening title…',
+  'Préparation de la lecture…': 'Preparing playback…',
+  'Mise en mémoire tampon…': 'Buffering…',
+  'Recherche à {time}…': 'Seeking to {time}…',
+  Détails: 'Details',
+  '{seconds} s en mémoire à {time}': '{seconds} s buffered at {time}',
+  'En attente des informations de lecture.':
+    'Waiting for playback information.',
+  'Réduire la qualité · {rate} Mbit/s': 'Lower quality · {rate} Mbps',
   'Le serveur média n’a pas pu fournir le fichier. Vérifiez son accès, puis réessayez.':
     'The media server could not deliver the file. Check access and try again.',
   'La piste audio sélectionnée est introuvable dans cette version. Choisissez une autre piste audio.':
@@ -100,12 +110,10 @@ export default {
   '{minutes} min': '{minutes}m',
   '{title} : précédent': '{title}: previous',
   '{title} : suivant': '{title}: next',
-  '{value} % des étapes de préparation': '{value}% of preparation steps',
   '{value} s': '{value}s',
   '{value} secondes': '{value} seconds',
   '/ 10 000 caractères · Visible par les membres ayant accès à ce titre.':
     '/ 10,000 characters · Visible to members with access to this title.',
-  '% des étapes de préparation': '% of preparation steps',
   '% visionné': '% watched',
   '↓ pour explorer les résultats': 'Press ↓ to browse results',
   '− Plus tôt': '− Earlier',

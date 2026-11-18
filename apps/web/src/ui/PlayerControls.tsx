@@ -25,6 +25,7 @@ import {
 
 import { formatTime } from '../playback/format-time.ts'
 import { PlayerVolume } from './PlayerVolume.tsx'
+import { PlayerLoadingSpinner } from './PlayerLoading.tsx'
 import '../player.css'
 
 import type { TimelinePreview } from '../playback/timeline-preview.ts'
@@ -35,6 +36,7 @@ import {
 
 export function PlayerControls({
   media,
+  seekPosition,
   fullscreen,
   pip,
   hasPrevious,
@@ -59,11 +61,13 @@ export function PlayerControls({
     seeking?: boolean
     duration: number
     buffered: number
+    bufferedAhead?: number
     paused: boolean
     muted: boolean
     volume: number
   }
   fullscreen: boolean
+  seekPosition?: number
   pip: boolean
   hasPrevious: boolean
   hasNext: boolean
@@ -106,6 +110,7 @@ export function PlayerControls({
     >
       <PlayerTimeline
         media={media}
+        seekPosition={seekPosition}
         markers={markers}
         onSeek={onSeek}
         onPreview={onPreview}
@@ -279,13 +284,14 @@ export function PlayerControls({
 // Pointer previews only re-render the timeline, not every playback control.
 function PlayerTimeline({
   media,
+  seekPosition,
   markers = [],
   onSeek,
   onPreview,
   loadPreview,
 }: Pick<
   Parameters<typeof PlayerControls>[0],
-  'media' | 'markers' | 'onSeek' | 'onPreview' | 'loadPreview'
+  'media' | 'seekPosition' | 'markers' | 'onSeek' | 'onPreview' | 'loadPreview'
 >) {
   const { t } = useI18n()
   const reduced = useReducedMotion()
@@ -294,6 +300,7 @@ function PlayerTimeline({
     visible: { opacity: 1, y: 0 },
   }
   const [hover, setHover] = useState(false)
+  const showPlayhead = hover || media.seeking || seekPosition !== undefined
   const [previewKey, setPreviewKey] = useState('')
   const previewPosition = useMotionValue(0)
   const previewTime = useTransform(previewPosition, formatTime)
@@ -354,7 +361,7 @@ function PlayerTimeline({
   return (
     <motion.div className="player-timeline" variants={enter}>
       <AnimatePresence>
-        {hover && media.duration > 0 && (
+        {hover && seekPosition === undefined && media.duration > 0 && (
           <motion.div
             className="player-preview-anchor"
             style={{ x: previewX }}
@@ -407,6 +414,18 @@ function PlayerTimeline({
           </motion.div>
         )}
       </AnimatePresence>
+      {seekPosition !== undefined && (
+        <span
+          className="player-seek-status"
+          aria-hidden="true"
+          style={{
+            left: `clamp(min(50%, 6rem), ${progress * 100}%, max(50%, calc(100% - 6rem)))`,
+          }}
+        >
+          <PlayerLoadingSpinner />
+          {t('Recherche à {time}…', { time: formatTime(seekPosition) })}
+        </span>
+      )}
       <motion.div
         className="player-timeline-track"
         aria-hidden="true"
@@ -419,7 +438,13 @@ function PlayerTimeline({
             width:
               Math.min(
                 100,
-                media.duration ? (media.buffered / media.duration) * 100 : 0,
+                media.duration
+                  ? ((media.bufferedAhead != null
+                      ? media.position + media.bufferedAhead
+                      : media.buffered) /
+                      media.duration) *
+                      100
+                  : 0,
               ) + '%',
           }}
         />
@@ -450,8 +475,8 @@ function PlayerTimeline({
         style={{ left: playhead }}
         initial={false}
         animate={{
-          opacity: hover || media.seeking ? 1 : 0,
-          scale: reduced || hover || media.seeking ? 1 : 0.6,
+          opacity: showPlayhead ? 1 : 0,
+          scale: reduced || showPlayhead ? 1 : 0.6,
         }}
         transition={{ duration: reduced ? 0 : 0.15 }}
       />

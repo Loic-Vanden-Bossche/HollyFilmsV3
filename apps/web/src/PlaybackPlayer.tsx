@@ -45,6 +45,10 @@ import { PlayerShell } from './ui/PlayerShell.tsx'
 import { PlayerCaptions } from './ui/PlayerCaptions.tsx'
 import { PlayerControls } from './ui/PlayerControls.tsx'
 import { PlayerLoading } from './ui/PlayerLoading.tsx'
+import {
+  loadingRevealDelay,
+  useLoadingStage,
+} from './playback/use-loading-stage.ts'
 import { timelinePreview } from './playback/timeline-preview.ts'
 import { formatTime } from './playback/format-time.ts'
 import { PlayerArtwork } from './ui/PlayerArtwork.tsx'
@@ -100,6 +104,7 @@ export function PlaybackPlayer({
   queuedLast,
   remoteCommand,
   initialPaused,
+  openedAt,
   initialSecondarySubtitle,
   onLocationChange,
 }: {
@@ -114,6 +119,7 @@ export function PlaybackPlayer({
   queuedLast?: PlaybackTarget[]
   remoteCommand?: RemoteControlMessage
   initialPaused?: boolean
+  openedAt?: number
   initialSecondarySubtitle?: number
   onLocationChange?: (location: Partial<AppRoute>, previousId: string) => void
 }) {
@@ -125,6 +131,9 @@ export function PlaybackPlayer({
     [session, userId],
   )
   const [saved] = useState(() => readPlaybackPreferences(userId))
+  const [continueOpening] = useState(
+    () => openedAt !== undefined && Date.now() - openedAt >= loadingRevealDelay,
+  )
   const player = usePlayback(
     api,
     {
@@ -141,6 +150,7 @@ export function PlaybackPlayer({
       rate: saved.rate,
     },
     initialPaused,
+    openedAt,
   )
   const {
     playback,
@@ -154,8 +164,21 @@ export function PlaybackPlayer({
   const closing = useRef(false)
   const media = devices.destination ? devices.status : localMedia
   const state = devices.destination ? 'playing' : localState
+  const wait = devices.destination ? null : player.wait
+  const waitStage = useLoadingStage(wait?.since)
+  const seekPosition =
+    wait?.operation === 'seeking' && waitStage > 0 ? wait.position : undefined
   const target = devices.target ?? playback?.target
   const source = playback?.stream.source
+  const knownBitrates = [source?.Bitrate, player.options.bitrate].filter(
+    (rate): rate is number => rate != null && rate > 0,
+  )
+  const lowerBitrate =
+    source?.SupportsTranscoding && knownBitrates.length
+      ? qualities.find(
+          ([rate]) => rate > 0 && rate < Math.min(...knownBitrates),
+        )?.[0]
+      : undefined
   const [selectedSubtitle, setSelectedSubtitle] = useState<number | undefined>(
     initialOptions?.subtitle,
   )
@@ -520,10 +543,12 @@ export function PlaybackPlayer({
       media.position >= (segment.StartTicks ?? 0) / ticksPerSecond &&
       media.position < (segment.EndTicks ?? 0) / ticksPerSecond,
   )
-  const statusVisible = state === 'playing' || state === 'ready'
+  const statusVisible =
+    state === 'playing' || state === 'ready' || wait?.operation === 'seeking'
   const showControls =
     statusVisible &&
-    (controlsVisible ||
+    (seekPosition !== undefined ||
+      controlsVisible ||
       controlsHovered ||
       media.paused ||
       Boolean(menu) ||
@@ -553,7 +578,7 @@ export function PlaybackPlayer({
       subtitleStyles,
       autoNext,
       askAfterEpisodes,
-      bitrate: player.options.bitrate ?? 0,
+      bitrate: player.preferredBitrate ?? 0,
     })
   }, [
     userId,
@@ -564,7 +589,7 @@ export function PlaybackPlayer({
     subtitleStyles,
     autoNext,
     askAfterEpisodes,
-    player.options.bitrate,
+    player.preferredBitrate,
   ])
 
   useEffect(() => {
@@ -865,13 +890,45 @@ export function PlaybackPlayer({
   return (
     <PlayerShell
       title={target?.title ?? item.title}
+      continueOpening={continueOpening}
       state={state}
       problem={player.problem}
-      showHeading={!statusVisible || showControls}
+      interrupted={player.hasFrame}
+      showHeading={!statusVisible || showControls || waitStage > 0}
       onInteraction={revealControls}
       onBackHover={holdControls}
       onClose={() => void close()}
       onRetry={player.retry}
+      alternativeRecovery={
+        lowerBitrate ? (
+          <button
+            type="button"
+            className="glass-control player-recovery-option"
+            onClick={() => player.recoverAtBitrate(lowerBitrate)}
+          >
+            {t('Réduire la qualité · {rate} Mbit/s', {
+              rate: lowerBitrate / 1_000_000,
+            })}
+          </button>
+        ) : undefined
+      }
+      loading={
+        <PlayerLoading
+          wait={wait}
+          bufferedAhead={playback ? localMedia.bufferedAhead : undefined}
+          method={playback?.stream.method}
+          onRetry={player.retry}
+          lowerBitrate={lowerBitrate}
+          onLowerQuality={
+            lowerBitrate
+              ? () => player.recoverAtBitrate(lowerBitrate)
+              : undefined
+          }
+          onRestoreFocus={() =>
+            videoRef.current?.focus({ preventScroll: true })
+          }
+        />
+      }
       actions={
         <PlayerSessionActions
           casting={Boolean(devices.destination)}
@@ -1078,21 +1135,6 @@ export function PlaybackPlayer({
             </p>
           </div>
         )}
-        <PlayerLoading
-          visible={
-            !devices.destination &&
-            state !== 'error' &&
-            state !== 'stopped' &&
-            (player.buffering || state === 'loading' || Boolean(media.seeking))
-          }
-          phase={player.loadingPhase}
-          complete={
-            !devices.destination &&
-            (state === 'playing' || state === 'ready') &&
-            !player.buffering &&
-            !media.seeking
-          }
-        />
         {statusVisible && activeSegment?.Type && (
           <motion.button
             initial={{ opacity: 0, y: reduced ? 0 : 12 }}
@@ -1155,6 +1197,7 @@ export function PlaybackPlayer({
           >
             <PlayerControls
               media={media}
+              seekPosition={seekPosition}
               fullscreen={fullscreen}
               pip={pip}
               hasPrevious={Boolean(previous)}
@@ -1833,8 +1876,9 @@ export function PlaybackPlayer({
                   <div>
                     <dt>{t('Tampon')}</dt>
                     <dd>
-                      {Math.max(0, media.buffered - media.position).toFixed(1)}{' '}
-                      {t('s')}
+                      {media.bufferedAhead != null
+                        ? media.bufferedAhead.toFixed(1) + ' ' + t('s')
+                        : '—'}
                     </dd>
                   </div>
                   {source?.Bitrate && (

@@ -46,18 +46,20 @@ function toTarget(item: MediaItem): PlaybackTarget {
 
 export function HomeScreen({
   session,
+  routeOpenedAt,
   user,
   onSignOut,
   signingOut,
 }: {
   session: JellyfinSession
+  routeOpenedAt?: number
   user: { id: string; name: string; isAdministrator: boolean }
   onSignOut: () => void
   signingOut: boolean
 }) {
   const { t } = useI18n()
   const client = useQueryClient()
-  const route = useAppRoute()
+  const route = useAppRoute(routeOpenedAt)
   // Keep an existing catalogue and its scroll position. A direct player link
   // only needs the catalogue after the viewer returns to it.
   const [libraryMounted, setLibraryMounted] = useState(!route.play)
@@ -347,6 +349,7 @@ export function HomeScreen({
         playback.openedAt,
       ])}
       item={playback.item}
+      openedAt={playback.openedAt ?? route.openedAt}
       userId={user.id}
       resume={playback.resume}
       initialPaused={route.paused}
@@ -371,6 +374,14 @@ export function HomeScreen({
     />
   ) : route.play ? (
     <PlaybackRouteStatus
+      openedAt={route.openedAt}
+      onRestartOpening={route.restartOpening}
+      onRetry={() =>
+        void client.resetQueries({
+          queryKey: ['media-details', session.deviceId, user.id, route.play],
+          exact: true,
+        })
+      }
       onClose={() => navigateApp({ play: undefined })}
       failure={
         playingDetails.isError

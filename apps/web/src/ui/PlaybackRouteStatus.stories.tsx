@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn } from 'storybook/test'
+import { expect, fn, waitFor } from 'storybook/test'
 
 import { PlaybackRouteStatus } from './PlaybackRouteStatus.tsx'
 
@@ -16,7 +16,11 @@ type Story = StoryObj<typeof meta>
 export const Default: Story = {
   name: 'Ouverture depuis un lien de lecture',
   play: async ({ canvas, args, userEvent }) => {
-    await expect(await canvas.findByRole('progressbar')).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.getByRole('status')).toHaveTextContent(
+        'Ouverture du titre…',
+      ),
+    )
     await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
     await expect(args.onClose).toHaveBeenCalled()
   },

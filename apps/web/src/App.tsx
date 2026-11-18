@@ -1,6 +1,6 @@
 import { localizeText } from './i18n/messages.ts'
 import { useI18n } from './i18n/I18nProvider.tsx'
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   authOptions,
@@ -64,6 +64,7 @@ export default function App({
 }) {
   const { t } = useI18n()
   const route = useAppRoute()
+  const client = useQueryClient()
   const [session, setSession] = useState(readSession)
   const [loginNotice, setLoginNotice] = useState<string>()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -196,6 +197,17 @@ export default function App({
   const opening =
     isLibraryPage && route.play ? (
       <PlaybackRouteStatus
+        openedAt={route.openedAt}
+        onRestartOpening={route.restartOpening}
+        onRetry={
+          user.isPending
+            ? () =>
+                void client.resetQueries({
+                  queryKey: ['jellyfin', 'current-user', session.deviceId],
+                  exact: true,
+                })
+            : undefined
+        }
         onClose={() => navigateApp({ play: undefined })}
         failure={
           user.isError && !sessionRejected
@@ -238,6 +250,7 @@ export default function App({
           />
         ) : (
           <HomeScreen
+            routeOpenedAt={route.openedAt}
             key={session.deviceId}
             session={session}
             user={user.data}

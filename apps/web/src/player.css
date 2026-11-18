@@ -52,6 +52,10 @@
   max-width: min(65%, 780px);
   min-width: 0;
 }
+.player-recovery-option {
+  padding: 10px 18px;
+  border-radius: 999px;
+}
 .player-title {
   overflow: hidden;
   display: -webkit-box;
@@ -411,6 +415,25 @@
   margin: 0;
   opacity: 0;
   cursor: pointer;
+}
+.player-seek-status {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  bottom: 100%;
+  translate: -50% 0;
+  color: var(--color-foreground);
+  max-width: min(12rem, 100%);
+  padding-block: 5px;
+  font-size: 12px;
+  text-shadow:
+    0 1px 3px #000,
+    0 0 10px #000b;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  pointer-events: none;
 }
 .player-timeline:focus-within {
   outline: 2px solid #4ade80;

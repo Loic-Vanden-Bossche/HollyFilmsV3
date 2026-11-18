@@ -1,76 +1,168 @@
-import { useI18n } from '../i18n/I18nProvider.tsx'
-import { useEffect, useLayoutEffect, useState } from 'react'
-import { motion, useSpring, useTransform } from 'motion/react'
-import type { LoadingPhase } from '../playback/loading-progress.ts'
+import { useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { PlayMethod } from '@jellyfin/sdk/lib/generated-client/index.js'
+import { ChevronDown, RotateCcw } from 'lucide-react'
 import { useMotionPolicy } from '../components/reactbits/policy.ts'
+import { useI18n } from '../i18n/I18nProvider.tsx'
+import { formatTime } from '../playback/format-time.ts'
+import type { PlaybackWait } from '../playback/loading-progress.ts'
+import { useLoadingStage } from '../playback/use-loading-stage.ts'
 import './player-loading.css'
 
-// Completion of observed preparation milestones, not bytes or remaining time.
-const progressByPhase: Record<LoadingPhase, number> = {
-  source: 0,
-  stream: 25,
-  buffer: 50,
-  image: 75,
+const operationLabels = {
+  opening: 'Ouverture du titre…',
+  preparing: 'Préparation de la lecture…',
+  buffering: 'Mise en mémoire tampon…',
+  seeking: 'Recherche à {time}…',
+} as const
+
+const methodLabels = {
+  DirectPlay: 'Lecture directe',
+  DirectStream: 'Remux',
+  Transcode: 'Transcodage',
+} as const
+
+type PlayerLoadingProps = {
+  wait: PlaybackWait | null
+  bufferedAhead?: number
+  method?: PlayMethod
+  onRetry?: () => void
+  lowerBitrate?: number
+  onLowerQuality?: () => void
+  onRestoreFocus?: () => void
 }
 
-export function PlayerLoading({
-  visible,
-  phase,
-  complete = false,
-}: {
-  visible: boolean
-  phase: LoadingPhase
-  complete?: boolean
+export function PlayerLoadingSpinner() {
+  const { reduced, pageVisible } = useMotionPolicy()
+  return (
+    <span className="player-loading-spinner" aria-hidden="true">
+      <span
+        className="player-loading-rotor"
+        data-running={pageVisible && !reduced}
+      />
+    </span>
+  )
+}
+
+export function PlayerLoading({ wait, ...props }: PlayerLoadingProps) {
+  const { t } = useI18n()
+  const stage = useLoadingStage(wait?.since)
+  const label =
+    wait && stage > 0
+      ? t(
+          operationLabels[wait.operation],
+          wait.operation === 'seeking'
+            ? { time: formatTime(wait.position) }
+            : undefined,
+        )
+      : ''
+  return (
+    <>
+      <span className="sr-only" role="status" aria-atomic="true">
+        {label}
+      </span>
+      {wait && stage >= (wait.operation === 'seeking' ? 2 : 1) && (
+        <LoadingNotice
+          key={wait.since}
+          wait={wait}
+          label={label}
+          stage={stage}
+          {...props}
+        />
+      )}
+    </>
+  )
+}
+
+function LoadingNotice({
+  wait,
+  stage,
+  label,
+  bufferedAhead,
+  method,
+  onRetry,
+  lowerBitrate,
+  onLowerQuality,
+  onRestoreFocus,
+}: Omit<PlayerLoadingProps, 'wait'> & {
+  wait: PlaybackWait
+  stage: number
+  label: string
 }) {
   const { t } = useI18n()
-  const { reduced, pageVisible } = useMotionPolicy()
-  const [shown, setShown] = useState(false)
-  const target = !visible && complete ? 100 : progressByPhase[phase]
-  const progress = useSpring(target, { stiffness: 550, damping: 38, mass: 0.5 })
-  const fill = useTransform(progress, (value) =>
-    Math.max(0, Math.min(1, value / 100)),
-  )
-  const label = useTransform(
-    progress,
-    (value) => Math.round(Math.max(0, Math.min(100, value))) + ' %',
-  )
+  const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
+  const notice = useRef<HTMLDivElement>(null)
+  const restoreFocus = useEffectEvent(() => onRestoreFocus?.())
   useLayoutEffect(() => {
-    if (reduced || !pageVisible || !shown) progress.jump(target)
-    else progress.set(target)
-  }, [target, reduced, pageVisible, shown, progress])
-  useEffect(() => {
-    // Only the indicator is delayed. Playback never waits for this animation.
-    const timer = setTimeout(
-      () => setShown(visible),
-      visible ? 220 : complete ? 550 : 120,
-    )
-    return () => clearTimeout(timer)
-  }, [visible, complete])
-  if (!shown) return null
+    const element = notice.current
+    return () => {
+      if (element?.contains(document.activeElement)) restoreFocus()
+    }
+  }, [])
+  const measured = bufferedAhead !== undefined && Number.isFinite(bufferedAhead)
   return (
-    <motion.div
+    <div
+      ref={notice}
       className="player-loading"
-      role="progressbar"
-      aria-label={t('Préparation de la lecture')}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={target}
-      aria-valuetext={t('{value} % des étapes de préparation', {
-        value: target,
-      })}
-      initial={{ opacity: 0, y: reduced ? 0 : 6 }}
-      animate={{ opacity: visible ? 1 : 0, y: 0 }}
-      transition={{
-        duration: reduced ? 0.1 : 0.18,
-        delay: !visible && complete && !reduced ? 0.35 : 0,
-      }}
+      data-operation={wait.operation}
     >
-      <motion.span className="player-loading-percent" aria-hidden="true">
-        {label}
-      </motion.span>
-      <div className="player-loading-track" aria-hidden="true">
-        <motion.div className="player-loading-fill" style={{ scaleX: fill }} />
+      <div className="player-loading-line">
+        {wait.operation !== 'seeking' && <PlayerLoadingSpinner />}
+        <div className="player-loading-copy">
+          {wait.operation !== 'seeking' && (
+            <span className="player-loading-label" aria-hidden="true">
+              {label}
+            </span>
+          )}
+          {stage >= 2 && (
+            <button
+              type="button"
+              className="player-loading-details-toggle"
+              aria-expanded={expanded}
+              aria-controls={detailsId}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {t('Détails')} <ChevronDown size={14} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
-    </motion.div>
+      {stage >= 2 && (
+        <div
+          id={detailsId}
+          hidden={!expanded}
+          className="player-loading-details"
+        >
+          {method && <p>{t(methodLabels[method])}</p>}
+          {measured && (
+            <p>
+              {t('{seconds} s en mémoire à {time}', {
+                seconds: Math.floor(Math.max(0, bufferedAhead)),
+                time: formatTime(wait.position),
+              })}
+            </p>
+          )}
+          {!method && !measured && (
+            <p>{t('En attente des informations de lecture.')}</p>
+          )}
+        </div>
+      )}
+      {stage >= 3 && (onRetry || (onLowerQuality && Boolean(lowerBitrate))) && (
+        <div className="player-loading-actions">
+          {onRetry && (
+            <button type="button" onClick={onRetry}>
+              <RotateCcw size={14} aria-hidden="true" /> {t('Réessayer')}
+            </button>
+          )}
+          {onLowerQuality && lowerBitrate !== undefined && lowerBitrate > 0 && (
+            <button type="button" onClick={onLowerQuality}>
+              {t('Réduire la qualité · {rate} Mbit/s', {
+                rate: lowerBitrate / 1_000_000,
+              })}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

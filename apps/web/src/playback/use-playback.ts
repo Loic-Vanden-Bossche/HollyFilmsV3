@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { refreshSubtitleSource } from './subtitle-tracks.ts'
 import type { MediaSourceInfo } from '@jellyfin/sdk/lib/generated-client/index.js'
 import { ticksPerSecond } from './playback-api.ts'
-import { bufferedAhead, type LoadingPhase } from './loading-progress.ts'
+import {
+  bufferedAhead,
+  PlaybackInactivity,
+  type PlaybackWait,
+} from './loading-progress.ts'
 import type {
   PlaybackApi,
   PlaybackStream,
@@ -17,6 +21,9 @@ type Request = {
   target: PlaybackTarget
   options: StreamOptions
   paused?: boolean
+  since: number
+  operation: 'opening' | 'seeking' | 'preparing'
+  preferredBitrate?: number
 }
 
 type MediaState = {
@@ -49,10 +56,12 @@ export function usePlayback(
   initialOptions: StreamOptions = {},
   initialSettings = { volume: 1, muted: false, rate: 1 },
   initialPaused = false,
+  openedAt?: number,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const cleanup = useRef<() => Promise<void>>(async () => {})
   const applyPaused = useRef<(paused: boolean) => void>(() => {})
+  const requestSeek = useRef<(position: number) => void>(() => {})
   const pendingReports = useRef(Promise.resolve())
   const active = useRef<
     { target: PlaybackTarget; stream: PlaybackStream } | undefined
@@ -74,16 +83,20 @@ export function usePlayback(
   const pendingSeek = useRef<
     { request: Request; position: number } | undefined
   >(undefined)
-  const [request, setRequest] = useState<Request>({
+  const [request, setRequest] = useState<Request>(() => ({
     target: initial,
     options: initialOptions,
     paused: initialPaused,
-  })
+    since: openedAt ?? Date.now(),
+    operation: 'opening',
+    preferredBitrate: initialOptions.bitrate,
+  }))
   const [playback, setPlayback] = useState<{
     target: PlaybackTarget
     stream: PlaybackStream
     request: Request
   }>()
+  const recovery = useRef<() => Request>(() => request)
   const [state, setState] = useState<PlayerState>('loading')
   const [media, setMedia] = useState<MediaState>({
     ...initialMediaState,
@@ -91,9 +104,12 @@ export function usePlayback(
   })
   const [problem, setProblem] = useState('')
   const [ended, setEnded] = useState(false)
-  const [buffering, setBuffering] = useState(false)
   const [hasFrame, setHasFrame] = useState(false)
-  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('source')
+  const [wait, setWait] = useState<PlaybackWait | null>(() => ({
+    operation: request.operation,
+    since: request.since,
+    position: request.target.start,
+  }))
 
   useEffect(() => {
     const video = videoRef.current
@@ -101,6 +117,7 @@ export function usePlayback(
     const abort = new AbortController()
     let destroyHls: (() => void) | undefined
     let stream: PlaybackStream | undefined
+    let attached = false
     let target = request.target
     let started = false
     let finished = false
@@ -110,18 +127,102 @@ export function usePlayback(
     let time = target.start
     let lastUpdate = 0
     let startTime = 0
-    let startupTimer: ReturnType<typeof setTimeout>
+    let currentWait: PlaybackWait | null = {
+      operation: request.operation,
+      since: request.since,
+      position: target.start,
+    }
+    let inactivity = new PlaybackInactivity(Date.now())
+    let timer: ReturnType<typeof setTimeout>
+    let clockAtWait = 0
+    let failureRequest: Request | undefined
 
     // Each load owns its listeners, source, reports and teardown.
     // oxlint-disable-next-line react/set-state-in-effect
     setState('loading')
-    setLoadingPhase('source')
+    setWait(currentWait)
     setMedia((current) => ({ ...current, bufferedAhead: 0 }))
     setHasFrame(false)
-    setBuffering(false)
     setEnded(false)
     setProblem('')
     setPlayback(undefined)
+
+    function recoverRequest(): Request {
+      if (failureRequest) return failureRequest
+      const pending = pendingSeek.current
+      if (pending && pending.request !== request) return pending.request
+      const position =
+        pending?.position ??
+        (initialSeek || !stream || (!started && video!.currentTime === 0)
+          ? target.start
+          : video!.currentTime + stream.offset)
+      return {
+        ...request,
+        target: { ...target, start: position },
+        paused: started ? video!.paused : startPaused,
+        options: {
+          ...request.options,
+          sourceId: stream?.source.Id ?? request.options.sourceId,
+          subtitle: stream
+            ? (preferences.current.subtitle ?? request.options.subtitle)
+            : request.options.subtitle,
+        },
+      }
+    }
+    recovery.current = recoverRequest
+
+    function endWait() {
+      clearTimeout(timer)
+      if (currentWait) {
+        currentWait = null
+        setWait(null)
+      }
+    }
+
+    function beginWait(operation: PlaybackWait['operation'], position: number) {
+      if (finished || failure) return
+      if (
+        currentWait?.operation === operation &&
+        currentWait.position === position
+      )
+        return
+      const since = currentWait?.since ?? Date.now()
+      currentWait = { operation, position, since }
+      setWait(currentWait)
+      inactivity = new PlaybackInactivity(Date.now())
+      clockAtWait = stream ? Math.max(0, position - stream.offset) : 0
+      scheduleCheck()
+    }
+    requestSeek.current = (position) => beginWait('seeking', position)
+
+    function scheduleCheck() {
+      clearTimeout(timer)
+      if (currentWait && !document.hidden)
+        timer = setTimeout(checkInactivity, inactivity.remaining(Date.now()))
+    }
+    function checkInactivity() {
+      if (!currentWait || failure || finished || document.hidden) return
+      // Events may have been coalesced while the tab was in the background.
+      if (attached && video!.ended) {
+        onEnded()
+        return
+      }
+      onDataAvailable()
+      if (
+        currentWait?.operation === 'seeking' &&
+        !video!.seeking &&
+        stream &&
+        video!.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        Math.abs(video!.currentTime + stream.offset - currentWait.position) <
+          0.25
+      )
+        onSeeked()
+      onTimeUpdate()
+      update(true)
+      if (!currentWait) return
+      if (inactivity.remaining(Date.now()) > 0) scheduleCheck()
+      else fail('Le serveur met trop de temps à fournir la vidéo.')
+    }
 
     function queueReport(send: () => Promise<unknown>) {
       pendingReports.current = pendingReports.current.then(async () => {
@@ -161,28 +262,31 @@ export function usePlayback(
     }
 
     function update(force = false) {
-      if (finished || !stream) return
+      if (finished || !stream || !attached) return
       if (!initialSeek) time = video!.currentTime + stream.offset
+      const pending = pendingSeek.current
+      // An outgoing stream must not overwrite the next request's timeline.
+      if (pending && pending.request !== request) return
+      const ranges = video!.buffered
+      const position = pending?.position ?? time
+      const ahead = bufferedAhead(
+        ranges,
+        (currentWait?.position ?? position) - stream.offset,
+      )
+      if (currentWait) inactivity.observe(Date.now(), video!.readyState, ahead)
       if (!force && performance.now() - lastUpdate < 180) return
       lastUpdate = performance.now()
       const duration = Number.isFinite(video!.duration)
         ? video!.duration + stream.offset
         : (stream.source.RunTimeTicks ?? 0) / ticksPerSecond
-      const ranges = video!.buffered
-      const pending = pendingSeek.current
-      // An outgoing stream must not overwrite the next request's timeline.
-      if (pending && pending.request !== request) return
       setMedia({
-        position: pending?.position ?? time,
+        position,
         seeking: Boolean(pending || video!.seeking),
         duration,
         buffered: ranges.length
           ? ranges.end(ranges.length - 1) + stream.offset
           : 0,
-        bufferedAhead: bufferedAhead(
-          ranges,
-          (pending?.position ?? time) - stream.offset,
-        ),
+        bufferedAhead: ahead,
         paused: video!.paused,
         muted: video!.muted,
         volume: video!.volume,
@@ -190,7 +294,7 @@ export function usePlayback(
       })
     }
     function sendProgress() {
-      if (!started || finished) return
+      if (!started || finished || failure) return
       update(true)
       const info = snapshot()
       void queueReport(() => api.progress(info))
@@ -199,27 +303,31 @@ export function usePlayback(
 
     function fail(message: string) {
       if (finished || failure) return
+      failureRequest = recoverRequest()
       failure = true
+      abort.abort()
+      endWait()
       if (pendingSeek.current?.request === request)
         pendingSeek.current = undefined
       update(true)
       setMedia((current) => ({ ...current, seeking: false }))
-      clearTimeout(startupTimer)
       video!.pause()
       setProblem(message)
       setState('error')
     }
     function onMediaError() {
-      if (finished || !stream) return
+      if (finished || failure || !stream || !attached) return
       if (stream.method !== 'Transcode' && !request.options.forceTranscode) {
-        const next = {
-          target: { ...target, start: pendingSeek.current?.position ?? time },
+        const resume = recoverRequest()
+        const next: Request = {
+          ...resume,
+          operation:
+            currentWait?.operation === 'seeking' ? 'seeking' : 'preparing',
+          since: currentWait?.since ?? Date.now(),
           options: {
-            ...request.options,
-            sourceId: stream.source.Id,
+            ...resume.options,
             forceTranscode: true,
           },
-          paused: started ? video!.paused : startPaused,
         }
         if (pendingSeek.current)
           pendingSeek.current = { request: next, position: next.target.start }
@@ -232,14 +340,20 @@ export function usePlayback(
     async function play() {
       try {
         await video!.play()
+        if (!started || currentWait) onPlaying()
       } catch (error) {
-        if (finished) return
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          clearTimeout(startupTimer)
-          setState('ready')
-        } else if (!(
-          error instanceof DOMException && error.name === 'AbortError'
-        )) {
+        if (finished || failure) return
+        if (
+          error instanceof DOMException &&
+          (error.name === 'NotAllowedError' || error.name === 'AbortError')
+        ) {
+          if (video!.paused) {
+            startPaused = true
+            endWait()
+            update(true)
+            if (!started) setState('ready')
+          }
+        } else {
           onMediaError()
         }
       }
@@ -250,15 +364,27 @@ export function usePlayback(
       if (initialSeek) return
       if (paused) {
         if (!video!.paused) video!.pause()
+        // A seek may already have landed while playback was waiting to resume.
+        if (!video!.seeking && !pendingSeek.current && !initialSeek) endWait()
         if (!started) {
-          clearTimeout(startupTimer)
+          if (currentWait?.operation !== 'seeking') endWait()
           setState('ready')
         }
-      } else if (video!.paused) void play()
+      } else if (video!.paused) {
+        if (!currentWait) beginWait(started ? 'buffering' : 'preparing', time)
+        void play()
+      }
     }
     function onMetadata() {
-      if (!initialSeek || !stream || finished || failure) return
-      setLoadingPhase('image')
+      if (
+        !initialSeek ||
+        !stream ||
+        !attached ||
+        finished ||
+        failure ||
+        video!.readyState < HTMLMediaElement.HAVE_METADATA
+      )
+        return
       const position = target.start - stream.offset
       if (position > 0 && Number.isFinite(video!.duration)) {
         video!.currentTime = Math.min(
@@ -267,20 +393,34 @@ export function usePlayback(
         )
       }
       initialSeek = false
+      clockAtWait = video!.currentTime
       if (!video!.seeking && pendingSeek.current?.request === request)
         pendingSeek.current = undefined
       update(true)
       if (startPaused) {
-        clearTimeout(startupTimer)
+        if (currentWait?.operation !== 'seeking' || !video!.seeking) endWait()
         setState('ready')
       } else {
         void play()
       }
     }
     function onPlaying() {
-      if (finished || failure || !stream) return
-      clearTimeout(startupTimer)
-      setBuffering(false)
+      if (
+        finished ||
+        failure ||
+        !stream ||
+        !attached ||
+        initialSeek ||
+        video!.paused ||
+        video!.ended ||
+        video!.seeking ||
+        video!.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+      )
+        return
+      startPaused = false
+      if (pendingSeek.current?.request === request)
+        pendingSeek.current = undefined
+      endWait()
       setEnded(false)
       setState('playing')
       onFrame()
@@ -293,27 +433,73 @@ export function usePlayback(
       }
     }
     function onWaiting() {
-      if (finished || failure) return
-      setLoadingPhase('buffer')
+      if (
+        !attached ||
+        finished ||
+        failure ||
+        video!.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+      )
+        return
+      if (started && !video!.paused && !video!.ended && !currentWait)
+        beginWait('buffering', video!.currentTime + (stream?.offset ?? 0))
       update(true)
-      if (started && !video!.paused) setBuffering(true)
     }
     function onFrame() {
-      if (!finished && !failure && video!.readyState >= 2) setHasFrame(true)
+      if (
+        attached &&
+        !finished &&
+        !failure &&
+        video!.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      )
+        setHasFrame(true)
+    }
+    function onDataAvailable() {
+      onMetadata()
+      onFrame()
+      if (currentWait) update(true)
+    }
+    function onTimeUpdate() {
+      if (
+        currentWait &&
+        stream &&
+        !finished &&
+        !failure &&
+        !initialSeek &&
+        !video!.paused &&
+        !video!.seeking &&
+        !video!.ended &&
+        video!.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video!.currentTime > clockAtWait
+      ) {
+        onPlaying()
+      }
+      update()
     }
     function onPause() {
+      if (finished || failure || !attached || !video!.paused) return
       update(true)
-      setBuffering(false)
+      if (
+        !initialSeek &&
+        (currentWait?.operation !== 'seeking' ||
+          (!video!.seeking && !pendingSeek.current))
+      ) {
+        startPaused = true
+        endWait()
+        if (!started) setState('ready')
+      }
       sendProgress()
     }
     function onSeeked() {
-      if (initialSeek || video!.seeking || finished) return
+      if (initialSeek || video!.seeking || finished || failure) return
       if (pendingSeek.current?.request === request)
         pendingSeek.current = undefined
+      if (currentWait?.operation === 'seeking' && video!.paused) endWait()
       update(true)
       sendProgress()
     }
     function onEnded() {
+      if (finished || failure || !attached || !video!.ended) return
+      endWait()
       update(true)
       setEnded(true)
     }
@@ -328,27 +514,41 @@ export function usePlayback(
 
     const listeners: [string, EventListener][] = [
       ['loadedmetadata', onMetadata],
-      ['loadeddata', onFrame],
+      ['loadeddata', onDataAvailable],
+      ['canplay', onDataAvailable],
       ['playing', onPlaying],
       ['waiting', onWaiting],
       ['pause', onPause],
       [
         'seeking',
         () => {
-          setLoadingPhase('buffer')
+          if (
+            stream &&
+            attached &&
+            video!.seeking &&
+            (started || pendingSeek.current?.request === request)
+          ) {
+            beginWait(
+              'seeking',
+              pendingSeek.current?.position ??
+                video!.currentTime + stream.offset,
+            )
+          }
           update(true)
         },
       ],
       ['seeked', onSeeked],
       ['ended', onEnded],
       ['error', onMediaError],
-      ['timeupdate', () => update()],
+      ['timeupdate', onTimeUpdate],
       ['progress', () => update()],
       ['volumechange', onSettings],
       ['ratechange', onSettings],
     ]
     for (const [type, listener] of listeners)
       video.addEventListener(type, listener)
+    document.addEventListener('visibilitychange', checkInactivity)
+    scheduleCheck()
     const interval = setInterval(sendProgress, 10_000)
 
     function stop(keepalive = false) {
@@ -357,17 +557,19 @@ export function usePlayback(
       const info = snapshot()
       finished = true
       abort.abort()
-      clearTimeout(startupTimer)
+      clearTimeout(timer)
       clearInterval(interval)
       for (const [type, listener] of listeners)
         video!.removeEventListener(type, listener)
       window.removeEventListener('pagehide', onPageHide)
+      document.removeEventListener('visibilitychange', checkInactivity)
       destroyHls?.()
       video!.pause()
       video!.removeAttribute('src')
       video!.load()
       active.current = undefined
       applyPaused.current = () => {}
+      requestSeek.current = () => {}
       report.current = () => {}
       if (started && keepalive) {
         void fetch(api.sdk.getUri('/Sessions/Playing/Stopped'), {
@@ -398,8 +600,11 @@ export function usePlayback(
     void (async () => {
       try {
         target = await api.resolve(target, abort.signal)
-        if (finished) return
-        setLoadingPhase('stream')
+        if (finished || failure) return
+        beginWait(
+          request.operation === 'seeking' ? 'seeking' : 'preparing',
+          target.start,
+        )
         time = target.start
         const negotiated = await api.stream(
           video,
@@ -407,7 +612,7 @@ export function usePlayback(
           request.options,
           abort.signal,
         )
-        if (finished) {
+        if (finished || failure) {
           void api.release(negotiated).catch(() => {})
           return
         }
@@ -423,26 +628,25 @@ export function usePlayback(
         ]
         versions.current = { id: target.id, sources }
         stream = { ...negotiated, sources }
-        setLoadingPhase('buffer')
+        inactivity = new PlaybackInactivity(Date.now())
         active.current = { target, stream }
         setPlayback({ ...active.current, request })
         video.volume = settings.current.volume
         video.muted = settings.current.muted
         video.playbackRate = settings.current.rate
-        startupTimer = setTimeout(
-          () => fail('Le serveur met trop de temps à fournir la vidéo.'),
-          30_000,
-        )
         if (stream.hls) {
           const { attachHls } = await import('./hls-engine.ts')
-          if (!finished)
+          if (!finished && !failure) {
+            attached = true
             destroyHls = attachHls(
               video,
               stream.url,
               target.start,
               onMediaError,
             )
+          }
         } else {
+          attached = true
           video.src = stream.url
         }
       } catch (error) {
@@ -488,18 +692,14 @@ export function usePlayback(
     },
     [],
   )
-  function replaceStream(options: StreamOptions) {
-    const video = videoRef.current
-    if (!active.current || !video) return
-    const { target, stream } = active.current
-    const next = {
-      target: {
-        ...target,
-        start:
-          pendingSeek.current?.position ?? video.currentTime + stream.offset,
-      },
-      options: { ...request.options, sourceId: stream.source.Id, ...options },
-      paused: video.paused,
+  function restart(options: StreamOptions, saveQuality = false) {
+    const resume = recovery.current()
+    const next: Request = {
+      ...resume,
+      since: Date.now(),
+      operation: 'preparing',
+      options: { ...resume.options, ...options },
+      preferredBitrate: saveQuality ? options.bitrate : resume.preferredBitrate,
     }
     if (pendingSeek.current)
       pendingSeek.current = { request: next, position: next.target.start }
@@ -522,13 +722,15 @@ export function usePlayback(
       (pendingSeek.current && pendingSeek.current.request !== request)
     ) {
       const current = pendingSeek.current?.request ?? request
-      const next = {
+      const next: Request = {
         ...current,
+        operation: 'seeking',
+        since: wait?.operation === 'seeking' ? wait.since : Date.now(),
         target: {
           ...(active.current?.target ?? current.target),
           start: position,
         },
-        paused: pendingSeek.current?.request.paused ?? video.paused,
+        paused: recovery.current().paused,
       }
       pendingSeek.current = { request: next, position }
       setRequest(next)
@@ -537,6 +739,7 @@ export function usePlayback(
       video.currentTime = Math.min(video.duration, position - offset)
       // Browsers need not emit seeked when seeking to the current position.
       if (!video.seeking) pendingSeek.current = undefined
+      else requestSeek.current(position)
     }
     setMedia((current) => ({
       ...current,
@@ -553,30 +756,38 @@ export function usePlayback(
     media,
     problem,
     ended,
-    buffering,
     hasFrame,
-    loadingPhase,
+    wait,
     preferences,
     report,
     options: request.options,
+    preferredBitrate: request.preferredBitrate,
     requestedTarget:
       playback?.request === request ? playback.target : request.target,
     requestIsActive: playback?.request === request,
     requestedPaused: request.paused,
     seek,
     setPaused: (paused: boolean) => applyPaused.current(paused),
-    replaceStream,
+    replaceStream(options: StreamOptions) {
+      restart(options, 'bitrate' in options)
+    },
+    recoverAtBitrate(bitrate: number) {
+      restart({ bitrate, forceTranscode: true })
+    },
     refreshSubtitles,
     open(target: PlaybackTarget, paused = false) {
       pendingSeek.current = undefined
       setRequest({
         target,
         paused,
+        operation: 'opening',
+        since: Date.now(),
+        preferredBitrate: request.preferredBitrate,
         options: { bitrate: request.options.bitrate },
       })
     },
     retry() {
-      setRequest({ ...request })
+      restart({})
     },
     async close() {
       setState('stopped')
