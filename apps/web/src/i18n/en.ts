@@ -248,9 +248,6 @@ export default {
   'Comptes approuvés': 'Approved accounts',
   Confirmer: 'Confirm',
   'Confirmer après 3 épisodes': 'Ask after 3 episodes',
-  'Accepter les pauses du système': 'Allow system pause commands',
-  'Désactive cette option si ton casque ou une autre application interrompt le film.':
-    'Turn this off if your headset or another app interrupts playback.',
   'Confirmer la suppression': 'Confirm removal',
   'Confirmer le mot de passe': 'Confirm password',
   'Connecté en tant que': 'Signed in as',

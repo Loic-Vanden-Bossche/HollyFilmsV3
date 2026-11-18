@@ -266,9 +266,6 @@ export function PlaybackPlayer({
   const [subtitleStyles, setSubtitleStyles] = useState(saved.subtitleStyles)
   const filterId = useId()
   const [autoNext, setAutoNext] = useState(saved.autoNext)
-  const [allowSystemPause, setAllowSystemPause] = useState(
-    saved.allowSystemPause,
-  )
   const [askAfterEpisodes, setAskAfterEpisodes] = useState(
     saved.askAfterEpisodes,
   )
@@ -555,7 +552,6 @@ export function PlaybackPlayer({
       fit,
       subtitleStyles,
       autoNext,
-      allowSystemPause,
       askAfterEpisodes,
       bitrate: player.options.bitrate ?? 0,
     })
@@ -567,7 +563,6 @@ export function PlaybackPlayer({
     fit,
     subtitleStyles,
     autoNext,
-    allowSystemPause,
     askAfterEpisodes,
     player.options.bitrate,
   ])
@@ -779,10 +774,7 @@ export function PlaybackPlayer({
     duration: media.duration,
     rate: media.rate,
     paused: media.paused,
-    setPaused: (paused) => {
-      if (!paused || allowSystemPause || devices.destination || sync.group)
-        setPaused(paused)
-    },
+    setPaused,
     seek,
     step,
     stop: () => void close(),
@@ -1350,32 +1342,6 @@ export function PlaybackPlayer({
                       onChange={(event) => setAutoNext(event.target.checked)}
                     />
                   </label>
-                  {!sync.group &&
-                    navigator.mediaSession &&
-                    typeof MediaMetadata !== 'undefined' && (
-                      <label>
-                        <span>
-                          {t('Accepter les pauses du système')}
-                          <small
-                            id="system-pause-help"
-                            className="mt-1 block font-normal text-muted-foreground"
-                          >
-                            {t(
-                              'Désactive cette option si ton casque ou une autre application interrompt le film.',
-                            )}
-                          </small>
-                        </span>
-                        <input
-                          type="checkbox"
-                          aria-label={t('Accepter les pauses du système')}
-                          aria-describedby="system-pause-help"
-                          checked={allowSystemPause}
-                          onChange={(event) =>
-                            setAllowSystemPause(event.target.checked)
-                          }
-                        />
-                      </label>
-                    )}
                   <label>
                     {t('Confirmer après 3 épisodes')}
                     <input

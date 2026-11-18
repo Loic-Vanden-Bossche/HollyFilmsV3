@@ -41,7 +41,6 @@ const defaults = {
   fit: 'contain' as 'contain' | 'cover' | 'fill',
   subtitleStyles: { primary: classicSubtitle, secondary: classicSubtitle },
   autoNext: true,
-  allowSystemPause: true,
   askAfterEpisodes: false,
   bitrate: 0,
 }
@@ -80,7 +79,6 @@ export function readPlaybackPreferences(userId: string): PlaybackPreferences {
         secondary: readStyle(data.subtitleStyles?.secondary, legacy),
       },
       autoNext: data.autoNext !== false,
-      allowSystemPause: data.allowSystemPause !== false,
       askAfterEpisodes: data.askAfterEpisodes === true,
       bitrate:
         typeof data.bitrate === 'number' &&

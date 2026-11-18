@@ -538,13 +538,6 @@ test(
           }),
         actions,
       )
-    const settingsButton = playerView.getByRole('button', {
-      name: 'Paramètres de lecture',
-    })
-    const allowSystemPause = playerView.getByRole('checkbox', {
-      name: 'Accepter les pauses du système',
-      exact: true,
-    })
     try {
       await until(async () => playbackRequested, 'playback negotiation', 30_000)
       assert.equal(
@@ -661,18 +654,6 @@ test(
       await mediaCommands(['pause', 'pause', 'play', 'play']),
       [true, true, false, false],
       'consecutive explicit Media Session commands are idempotent even before React renders',
-    )
-    await settingsButton.click()
-    assert(
-      await allowSystemPause.isChecked(),
-      'system pauses are enabled by default',
-    )
-    await allowSystemPause.uncheck()
-    await playerView.getByRole('button', { name: 'Fermer les options' }).click()
-    assert.deepEqual(
-      await mediaCommands(['pause']),
-      [false],
-      'system pause can be ignored',
     )
     await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     assert(await playerView.locator('video').evaluate((video) => video.paused))
@@ -1570,16 +1551,7 @@ test(
       [],
       'no catalogue, navigation or media detail appeared during player restoration',
     )
-    await page.mouse.move(700, 600)
-    await settingsButton.click()
-    assert.equal(
-      await allowSystemPause.isChecked(),
-      false,
-      'reload remembers the system pause preference',
-    )
-    assert.deepEqual(await mediaCommands(['pause']), [false])
-    await playerView.getByRole('button', { name: 'Fermer les options' }).click()
-    await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
+    assert.deepEqual(await mediaCommands(['pause']), [true])
     await until(
       async () => new URL(page.url()).searchParams.get('paused') === '1',
       'pause reflected in URL',

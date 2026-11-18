@@ -238,9 +238,6 @@ export default {
   'Comptes approuvés': '已批准的账户',
   Confirmer: '确认',
   'Confirmer après 3 épisodes': '播放 3 集后确认',
-  'Accepter les pauses du système': '允许系统暂停播放',
-  'Désactive cette option si ton casque ou une autre application interrompt le film.':
-    '如果耳机或其他应用会意外暂停影片，请关闭此选项。',
   'Confirmer la suppression': '确认移除',
   'Confirmer le mot de passe': '确认密码',
   'Connecté en tant que': '登录身份',
