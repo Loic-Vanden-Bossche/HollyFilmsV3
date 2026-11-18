@@ -40,6 +40,9 @@ export const apiMessages = {
   UNAVAILABLE:
     'HollyFilms est temporairement indisponible. Réessaie dans un instant.',
   ADMIN_REQUIRED: 'Un compte administrateur est requis.',
+  USER_ACCESS_PROTECTED: 'L’accès de ce compte est protégé.',
+  USER_SETUP_PENDING: 'Ce compte attend la fin de son inscription.',
+  USER_NOT_FOUND: 'Compte Jellyfin introuvable.',
   INVALID_CREDENTIALS: 'Vérifie ton nom d’utilisateur et ton mot de passe.',
   USERNAME_UNAVAILABLE: 'Ce nom d’utilisateur est indisponible.',
   IN_PROGRESS: 'Une opération est déjà en cours. Réessaie dans un instant.',

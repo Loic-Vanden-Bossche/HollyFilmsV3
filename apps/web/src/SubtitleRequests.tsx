@@ -28,9 +28,11 @@ import { useMotionPolicy } from './components/reactbits/policy.ts'
 export function SubtitleRequests({
   session,
   administrator = false,
+  embedded = false,
 }: {
   session: JellyfinSession
   administrator?: boolean
+  embedded?: boolean
 }) {
   const { t, locale } = useI18n()
   const reduced = usePerformanceReducedMotion()
@@ -89,9 +91,14 @@ export function SubtitleRequests({
     }
   }
   const names = new Intl.DisplayNames([locale], { type: 'language' })
+  const Heading = embedded ? 'h2' : 'h1'
   return (
     <section
-      className="subtitle-requests"
+      className={
+        embedded
+          ? 'subtitle-requests requests-page requests-embedded'
+          : 'subtitle-requests'
+      }
       aria-label={t('Demandes de sous-titres')}
     >
       <motion.div
@@ -99,8 +106,10 @@ export function SubtitleRequests({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: duration.scene, ease: ease.out }}
       >
-        <p className="home-section-kicker">{t('SOUS-TITRES À LA DEMANDE')}</p>
-        <h1>{t('Demandes de sous-titres')}</h1>
+        {!embedded && (
+          <p className="home-section-kicker">{t('SOUS-TITRES À LA DEMANDE')}</p>
+        )}
+        <Heading>{t('Demandes de sous-titres')}</Heading>
         <p className="requests-intro">
           {administrator
             ? t('Choisissez la bonne version et approuvez son téléchargement.')

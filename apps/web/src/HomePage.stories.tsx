@@ -347,7 +347,17 @@ export const StartPlayback: Story = {
 }
 export const CardPlayback: Story = {
   name: 'Lecture depuis les affiches',
-  args: { onPlay: fn() },
+  args: {
+    onPlay: fn(),
+    resumeItems: [
+      ...homeResume,
+      ...homeItems.slice(4, 6).map((item) => ({
+        ...item,
+        progress: 0.28,
+        remainingMinutes: 85,
+      })),
+    ],
+  },
   play: async ({ canvas, userEvent, args }) => {
     const trigger = await canvas.findByRole('button', {
       name: 'Voir la fiche de ' + args.items[0].title,
@@ -363,9 +373,25 @@ export const CardPlayback: Story = {
     )
     await expect(args.onPlay).toHaveBeenCalledWith(args.items[0], true)
     await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
-    const resume = canvas.getAllByRole('article', {
-      name: args.resumeItems[0].title,
-    })[0]
+    const resumeSection = canvas.getByRole('region', {
+      name: /En cours de lecture/,
+    })
+    const rail =
+      resumeSection.querySelector<HTMLDivElement>('.home-resume-rail')!
+    const [resume, next] = within(resumeSection).getAllByRole('article')
+    const step = next.offsetLeft - resume.offsetLeft
+    await userEvent.click(
+      within(resumeSection).getByRole('button', {
+        name: 'Titres en cours suivants',
+      }),
+    )
+    await waitFor(() => expect(rail.scrollLeft).toBeCloseTo(step, -1))
+    await userEvent.click(
+      within(resumeSection).getByRole('button', {
+        name: 'Titres en cours précédents',
+      }),
+    )
+    await waitFor(() => expect(rail.scrollLeft).toBe(0))
     await userEvent.hover(resume)
     await waitFor(() => expect(resume).toHaveAttribute('data-active', 'true'))
     await userEvent.click(

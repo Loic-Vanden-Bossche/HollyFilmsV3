@@ -3,7 +3,12 @@ import { duration, ease } from '../motion/tokens.ts'
 import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
-import { useEffect, useRef, type ReactNode } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  type KeyboardEventHandler,
+  type ReactNode,
+} from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
 import type { PlayerState } from '../playback/use-playback.ts'
@@ -19,6 +24,7 @@ export function PlayerShell({
   onRetry,
   showHeading = true,
   onInteraction,
+  onKeyDown,
   onBackHover,
   problem,
   interrupted = false,
@@ -34,6 +40,7 @@ export function PlayerShell({
   onRetry: () => void
   showHeading?: boolean
   onInteraction?: (intent: 'pointer' | 'keyboard' | 'focus') => void
+  onKeyDown?: KeyboardEventHandler<HTMLDialogElement>
   onBackHover?: (hovered: boolean) => void
   problem?: string
   interrupted?: boolean
@@ -44,21 +51,34 @@ export function PlayerShell({
 }) {
   const { t } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
+  const viewport = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = dialog.current!
     const unlockScroll = lockBodyScroll()
     element.showModal()
+    viewport.current?.focus({ preventScroll: true })
     return () => {
       element.close()
       unlockScroll()
     }
   }, [])
+
+  useLayoutEffect(() => {
+    // A focused control can disappear or become inert when playback resumes.
+    const focused = document.activeElement
+    if (
+      focused === document.body ||
+      (dialog.current?.contains(focused) && focused?.closest('[inert]'))
+    )
+      viewport.current?.focus({ preventScroll: true })
+  })
   return (
     <dialog
       ref={dialog}
       className="player-shell"
       aria-label={t('Lecteur · {title}', { title: title })}
+      onKeyDown={onKeyDown}
       data-motion={reduced ? 'reduced' : 'full'}
       onCancel={(event) => {
         event.preventDefault()
@@ -66,13 +86,17 @@ export function PlayerShell({
       }}
     >
       <div
+        ref={viewport}
+        tabIndex={-1}
         className="player-viewport"
         data-state={state}
         data-has-frame={interrupted}
         onPointerMove={() => onInteraction?.('pointer')}
         onPointerDown={() => onInteraction?.('pointer')}
         onKeyDownCapture={() => onInteraction?.('keyboard')}
-        onFocus={() => onInteraction?.('focus')}
+        onFocus={(event) => {
+          if (event.target !== event.currentTarget) onInteraction?.('focus')
+        }}
       >
         <motion.div
           className="player-heading"

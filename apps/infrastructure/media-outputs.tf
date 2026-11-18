@@ -4,18 +4,6 @@ output "jellyfin_url" {
   value       = module.jellyfin.url
 }
 
-output "wizarr_url" {
-  description = "Public URL of the Wizarr invitation service"
-  depends_on  = [module.wizarr]
-  value       = module.wizarr.public_url
-}
-
-output "wizarr_internal_url" {
-  description = "Internal Kubernetes URL of the Wizarr service"
-  depends_on  = [module.wizarr]
-  value       = module.wizarr.internal_url
-}
-
 output "radarr_url" {
   description = "Public URL of the Radarr administration interface"
   depends_on  = [module.radarr]

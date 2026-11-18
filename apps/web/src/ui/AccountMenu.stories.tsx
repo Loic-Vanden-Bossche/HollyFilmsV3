@@ -35,7 +35,7 @@ export const Member: Story = {
       canvas.getByRole('link', { name: /^Profil$/ }),
     ).toHaveAttribute('href', '/profile')
     await expect(
-      canvas.queryByRole('link', { name: 'Demandes d’approbation' }),
+      canvas.queryByRole('link', { name: 'Administration' }),
     ).not.toBeInTheDocument()
     await expect(
       canvas.getByRole('link', { name: 'Mes demandes' }),
@@ -59,11 +59,11 @@ export const Administrator: Story = {
       canvas.getByRole('link', { name: /^Profil$/ }),
     ).toHaveAttribute('href', '/profile')
     await expect(
-      canvas.getByRole('link', { name: 'Demandes d’approbation' }),
+      canvas.getByRole('link', { name: 'Administration' }),
     ).toHaveAttribute('href', '/admin')
     await expect(
-      canvas.getByRole('link', { name: 'Demandes de médias' }),
-    ).toHaveAttribute('href', '/admin/requests')
+      canvas.queryByRole('link', { name: 'Demandes de médias' }),
+    ).not.toBeInTheDocument()
   },
 }
 export const KeyboardAndDismiss: Story = {
@@ -79,7 +79,7 @@ export const KeyboardAndDismiss: Story = {
     await expect(canvas.getByRole('link', { name: /^Profil$/ })).toHaveFocus()
     await userEvent.tab()
     await expect(
-      canvas.getByRole('link', { name: 'Demandes d’approbation' }),
+      canvas.getByRole('link', { name: 'Administration' }),
     ).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect(trigger).toHaveFocus()

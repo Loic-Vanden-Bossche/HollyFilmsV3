@@ -9,7 +9,6 @@ import {
   ShieldCheck,
   UserRound,
   Clapperboard,
-  ListChecks,
   Bell,
 } from 'lucide-react'
 import { ProfileAvatar } from './ProfileAvatar.tsx'
@@ -136,7 +135,7 @@ function AccountLinks({
       {isAdmin && (
         <a href="/admin">
           <ShieldCheck size={18} aria-hidden="true" />
-          <span>{t('Demandes d’approbation')}</span>
+          <span>{t('Administration')}</span>
         </a>
       )}
       <a href="/requests">
@@ -155,12 +154,6 @@ function AccountLinks({
           </span>
         )}
       </a>
-      {isAdmin && (
-        <a href="/admin/requests">
-          <ListChecks size={18} aria-hidden="true" />
-          <span>{t('Demandes de médias')}</span>
-        </a>
-      )}
     </motion.nav>
   )
 }

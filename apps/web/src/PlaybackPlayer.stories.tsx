@@ -6,9 +6,13 @@ import { expect, fn, mocked, waitFor } from 'storybook/test'
 import { PlaybackPlayer } from './PlaybackPlayer.tsx'
 import { createPlaybackApi } from './playback/playback-api.ts'
 import type { PlaybackApi } from './playback/playback-api.ts'
+import previewVideo from './assets/hero-preview.webm?url'
 import { homeItems } from './home-fixtures.ts'
 
-function mockPlayback(resolve: PlaybackApi['resolve']) {
+function mockPlayback(
+  resolve: PlaybackApi['resolve'],
+  stream?: PlaybackApi['stream'],
+) {
   mocked(createPlaybackApi).mockReturnValue({
     sdk: createJellyfinApi(
       new URL('/jellyfin', location.origin).href,
@@ -16,8 +20,14 @@ function mockPlayback(resolve: PlaybackApi['resolve']) {
       'story-token',
     ),
     resolve,
+    stream,
     details: async () => ({}),
     segments: async () => [],
+    queue: async () => [],
+    start: async () => {},
+    progress: async () => {},
+    stop: async () => {},
+    release: async () => {},
   } as unknown as PlaybackApi)
 }
 
@@ -57,11 +67,16 @@ export const Loading: Story = {
     )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
     const video = canvasElement.querySelector('video')!
+    const back = canvas.getByRole('button', { name: 'Retour au catalogue' })
+    await userEvent.keyboard(' ')
+    await expect(args.onClose).not.toHaveBeenCalled()
     await userEvent.tab()
-    video.focus()
-    await expect(video).toHaveFocus()
-    await expect(video.matches(':focus-visible')).toBe(true)
-    await expect(getComputedStyle(video).outlineStyle).toBe('solid')
+    await expect(back).toHaveFocus()
+    const muted = video.muted
+    await userEvent.keyboard('m')
+    await expect(video.muted).toBe(!muted)
+    await userEvent.keyboard('m')
+    await expect(video.muted).toBe(muted)
     await expect(
       getComputedStyle(canvas.getByRole('dialog')).outlineStyle,
     ).toBe('none')
@@ -69,10 +84,45 @@ export const Loading: Story = {
       canvasElement.querySelector('.player-artwork-hero img'),
     ).toBeInTheDocument()
     await expect(canvasElement.querySelector('iframe')).not.toBeInTheDocument()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Retour au catalogue' }),
-    )
+    await userEvent.keyboard(' ')
     await expect(args.onClose).toHaveBeenCalledOnce()
+  },
+}
+
+export const KeyboardPlayback: Story = {
+  args: { initialPaused: true, resume: false },
+  beforeEach: () =>
+    mockPlayback(
+      async (target) => target,
+      async () => {
+        const source = { Id: 'preview' }
+        return {
+          url: previewVideo,
+          hls: false,
+          method: 'DirectPlay',
+          source,
+          sources: [source],
+          sessionId: 'story-session',
+          offset: 0,
+        }
+      },
+    ),
+  play: async ({ canvasElement, args, userEvent }) => {
+    const video = canvasElement.querySelector('video')!
+    await waitFor(() =>
+      expect(video.readyState).toBeGreaterThanOrEqual(
+        HTMLMediaElement.HAVE_CURRENT_DATA,
+      ),
+    )
+    await expect(video.paused).toBe(true)
+    await userEvent.keyboard(' ')
+    await waitFor(() => expect(video.paused).toBe(false))
+    await userEvent.keyboard(' ')
+    await expect(video.paused).toBe(true)
+    await expect(args.onClose).not.toHaveBeenCalled()
+    video.focus()
+    await expect(video.matches(':focus-visible')).toBe(true)
+    await expect(getComputedStyle(video).outlineStyle).toBe('solid')
   },
 }
 

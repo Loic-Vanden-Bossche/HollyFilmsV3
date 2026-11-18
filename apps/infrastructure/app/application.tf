@@ -1,3 +1,14 @@
+resource "kubernetes_config_map_v1" "web_proxy" {
+  metadata {
+    name      = "hollyfilms-web-proxy"
+    namespace = var.namespace
+    labels    = local.labels
+  }
+  data = {
+    "nginx.conf.template" = file("${path.module}/../docker/nginx.conf.template")
+  }
+}
+
 resource "kubernetes_deployment_v1" "application" {
   depends_on = [kubernetes_job_v1.database_migration]
   metadata {
@@ -23,6 +34,7 @@ resource "kubernetes_deployment_v1" "application" {
         annotations = {
           "checksum/runtime"         = sha256(jsonencode(kubernetes_secret_v1.runtime.data))
           "checksum/database-secret" = var.database_secret_revision
+          "checksum/web-proxy"       = sha256(kubernetes_config_map_v1.web_proxy.data["nginx.conf.template"])
         }
       }
       spec {
@@ -149,6 +161,12 @@ resource "kubernetes_deployment_v1" "application" {
             name       = "web-tmp"
             mount_path = "/tmp"
           }
+          volume_mount {
+            name       = "web-proxy"
+            mount_path = "/opt/hollyfilms/nginx.conf.template"
+            sub_path   = "nginx.conf.template"
+            read_only  = true
+          }
         }
         volume {
           name = "api-tmp"
@@ -157,6 +175,10 @@ resource "kubernetes_deployment_v1" "application" {
         volume {
           name = "web-tmp"
           empty_dir {}
+        }
+        volume {
+          name = "web-proxy"
+          config_map { name = kubernetes_config_map_v1.web_proxy.metadata[0].name }
         }
       }
     }

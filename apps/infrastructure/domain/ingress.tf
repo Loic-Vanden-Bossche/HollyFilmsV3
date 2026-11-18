@@ -25,8 +25,16 @@ resource "kubernetes_ingress_v1" "application" {
     ingress_class_name = var.ingress_class_name
 
     tls {
-      hosts       = [var.hostname]
-      secret_name = "hollyfilms-tls"
+      hosts       = sort(distinct(compact([var.hostname, var.legacy_hostname])))
+      secret_name = var.tls_secret_name
+    }
+
+    dynamic "tls" {
+      for_each = var.certificate_alias == null ? [] : [var.certificate_alias]
+      content {
+        hosts       = [tls.value]
+        secret_name = "hollyfilms-public-tls"
+      }
     }
 
     rule {
@@ -44,6 +52,44 @@ resource "kubernetes_ingress_v1" "application" {
               port {
                 name = var.service_port_name
               }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_ingress_v1" "legacy_redirect" {
+  count      = var.legacy_hostname == null ? 0 : 1
+  depends_on = [kubernetes_ingress_v1.application]
+
+  metadata {
+    name      = "hollyfilms-legacy-redirect"
+    namespace = var.namespace
+    annotations = {
+      "nginx.ingress.kubernetes.io/permanent-redirect"      = "https://${var.hostname}/"
+      "nginx.ingress.kubernetes.io/permanent-redirect-code" = "308"
+      "nginx.ingress.kubernetes.io/enable-access-log"       = "false"
+    }
+  }
+
+  spec {
+    ingress_class_name = var.ingress_class_name
+    tls {
+      hosts       = [var.legacy_hostname]
+      secret_name = var.tls_secret_name
+    }
+    rule {
+      host = var.legacy_hostname
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+          backend {
+            service {
+              name = var.service_name
+              port { name = var.service_port_name }
             }
           }
         }

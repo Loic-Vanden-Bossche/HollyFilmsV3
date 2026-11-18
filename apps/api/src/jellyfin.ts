@@ -99,6 +99,17 @@ export function jellyfinAccounts(config: ServerConfig) {
       return (await management.getUserById({ userId: id }, options)).data
     },
 
+    async setDisabled(
+      id: string,
+      policy: NonNullable<UserDto['Policy']>,
+      disabled: boolean,
+    ) {
+      await management.updateUserPolicy(
+        { userId: id, userPolicy: { ...policy, IsDisabled: disabled } },
+        options,
+      )
+    },
+
     async setPolicy(
       id: string,
       account: UserDto,

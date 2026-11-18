@@ -6,6 +6,8 @@ module "jellyfin" {
 
   jellyfin_version        = var.jellyfin_version
   hostname                = var.jellyfin_hostname
+  previous_hostname       = var.jellyfin_previous_hostname
+  admin_google_enabled    = var.jellyfin_admin_google_enabled
   puid                    = var.jellyfin_puid
   pgid                    = var.jellyfin_pgid
   home_defaults_api_key   = var.jellyfin_home_defaults_api_key
@@ -15,19 +17,6 @@ module "jellyfin" {
   file_transform_checksum = var.jellyfin_file_transformation_checksum
   tweaks_version          = var.jellyfin_tweaks_version
   tweaks_checksum         = var.jellyfin_tweaks_checksum
-  nginx_ingress_class     = var.nginx_ingress_class
-  certificate_issuer_name = var.certificate_issuer_name
-}
-
-module "wizarr" {
-  source = "./wizarr"
-
-  image_version           = var.wizarr_version
-  hostname                = var.wizarr_hostname
-  pvc_size                = var.wizarr_pvc_size
-  storage_class_name      = var.wizarr_storage_class_name
-  puid                    = var.wizarr_puid
-  pgid                    = var.wizarr_pgid
   nginx_ingress_class     = var.nginx_ingress_class
   certificate_issuer_name = var.certificate_issuer_name
 }

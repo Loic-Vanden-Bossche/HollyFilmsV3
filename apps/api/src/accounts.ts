@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { hash, verify } from '@node-rs/argon2'
 import pg from 'pg'
-import type { AuthResult } from '@hollyfilms/shared/accounts'
+import type { AdminUser, AuthResult } from '@hollyfilms/shared/accounts'
 import type { ServerConfig } from './config.ts'
 import { ApiError } from './errors.ts'
 import { Prisma } from './generated/prisma/client.ts'
@@ -30,6 +30,7 @@ const registrationSummary = {
 } as const
 
 const normalizeName = (name: string) => name.toUpperCase()
+const normalizeUserId = (id: string) => id.replaceAll('-', '').toLowerCase()
 const technicalName = () => `hf-setup-${randomBytes(18).toString('hex')}`
 const unavailable = () =>
   new ApiError(
@@ -311,6 +312,109 @@ export function accountService(db: PrismaClient, config: ServerConfig) {
         select: registrationSummary,
         orderBy: { createdAt: 'desc' },
       }),
+
+    async listUsers(): Promise<AdminUser[]> {
+      const users = await jellyfin.list()
+      const registrations = await db.registration.findMany({
+        where: {
+          OR: [{ jellyfinId: { not: null } }, { status: 'PROVISIONING' }],
+        },
+        select: {
+          jellyfinId: true,
+          technicalName: true,
+          method: true,
+          status: true,
+        },
+      })
+      const byUserId = new Map(
+        registrations.flatMap((row) =>
+          row.jellyfinId
+            ? [[normalizeUserId(row.jellyfinId), row] as const]
+            : [],
+        ),
+      )
+      // A user can already exist in Jellyfin while provisioning is recording its ID.
+      const provisioning = new Map(
+        registrations
+          .filter((row) => row.status === 'PROVISIONING')
+          .map((row) => [row.technicalName, row] as const),
+      )
+      return users.flatMap((user) => {
+        if (!user.Id || !user.Name) return []
+        const id = normalizeUserId(user.Id)
+        const registration = byUserId.get(id) ?? provisioning.get(user.Name)
+        const setupPending = Boolean(
+          registration && registration.status !== 'ACTIVE',
+        )
+        const administrator = user.Policy?.IsAdministrator === true
+        return [
+          {
+            id,
+            username: user.Name,
+            administrator,
+            disabled: user.Policy?.IsDisabled === true,
+            hidden: user.Policy?.IsHidden === true,
+            lastActivityAt: user.LastActivityDate ?? null,
+            registrationMethod: registration?.method ?? null,
+            setupPending,
+            canChangeAccess:
+              user.Policy?.IsAdministrator === false && !setupPending,
+          },
+        ]
+      })
+    },
+
+    async setUserDisabled(id: string, adminId: string, disabled: boolean) {
+      const userId = normalizeUserId(id)
+      const protectedUser = () =>
+        new ApiError(
+          403,
+          'USER_ACCESS_PROTECTED',
+          'L’accès de ce compte est protégé.',
+        )
+      if (userId === normalizeUserId(adminId)) throw protectedUser()
+      await locked('user-access:' + userId, async () => {
+        const account = await jellyfin
+          .account(userId)
+          .catch((error: unknown) => {
+            if (
+              error instanceof Error &&
+              'status' in error &&
+              error.status === 404
+            )
+              throw new ApiError(
+                404,
+                'USER_NOT_FOUND',
+                'Compte Jellyfin introuvable.',
+              )
+            throw error
+          })
+        if (!account?.Id || normalizeUserId(account.Id) !== userId)
+          throw new ApiError(
+            404,
+            'USER_NOT_FOUND',
+            'Compte Jellyfin introuvable.',
+          )
+        if (account.Policy?.IsAdministrator !== false) throw protectedUser()
+        const registration = await db.registration.findFirst({
+          where: {
+            OR: [
+              { jellyfinId: account.Id },
+              { technicalName: account.Name ?? '', status: 'PROVISIONING' },
+            ],
+          },
+          select: { status: true },
+        })
+        if (registration && registration.status !== 'ACTIVE')
+          throw new ApiError(
+            409,
+            'USER_SETUP_PENDING',
+            'Ce compte attend la fin de son inscription.',
+          )
+        if (Boolean(account.Policy.IsDisabled) !== disabled)
+          await jellyfin.setDisabled(userId, account.Policy, disabled)
+      })
+    },
 
     async approve(id: string, adminId: string) {
       return locked(id, async () => {

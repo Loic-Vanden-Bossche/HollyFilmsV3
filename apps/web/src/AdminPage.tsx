@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { spring } from './motion/tokens.ts'
 import { RequestRow } from './ui/RequestRow.tsx'
 import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
-import { ArrowLeft, Check, Clock3, ShieldCheck, Users } from 'lucide-react'
+import { Check, Clock3, Users } from 'lucide-react'
 import type {
   JellyfinSession,
   RegistrationSummary,
@@ -14,7 +14,6 @@ import type {
 import { decideRegistration, listRegistrations } from './account-api.ts'
 import { Button } from './ui/Button.tsx'
 import {
-  BlurText,
   ClickSpark,
   CountUp,
   MagicBento,
@@ -61,7 +60,13 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
       if (variables.action === 'approve')
         setSuccess((value) => ({ id: variables.id, burst: value.burst + 1 }))
     },
-    onSettled: () => cache.invalidateQueries({ queryKey }),
+    onSettled: () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey }),
+        cache.invalidateQueries({
+          queryKey: ['admin-users', session.deviceId],
+        }),
+      ]),
   })
 
   const requests = registrations.data ?? []
@@ -83,25 +88,17 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
           : requests
 
   return (
-    <section className="admin-page" aria-labelledby="admin-heading">
-      <a href="/app" className="admin-back">
-        <ArrowLeft size={16} /> {t('Retour à la bibliothèque')}
-      </a>
-      <header className="admin-heading">
-        <div>
-          <p className="admin-eyebrow">{t('ESPACE ADMINISTRATEUR')}</p>
-          <h2 id="admin-heading">
-            <BlurText text={t('Inscriptions & accès.')} />
-          </h2>
-          <p>
-            {t(
-              'Gérez les inscriptions et choisissez qui rejoint votre bibliothèque.',
-            )}
-          </p>
-        </div>
-        <div className="admin-emblem" aria-hidden="true">
-          <ShieldCheck size={32} />
-        </div>
+    <section
+      className="admin-page"
+      aria-labelledby="admin-registrations-heading"
+    >
+      <header className="admin-section-heading">
+        <h2 id="admin-registrations-heading">{t('Inscriptions')}</h2>
+        <p>
+          {t(
+            'Gérez les inscriptions et choisissez qui rejoint votre bibliothèque.',
+          )}
+        </p>
       </header>
       <MagicBento>
         {[

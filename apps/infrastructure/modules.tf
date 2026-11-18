@@ -30,8 +30,12 @@ module "app" {
 
 module "domain" {
   source                  = "./domain"
+  depends_on              = [module.jellyfin]
   namespace               = kubernetes_namespace_v1.hollyfilms.metadata[0].name
   hostname                = var.hostname
+  legacy_hostname         = var.legacy_frontend_hostname
+  certificate_alias       = var.frontend_certificate_alias
+  tls_secret_name         = var.frontend_tls_secret_name
   ingress_class_name      = var.nginx_ingress_class
   certificate_issuer_name = var.certificate_issuer_name
   service_name            = module.app.service_name

@@ -8,6 +8,16 @@ variable "hostname" {
   type        = string
 }
 
+variable "previous_hostname" {
+  type    = string
+  default = null
+}
+
+variable "admin_google_enabled" {
+  type    = bool
+  default = false
+}
+
 variable "nginx_ingress_class" {
   description = "Ingress class used to expose Jellyfin"
   type        = string

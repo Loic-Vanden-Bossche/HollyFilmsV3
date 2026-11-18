@@ -18,12 +18,47 @@ variable "namespace_name" {
 variable "hostname" {
   description = "Public hostname used to expose the HollyFilms"
   type        = string
-  default     = "hollyfilms-v3.chbrx.com"
+  default     = "hollyfilms.chbrx.com"
 
   validation {
     condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.hostname))
     error_message = "The hostname must be a valid lowercase DNS hostname."
   }
+}
+
+variable "legacy_frontend_hostname" {
+  description = "Optional HTTPS hostname that redirects to the canonical frontend"
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.legacy_frontend_hostname == null || (
+      can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.legacy_frontend_hostname))
+      && !contains([var.hostname, var.jellyfin_hostname, var.jellyfin_previous_hostname], var.legacy_frontend_hostname)
+    )
+    error_message = "The legacy frontend hostname must be a distinct DNS hostname."
+  }
+}
+
+variable "frontend_certificate_alias" {
+  description = "Optional DNS hostname to certify separately before routing it"
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.frontend_certificate_alias == null || (
+      can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.frontend_certificate_alias))
+      && !contains([var.hostname, var.legacy_frontend_hostname], var.frontend_certificate_alias)
+      && var.frontend_tls_secret_name != "hollyfilms-public-tls"
+    )
+    error_message = "The certificate alias must have a distinct DNS hostname and the active certificate must use a separate Secret."
+  }
+}
+
+variable "frontend_tls_secret_name" {
+  description = "TLS Secret for the active frontend"
+  type        = string
+  default     = "hollyfilms-public-tls"
 }
 
 variable "api_image" {
@@ -136,7 +171,7 @@ variable "kubeconfig_context" {
 variable "jellyfin_url" {
   description = "Origine du Jellyfin existant, accessible depuis les pods"
   type        = string
-  default     = "https://hollyfilms.chbrx.com"
+  default     = "https://jellyfin.chbrx.com"
   validation {
     condition     = can(regex("^https?://[A-Za-z0-9.-]+(:[0-9]+)?/?$", var.jellyfin_url)) && trimsuffix(var.jellyfin_url, "/") != "https://${var.hostname}"
     error_message = "Jellyfin doit être une origine HTTP(S) distincte du frontend, sans chemin ni identifiants."

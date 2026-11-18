@@ -10,7 +10,6 @@ import {
 } from './account-api.ts'
 import { LandingPage } from './LandingPage.tsx'
 import type { GoogleReturn } from './account-api.ts'
-import { AdminPage } from './AdminPage.tsx'
 import {
   endJellyfinSession,
   getJellyfinServerInfo,
@@ -31,17 +30,12 @@ import { setPwaViewer } from './pwa/runtime.ts'
 import { markNotificationsRead } from './notification-api.ts'
 
 const jellyfinUrl = new URL('/jellyfin', window.location.origin).href
-const isAdminPage = /^\/admin\/?$/.test(window.location.pathname)
+const isAdminPage = /^\/admin(?:\/requests)?\/?$/.test(window.location.pathname)
 const isProfilePage = /^\/profile\/?$/.test(window.location.pathname)
 const isNotificationsPage = /^\/notifications\/?$/.test(
   window.location.pathname,
 )
-const isRequestsPage = /^\/(?:admin\/)?requests\/?$/.test(
-  window.location.pathname,
-)
-const isAdminRequestsPage = /^\/admin\/requests\/?$/.test(
-  window.location.pathname,
-)
+const isRequestsPage = /^\/requests\/?$/.test(window.location.pathname)
 const isLibraryPage =
   /^\/app(?:\/(favorites|movies|series|collections))?\/?$/.test(
     window.location.pathname,
@@ -53,6 +47,11 @@ const isPrivatePage =
   isRequestsPage ||
   isLibraryPage
 const secondaryButton = 'glass-control rounded-lg px-4 py-2 text-sm font-medium'
+const AdminDashboard = lazy(() =>
+  import('./AdminDashboard.tsx').then((module) => ({
+    default: module.AdminDashboard,
+  })),
+)
 const HomeScreen = lazy(() =>
   import('./HomeScreen.tsx').then((module) => ({ default: module.HomeScreen })),
 )
@@ -294,17 +293,7 @@ export default function App({
         {isNotificationsPage ? (
           <NotificationsPage session={session} userId={user.data.id} />
         ) : isRequestsPage ? (
-          isAdminRequestsPage && !user.data.isAdministrator ? (
-            <GlassPanel>
-              <p role="alert">{t('Un compte administrateur est requis.')}</p>
-              <a href="/requests">{t('Mes demandes')}</a>
-            </GlassPanel>
-          ) : (
-            <RequestsPage
-              session={session}
-              administrator={isAdminRequestsPage}
-            />
-          )
+          <RequestsPage session={session} />
         ) : isProfilePage ? (
           <ProfileScreen
             session={session}
@@ -325,20 +314,25 @@ export default function App({
     )
   }
 
-  if (!isAdminPage && (user.isPending || (isLibraryPage && route.play)))
-    return opening
+  if (user.isPending || (isLibraryPage && route.play)) return opening
+
+  if (isAdminPage && user.data?.isAdministrator)
+    return (
+      <Suspense fallback={opening}>
+        <main className="member-shell mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-8 sm:py-9">
+          <AdminDashboard key={session.deviceId} session={session} />
+          <JellyfinStatus />
+        </main>
+      </Suspense>
+    )
 
   return (
-    <main
-      className={`member-shell mx-auto flex min-h-svh w-full flex-col gap-6 px-6 py-10 sm:px-10 ${isAdminPage && user.data?.isAdministrator ? 'max-w-7xl' : 'max-w-xl justify-center'}`}
-    >
+    <main className="member-shell mx-auto flex min-h-svh w-full max-w-xl flex-col justify-center gap-6 px-6 py-10 sm:px-10">
       <h1 className="mb-4">
         <Wordmark />
       </h1>
 
-      {session && isAdminPage && user.data?.isAdministrator ? (
-        <AdminPage session={session} />
-      ) : session ? (
+      {session ? (
         <GlassPanel aria-labelledby="session-heading">
           <h2 id="session-heading" className="text-2xl font-medium">
             {t('Compte HollyFilms')}
@@ -367,7 +361,7 @@ export default function App({
           <div className="mt-6 flex flex-wrap gap-3">
             {user.data?.isAdministrator && (
               <a href="/admin" className={secondaryButton}>
-                {t('Gérer les inscriptions')}
+                {t('Administration')}
               </a>
             )}
             {isAdminPage && user.isSuccess && !user.data.isAdministrator && (

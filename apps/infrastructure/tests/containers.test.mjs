@@ -109,7 +109,7 @@ test(
       '-e',
       'JELLYFIN_API_KEY=server-only-test-value',
       '-e',
-      'PUBLIC_ORIGIN=https://hollyfilms-v3.chbrx.com',
+      'PUBLIC_ORIGIN=https://hollyfilms.chbrx.com',
       '-e',
       'TRUST_PROXY=loopback',
       apiImage,
@@ -182,6 +182,21 @@ test(
       ).status,
       401,
     )
+    for (const path of [
+      '/jellyfin',
+      '/jellyfin/',
+      '/jellyfin/web',
+      '/jellyfin/web/index.html',
+      '/jellyfin/WEB/index.html',
+      '/jellyfin/%77eb/index.html',
+      '/jellyfin/./web/index.html',
+    ]) {
+      assert.equal(
+        (await fetch(base + path, { redirect: 'manual' })).status,
+        404,
+        path,
+      )
+    }
     const upstreamInfo = await (
       await fetch(base + '/jellyfin/System/Info/Public', {
         headers: { Authorization: 'MediaBrowser Token="user-test"' },

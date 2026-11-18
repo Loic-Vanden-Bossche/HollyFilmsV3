@@ -58,15 +58,18 @@ function status(item: MediaRequestItem) {
 export function RequestsPage({
   session,
   administrator = false,
+  embedded = false,
 }: {
   session: JellyfinSession
   administrator?: boolean
+  embedded?: boolean
 }) {
   const { t, locale } = useI18n()
   const reduced = usePerformanceReducedMotion()
   const indicator = useId()
   const cache = useQueryClient()
   const [section, setSection] = useState(() =>
+    !embedded &&
     new URLSearchParams(location.search).get('section') === 'subtitles'
       ? 'subtitles'
       : 'media',
@@ -139,7 +142,7 @@ export function RequestsPage({
           {administrator ? t('Mes demandes') : t('Profil')}
         </a>
         {!administrator && options.data?.seerrUrl && (
-          <a className="glass-control request-link" href="/admin/requests">
+          <a className="glass-control request-link" href="/admin?section=media">
             {t('Gérer les demandes de médias')}
           </a>
         )}
@@ -173,10 +176,14 @@ export function RequestsPage({
       ))}
     </nav>
   )
+  const Page = embedded ? 'section' : 'main'
+  const Heading = embedded ? 'h2' : 'h1'
   return (
-    <main className="requests-page">
-      {header}
-      {tabs}
+    <Page
+      className={embedded ? 'requests-page requests-embedded' : 'requests-page'}
+    >
+      {!embedded && header}
+      {!embedded && tabs}
       {section === 'subtitles' ? (
         <SubtitleRequests session={session} administrator={administrator} />
       ) : (
@@ -186,14 +193,16 @@ export function RequestsPage({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: duration.scene, ease: ease.out }}
           >
-            <p className="home-section-kicker">
-              {administrator
-                ? t('GESTION DU CATALOGUE')
-                : t('VOTRE SÉLECTION À VENIR')}
-            </p>
-            <h1>
+            {!embedded && (
+              <p className="home-section-kicker">
+                {administrator
+                  ? t('GESTION DU CATALOGUE')
+                  : t('VOTRE SÉLECTION À VENIR')}
+              </p>
+            )}
+            <Heading>
               {administrator ? t('Demandes de médias') : t('Mes demandes')}
-            </h1>
+            </Heading>
             <p className="requests-intro">
               {administrator
                 ? t('Approuvez les demandes et suivez leur acquisition.')
@@ -590,6 +599,6 @@ export function RequestsPage({
           )}
         </>
       )}
-    </main>
+    </Page>
   )
 }

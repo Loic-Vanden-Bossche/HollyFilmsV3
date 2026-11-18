@@ -1,5 +1,6 @@
 import { apiMessage } from './i18n/api-messages.ts'
 import type {
+  AdminUser,
   AuthOptions,
   AuthResult,
   JellyfinSession,
@@ -111,6 +112,26 @@ export const decideRegistration = (
   request<void>(`/admin/registrations/${encodeURIComponent(id)}/${action}`, {
     method: 'POST',
     headers: adminHeaders(session),
+  })
+
+export const listAdminUsers = (
+  session: JellyfinSession,
+  signal?: AbortSignal,
+) =>
+  request<AdminUser[]>('/admin/users', {
+    headers: adminHeaders(session),
+    signal,
+  })
+
+export const setAdminUserAccess = (
+  session: JellyfinSession,
+  id: string,
+  disabled: boolean,
+) =>
+  request<void>(`/admin/users/${encodeURIComponent(id)}/access`, {
+    method: 'PUT',
+    headers: { ...adminHeaders(session), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ disabled }),
   })
 
 export function statusNotice(

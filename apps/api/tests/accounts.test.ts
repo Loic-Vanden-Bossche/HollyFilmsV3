@@ -16,6 +16,7 @@ import {
   getJellyfinUser,
 } from '@hollyfilms/shared/jellyfin'
 import type {
+  AdminUser,
   AuthResult,
   RegistrationSummary,
 } from '@hollyfilms/shared/accounts'
@@ -193,6 +194,21 @@ test(
         url: `/api/admin/registrations/${id}/${action}`,
         headers: adminHeaders,
       })
+    const directory = async () => {
+      const response = await app.inject({
+        url: '/api/admin/users',
+        headers: adminHeaders,
+      })
+      assert.equal(response.statusCode, 200, response.body)
+      return response.json<AdminUser[]>()
+    }
+    const setAccess = (id: string, disabled: boolean, headers = adminHeaders) =>
+      app.inject({
+        method: 'PUT',
+        url: `/api/admin/users/${id}/access`,
+        headers,
+        payload: { disabled },
+      })
     const password = randomBytes(16).toString('hex')
     const body = { username: 'Demande Test', password }
 
@@ -202,6 +218,7 @@ test(
     })
     assert.equal(existing.json<AuthResult>().status, 'authenticated')
     assert.equal((await app.inject('/api/admin/registrations')).statusCode, 401)
+    assert.equal((await app.inject('/api/admin/users')).statusCode, 401)
     const registrations = await Promise.all([
       post('/api/auth/register', body),
       post('/api/auth/register', {
@@ -261,6 +278,12 @@ test(
       true,
     )
 
+    assert.equal(
+      (await directory()).find((user) => user.id === partial.jellyfinId)
+        ?.setupPending,
+      true,
+    )
+    assert.equal((await setAccess(partial.jellyfinId, false)).statusCode, 409)
     const activated = await post('/api/auth/password', body)
     assert.equal(activated.statusCode, 200, activated.body)
     const login = activated.json<AuthResult>()
@@ -284,6 +307,79 @@ test(
       authorization: `Bearer ${login.session.accessToken}`,
       'x-hollyfilms-device': login.session.deviceId,
     }
+    assert.equal(
+      (await app.inject({ url: '/api/admin/users', headers: standardHeaders }))
+        .statusCode,
+      403,
+    )
+    const listed = await directory()
+    const adminUser = listed.find(
+      (row) => row.username === 'HollyFilmsTestAdmin',
+    )!
+    assert.equal(adminUser.administrator, true)
+    assert.equal(adminUser.canChangeAccess, false)
+    assert.equal((await setAccess(adminUser.id, true)).statusCode, 403)
+    assert.equal(
+      listed.find((row) => row.id === active.jellyfinId)?.registrationMethod,
+      'PASSWORD',
+    )
+
+    const nativeUsername = 'Jellyfin Native Member'
+    const { data: nativeUser } = await users.createUserByName({
+      createUserByName: { Name: nativeUsername, Password: password },
+    })
+    assert.ok(nativeUser.Id && nativeUser.Policy)
+    await users.updateUserPolicy({
+      userId: nativeUser.Id,
+      userPolicy: {
+        ...nativeUser.Policy,
+        IsHidden: true,
+        EnableAllFolders: false,
+      },
+    })
+    const nativeAccount = (await directory()).find(
+      (user) => user.id === nativeUser.Id,
+    )!
+    assert.equal(nativeAccount.registrationMethod, null)
+    assert.equal(nativeAccount.hidden, true)
+    assert.equal(nativeAccount.canChangeAccess, true)
+    const nativeSession = await authenticateJellyfin(
+      jellyfinUrl,
+      nativeUsername,
+      password,
+    )
+    assert.equal(
+      (await setAccess(nativeAccount.id, true, standardHeaders)).statusCode,
+      403,
+    )
+    const suspended = await setAccess(nativeAccount.id, true)
+    assert.equal(suspended.statusCode, 204, suspended.body)
+    await assert.rejects(getJellyfinUser(jellyfinUrl, nativeSession))
+    assert.equal((await setAccess(nativeAccount.id, true)).statusCode, 204)
+    assert.equal(
+      (await directory()).find((user) => user.id === nativeAccount.id)
+        ?.disabled,
+      true,
+    )
+    assert.equal(
+      (await post('/api/auth/password', { username: nativeUsername, password }))
+        .statusCode,
+      401,
+    )
+    const restored = await setAccess(nativeAccount.id, false)
+    assert.equal(restored.statusCode, 204, restored.body)
+    const restoredPolicy = (
+      await users.getUserById({ userId: nativeAccount.id })
+    ).data.Policy
+    assert.equal(restoredPolicy?.IsDisabled, false)
+    assert.equal(restoredPolicy?.IsHidden, true)
+    assert.equal(restoredPolicy?.EnableAllFolders, false)
+    assert.equal(
+      (
+        await post('/api/auth/password', { username: nativeUsername, password })
+      ).json<AuthResult>().status,
+      'authenticated',
+    )
     assert.equal(
       (
         await app.inject({

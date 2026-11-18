@@ -557,14 +557,6 @@ test(
         .first()
         .waitFor()
       assert.equal(await playerView.getByRole('progressbar').count(), 0)
-      const details = playerView.getByRole('button', {
-        name: 'Détails',
-        exact: true,
-      })
-      await details.waitFor({ timeout: 6000 })
-      await details.focus()
-      await page.keyboard.press('Enter')
-      assert.equal(await details.getAttribute('aria-expanded'), 'true')
       // Deliver decoded media normally while withholding individual startup
       // notifications from the player.
       await video.evaluate((element) => {
@@ -597,10 +589,6 @@ test(
     await playerView
       .locator('.player-loading')
       .waitFor({ state: 'detached', timeout: 1000 })
-    assert(
-      await video.evaluate((element) => document.activeElement === element),
-      'focus returns to the player when playback dismisses Details',
-    )
     t.diagnostic(
       'Direct playback after releasing the negotiation request: ' +
         Math.round(performance.now() - negotiationReleasedAt) +
@@ -619,6 +607,26 @@ test(
       'decoded video',
     )
     await expectContinuousPlayback('video advances without the playing event')
+    // Reproduce the first keystroke after launching a film. No player control
+    // has been clicked or focused since the viewer pressed Lire.
+    await page.keyboard.press('Space')
+    assert.equal(
+      new URL(page.url()).searchParams.get('play'),
+      item.Id,
+      'Space at launch must keep the movie open',
+    )
+    assert(await video.evaluate((element) => element.paused), 'Space pauses')
+    const mutedAtLaunch = await video.evaluate((element) => element.muted)
+    await page.keyboard.press('m')
+    assert.equal(
+      await video.evaluate((element) => element.muted),
+      !mutedAtLaunch,
+    )
+    await page.keyboard.press('m')
+    await page.keyboard.press('Space')
+    await expectContinuousPlayback(
+      'Space resumes from the initial player focus',
+    )
     assert.equal(
       reports.filter((report) => report.path.endsWith('/Playing')).length,
       1,
@@ -662,6 +670,9 @@ test(
     await page.locator('[data-artwork-flight]').waitFor({ state: 'detached' })
     const heading = playerView.locator('.player-heading')
     assert(await heading.getByText('HollyFilms', { exact: true }).isVisible())
+    await playerView
+      .getByRole('button', { name: /^(Couper|Rétablir) le son$/ })
+      .click()
     await page.mouse.move(700, 450)
     await page.waitForFunction(
       () =>
@@ -672,6 +683,14 @@ test(
       undefined,
       { timeout: 8000 },
     )
+    await page.keyboard.press('Space')
+    assert(
+      await video.evaluate((element) => element.paused),
+      'Space still pauses after the clicked volume control becomes inert',
+    )
+    await page.keyboard.press('m')
+    await page.keyboard.press('Space')
+    await expectContinuousPlayback('Space resumes after controls auto-hide')
     await page.mouse.move(710, 450)
     await playerView.locator('.player-heading[data-visible="true"]').waitFor()
     const timeline = playerView.getByRole('slider', {
@@ -1606,7 +1625,8 @@ test(
     assert(await video.evaluate((element) => element.paused))
     await playerView
       .getByRole('button', { name: 'Démarrer la lecture' })
-      .click()
+      .waitFor()
+    await page.keyboard.press('Space')
     await page.locator('.player-viewport[data-state="playing"]').waitFor()
     await until(
       () =>
@@ -1664,14 +1684,37 @@ test(
         .waitFor()
       metadataGate.resolve()
       await playerView.waitFor()
+      // Pause before the source is attached. A newly mounted media element is
+      // already paused, although the viewer's current intent is autoplay.
+      await page.keyboard.press('Space')
       // The route has already spent four seconds opening this title.
-      await playerView
-        .getByRole('button', { name: 'Détails', exact: true })
-        .waitFor({ timeout: 1000 })
+      const details = playerView.getByRole('button', {
+        name: 'Détails',
+        exact: true,
+      })
+      await details.waitFor({ timeout: 1000 })
+      await details.focus()
+      await page.keyboard.press('Enter')
+      assert.equal(await details.getAttribute('aria-expanded'), 'true')
     } finally {
       metadataGate.resolve()
       restoredStreamGate.resolve()
     }
+    await page
+      .locator('.player-viewport[data-state="ready"]')
+      .waitFor({ timeout: 10_000 })
+    assert(
+      await video.evaluate(
+        (element) => element.paused && element.readyState > 0,
+      ),
+      'the initial Space persists through stream negotiation',
+    )
+    await playerView.locator('.player-loading').waitFor({ state: 'detached' })
+    assert(
+      await video.evaluate((element) => document.activeElement === element),
+      'focus returns to the player when playback dismisses Details',
+    )
+    await page.keyboard.press('Space')
     await page.locator('.player-viewport[data-state="playing"]').waitFor()
     await expectContinuousPlayback('video keeps advancing after reload')
     assert.deepEqual(
@@ -1716,7 +1759,16 @@ test(
     await page.locator('.player-viewport[data-state="ready"]').waitFor()
     assert.equal(new URL(page.url()).searchParams.get('play'), item.Id)
     stage = 'closing playback'
-    await page.getByRole('button', { name: 'Retour au catalogue' }).click()
+    const back = playerView.getByRole('button', { name: 'Retour au catalogue' })
+    await back.focus()
+    const mutedBeforeBack = await video.evaluate((element) => element.muted)
+    await page.keyboard.press('m')
+    assert.equal(
+      await video.evaluate((element) => element.muted),
+      !mutedBeforeBack,
+      'the mute shortcut also works from the player header',
+    )
+    await page.keyboard.press('Enter')
     await page.locator('.player-shell').waitFor({ state: 'detached' })
     assert.notEqual(
       await page.evaluate(() => getComputedStyle(document.body).overflowY),

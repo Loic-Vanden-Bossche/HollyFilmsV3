@@ -403,11 +403,12 @@
 .home-resume-rail {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(250px, 25%);
+  grid-auto-columns: max(min(82%, 320px), 29%);
   gap: 18px;
   overflow-x: auto;
   padding: 22px 14px 26px;
   margin: -22px -14px -26px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 }
 .media-tile {
@@ -896,7 +897,6 @@
     display: none;
   }
   .home-resume-rail {
-    grid-auto-columns: 72%;
     gap: 14px;
   }
   .home-footer {

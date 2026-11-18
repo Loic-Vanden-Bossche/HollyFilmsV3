@@ -13,7 +13,7 @@ Yarn Berry utilise un seul fichier `yarn.lock` à la racine. Les dépendances se
 
 ## Déployer sur CHBRX
 
-Pour la production sur `hollyfilms-v3.chbrx.com`, suivre le [guide d’infrastructure](apps/infrastructure/README.md). Après configuration, `corepack yarn deploy v1.0.0` publie les images web/API sur GHCR, prépare le plan Terraform et crée la release GitHub. Le Jellyfin existant reste sur `hollyfilms.chbrx.com`.
+Pour la production sur `hollyfilms.chbrx.com`, suivre le [guide d’infrastructure](apps/infrastructure/README.md). Après configuration, `corepack yarn deploy v1.0.0` publie les images web/API sur GHCR, prépare le plan Terraform et crée la release GitHub. Le serveur Jellyfin est accessible sur `jellyfin.chbrx.com`.
 
 ## Démarrer en local
 

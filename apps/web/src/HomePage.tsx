@@ -171,6 +171,18 @@ export function HomePage({
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   const resumeRail = useRef<HTMLDivElement>(null)
+  const scrollResumeRail = (direction: -1 | 1) => {
+    const rail = resumeRail.current
+    if (!rail) return
+    const first = rail.firstElementChild
+    const second = first?.nextElementSibling
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement))
+      return
+    rail.scrollBy({
+      left: direction * (second.offsetLeft - first.offsetLeft),
+      behavior: reduced ? 'instant' : 'smooth',
+    })
+  }
   const content = useRef<HTMLElement>(null)
   const rememberPlace = useCatalogueReturn(
     content,
@@ -589,12 +601,7 @@ export function HomePage({
                                 <button
                                   type="button"
                                   aria-label={t('Titres en cours précédents')}
-                                  onClick={() =>
-                                    resumeRail.current?.scrollBy({
-                                      left: -520,
-                                      behavior: reduced ? 'instant' : 'smooth',
-                                    })
-                                  }
+                                  onClick={() => scrollResumeRail(-1)}
                                 >
                                   <ChevronLeft size={19} />
                                 </button>
@@ -603,12 +610,7 @@ export function HomePage({
                                 <button
                                   type="button"
                                   aria-label={t('Titres en cours suivants')}
-                                  onClick={() =>
-                                    resumeRail.current?.scrollBy({
-                                      left: 520,
-                                      behavior: reduced ? 'instant' : 'smooth',
-                                    })
-                                  }
+                                  onClick={() => scrollResumeRail(1)}
                                 >
                                   <ChevronRight size={19} />
                                 </button>

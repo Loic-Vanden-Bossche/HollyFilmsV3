@@ -5,14 +5,17 @@ variables {
   web_image         = "ghcr.io/test/hollyfilms-web:v1"
   database_password = "onlyForAnIsolatedTest123456789"
   jellyfin_api_key  = "fake-test-key"
+  hostname          = "hollyfilms.chbrx.com"
+  jellyfin_hostname = "jellyfin.chbrx.com"
+  jellyfin_url      = "https://jellyfin.chbrx.com"
 }
 
 run "preserve_media_addresses" {
   command = plan
 
   assert {
-    condition     = output.jellyfin_url == "https://hollyfilms.chbrx.com" && output.seerr_url == "https://seerr.chbrx.com" && output.wizarr_url == "https://invite.hollyfilms.chbrx.com"
-    error_message = "Moving Terraform ownership must preserve existing public media URLs."
+    condition     = output.jellyfin_url == "https://jellyfin.chbrx.com" && output.seerr_url == "https://seerr.chbrx.com"
+    error_message = "Jellyfin and Seerr must keep their current public URLs."
   }
 
   assert {
@@ -52,24 +55,5 @@ run "preserve_radarr_storage" {
   assert {
     condition     = kubernetes_persistent_volume_v1.radarr["downloads"].spec[0].persistent_volume_source[0].host_path[0].path == "/mnt/HDD3/downloads"
     error_message = "Radarr downloads must keep the host directory shared with SABnzbd."
-  }
-}
-
-run "preserve_wizarr_claim" {
-  command = plan
-  module { source = "./wizarr" }
-  variables {
-    image_version           = "v2026.10.1"
-    hostname                = "invite.hollyfilms.chbrx.com"
-    pvc_size                = "2Gi"
-    storage_class_name      = "local-path"
-    puid                    = 1000
-    pgid                    = 1000
-    nginx_ingress_class     = "nginx"
-    certificate_issuer_name = "letsencrypt-production"
-  }
-  assert {
-    condition     = kubernetes_namespace_v1.wizarr.metadata[0].name == "wizarr" && kubernetes_persistent_volume_claim_v1.data.metadata[0].name == "wizarr-data" && kubernetes_persistent_volume_claim_v1.data.spec[0].storage_class_name == "local-path" && !kubernetes_persistent_volume_claim_v1.data.wait_until_bound
-    error_message = "Wizarr must retain the original local-path claim; recreating it would allocate an empty volume."
   }
 }

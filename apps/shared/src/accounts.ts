@@ -23,3 +23,15 @@ export type RegistrationSummary = {
   decidedBy: string | null
   lastError: string | null
 }
+
+export type AdminUser = {
+  id: string
+  username: string
+  administrator: boolean
+  disabled: boolean
+  hidden: boolean
+  lastActivityAt: string | null
+  registrationMethod: RegistrationSummary['method'] | null
+  setupPending: boolean
+  canChangeAccess: boolean
+}

@@ -17,7 +17,7 @@ test('route round-trips the catalogue, modal and player without session data', (
     secondarySubtitle: 4,
     paused: true,
   }
-  const url = appRouteUrl('https://hollyfilms-v3.chbrx.com/app', route)
+  const url = appRouteUrl('https://hollyfilms.chbrx.com/app', route)
   assert.deepEqual(
     readAppRoute(
       new URL(url, 'https://example.com').search,

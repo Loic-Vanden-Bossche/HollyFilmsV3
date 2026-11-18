@@ -30,11 +30,13 @@ import {
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Play } from 'lucide-react'
@@ -216,6 +218,8 @@ export function PlaybackPlayer({
   const [secondarySubtitle, setSecondarySubtitle] = useState(
     initialOptions?.subtitle === -1 ? -1 : (initialSecondarySubtitle ?? -1),
   )
+  const pendingCaptionToggle = useRef(false)
+  const pendingChapterSteps = useRef<(-1 | 1)[]>([])
   const tracks = source?.MediaStreams ?? []
   const subtitles = tracks.filter(
     (track) =>
@@ -688,6 +692,8 @@ export function PlaybackPlayer({
     start = entry.start,
     paused = false,
   ) {
+    pendingCaptionToggle.current = false
+    pendingChapterSteps.current = []
     setSelectedSubtitle(undefined)
     setSecondarySubtitle(-1)
     setSubtitleProblem('')
@@ -760,7 +766,7 @@ export function PlaybackPlayer({
 
   function toggle() {
     if (devices.destination) devices.toggle()
-    else if (videoRef.current) setPaused(!videoRef.current.paused)
+    else setPaused(!player.isPaused())
   }
   function setPaused(paused: boolean) {
     if (devices.destination) {
@@ -774,6 +780,7 @@ export function PlaybackPlayer({
     else player.setPaused(paused)
   }
   function seek(seconds: number) {
+    pendingChapterSteps.current = []
     videoRef.current?.dispatchEvent(new Event('subtitle-user-seek'))
     if (devices.destination) devices.seek(seconds)
     else if (sync.group) sync.seek(seconds)
@@ -945,6 +952,117 @@ export function PlaybackPlayer({
     return timelinePreview(details.data, source?.Id, position, api.previewUrl)
   }
 
+  function toggleCaptions() {
+    subtitle(primary >= 0 ? -1 : (subtitles[0]?.Index ?? -1))
+  }
+
+  function stepChapters(steps: (-1 | 1)[]) {
+    if (!chapters.length) return
+    let position = media.position
+    for (const step of steps) {
+      const chapter =
+        step < 0
+          ? chapters.findLast(
+              (entry) =>
+                (entry.StartPositionTicks ?? 0) / ticksPerSecond < position - 2,
+            )
+          : chapters.find(
+              (entry) =>
+                (entry.StartPositionTicks ?? 0) / ticksPerSecond > position + 1,
+            )
+      if (chapter?.StartPositionTicks != null || step < 0)
+        position = (chapter?.StartPositionTicks ?? 0) / ticksPerSecond
+    }
+    if (position !== media.position) seek(position)
+  }
+
+  const applyPendingShortcuts = useEffectEvent(() => {
+    if (tracksReady && pendingCaptionToggle.current) {
+      pendingCaptionToggle.current = false
+      toggleCaptions()
+    }
+    if (details.data && pendingChapterSteps.current.length) {
+      const steps = pendingChapterSteps.current
+      pendingChapterSteps.current = []
+      stepChapters(steps)
+    }
+  })
+  useEffect(() => {
+    applyPendingShortcuts()
+  }, [tracksReady, details.data])
+
+  function handleShortcut(event: KeyboardEvent<HTMLDialogElement>) {
+    const origin = event.target
+    if (
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      !(origin instanceof Element) ||
+      origin.closest('dialog') !== event.currentTarget ||
+      (origin instanceof HTMLElement && origin.isContentEditable) ||
+      origin.closest(
+        'input, textarea, select, [role="slider"], [role="combobox"], [role="listbox"], [role="option"]',
+      )
+    )
+      return
+
+    const key = event.key.toLowerCase()
+    if (key === ' ' && origin.closest('button, [role="button"], summary'))
+      return
+    if (event.repeat && [' ', 'k', 'm', 'c', 'f'].includes(key)) {
+      event.preventDefault()
+      return
+    }
+    switch (key) {
+      case 'escape':
+        if (!menu) return
+        closeMenu()
+        break
+      case ' ':
+      case 'k':
+        toggle()
+        cueControl('transport')
+        break
+      case 'j':
+      case 'arrowleft':
+      case 'l':
+      case 'arrowright':
+        seek(media.position + (key === 'j' || key === 'arrowleft' ? -10 : 30))
+        cueControl('seek')
+        break
+      case 'pagedown':
+      case 'pageup': {
+        const step = key === 'pagedown' ? -1 : 1
+        if (details.isPending) pendingChapterSteps.current.push(step)
+        else stepChapters([step])
+        cueControl('seek')
+        break
+      }
+      case 'arrowup':
+      case 'arrowdown':
+        volume(media.volume + (key === 'arrowup' ? 0.05 : -0.05))
+        cueControl('volume')
+        break
+      case 'm':
+        mute()
+        cueControl('volume')
+        break
+      case 'f':
+        fullscreenToggle()
+        break
+      case 'c':
+        if (tracksReady) toggleCaptions()
+        else pendingCaptionToggle.current = !pendingCaptionToggle.current
+        cueControl('captions')
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+  }
+
   const artworkItem =
     details.data && details.data.Id === targetId
       ? toMediaItem(details.data)
@@ -958,6 +1076,7 @@ export function PlaybackPlayer({
       problem={player.problem}
       interrupted={player.hasFrame}
       showHeading={!statusVisible || showControls || waitStage > 0}
+      onKeyDown={handleShortcut}
       onInteraction={(intent) => {
         if (intent === 'keyboard') keyboardNavigation.current = true
         if (intent === 'pointer') keyboardNavigation.current = false
@@ -1058,77 +1177,6 @@ export function PlaybackPlayer({
               : 'none',
           } as CSSProperties
         }
-        onKeyDown={(event) => {
-          if (
-            event.altKey ||
-            event.ctrlKey ||
-            event.metaKey ||
-            event.target instanceof HTMLInputElement ||
-            event.target instanceof HTMLSelectElement ||
-            (event.target instanceof HTMLElement &&
-              event.target.closest(
-                '[role="combobox"], [role="listbox"], [role="option"]',
-              ))
-          )
-            return
-          const key = event.key.toLowerCase()
-          if (key === 'escape' && menu) {
-            event.preventDefault()
-            closeMenu()
-            return
-          }
-          if (key === ' ' && event.target instanceof HTMLButtonElement) return
-          const actions: Record<string, () => void> = {
-            ' ': toggle,
-            k: toggle,
-            j: () => seek(media.position - 10),
-            l: () => seek(media.position + 30),
-            arrowleft: () => seek(media.position - 10),
-            arrowright: () => seek(media.position + 30),
-            arrowup: () => volume(media.volume + 0.05),
-            arrowdown: () => volume(media.volume - 0.05),
-            m: mute,
-            f: fullscreenToggle,
-            c: () => subtitle(primary >= 0 ? -1 : (subtitles[0]?.Index ?? -1)),
-            pagedown: () =>
-              player.seek(
-                (chapters.findLast(
-                  (chapter) =>
-                    (chapter.StartPositionTicks ?? 0) / ticksPerSecond <
-                    media.position - 2,
-                )?.StartPositionTicks ?? 0) / ticksPerSecond,
-              ),
-            pageup: () => {
-              const next = chapters.find(
-                (chapter) =>
-                  (chapter.StartPositionTicks ?? 0) / ticksPerSecond >
-                  media.position + 1,
-              )
-              if (next?.StartPositionTicks != null)
-                seek(next.StartPositionTicks / ticksPerSecond)
-            },
-          }
-          if (actions[key]) {
-            event.preventDefault()
-            actions[key]()
-            if ([' ', 'k'].includes(key)) cueControl('transport')
-            else if (
-              [
-                'j',
-                'l',
-                'arrowleft',
-                'arrowright',
-                'pageup',
-                'pagedown',
-              ].includes(key)
-            )
-              cueControl('seek')
-            else if (['arrowup', 'arrowdown', 'm'].includes(key))
-              cueControl('volume')
-            else if (key === 'c') cueControl('captions')
-            revealControls()
-          }
-        }}
       >
         {(['primary', 'secondary'] as const).map((slot) => {
           const track = slot === 'primary' ? primaryTrack : secondaryTrack

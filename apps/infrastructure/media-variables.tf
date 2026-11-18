@@ -12,11 +12,39 @@ variable "jellyfin_version" {
 variable "jellyfin_hostname" {
   description = "Public hostname used to expose Jellyfin"
   type        = string
-  default     = "hollyfilms.chbrx.com"
+  default     = "jellyfin.chbrx.com"
 
   validation {
-    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.jellyfin_hostname))
-    error_message = "The Jellyfin hostname must be a valid lowercase DNS hostname."
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.jellyfin_hostname)) && var.jellyfin_hostname != var.hostname
+    error_message = "The Jellyfin hostname must be a valid DNS hostname distinct from the frontend."
+  }
+}
+
+variable "jellyfin_previous_hostname" {
+  description = "Optional Jellyfin alias retained while clients move to the primary hostname"
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.jellyfin_previous_hostname == null || (
+      can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.jellyfin_previous_hostname))
+      && var.jellyfin_previous_hostname != var.hostname && var.jellyfin_previous_hostname != var.jellyfin_hostname
+    )
+    error_message = "The previous Jellyfin hostname must be distinct from the active frontend and Jellyfin hostnames."
+  }
+}
+
+variable "jellyfin_admin_google_enabled" {
+  description = "Require the selected Google account on the public Jellyfin ingress"
+  type        = bool
+  default     = false
+
+  validation {
+    condition = !var.jellyfin_admin_google_enabled || (
+      var.jellyfin_previous_hostname == null &&
+      trimsuffix(var.jellyfin_url, "/") == "http://jellyfin.jellyfin.svc.cluster.local:8096"
+    )
+    error_message = "With Google protection, HollyFilms must use the internal Jellyfin Service and the previous public alias must be retired."
   }
 }
 
@@ -74,52 +102,6 @@ variable "jellyfin_tweaks_checksum" {
   description = "MD5 checksum of the Jellyfin Tweaks archive for Jellyfin 12"
   type        = string
   default     = "6F3550040C7A3374338F66BE89ECFC91"
-}
-
-variable "wizarr_version" {
-  description = "Wizarr container image release tag"
-  type        = string
-  default     = "v2026.10.1"
-
-  validation {
-    condition     = can(regex("^v[0-9]{4}\\.[0-9]+\\.[0-9]+$", var.wizarr_version))
-    error_message = "The Wizarr version must be a release tag such as v2026.7.1."
-  }
-}
-
-variable "wizarr_hostname" {
-  description = "Public hostname used to expose Wizarr"
-  type        = string
-  default     = "invite.hollyfilms.chbrx.com"
-
-  validation {
-    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$", var.wizarr_hostname))
-    error_message = "The Wizarr hostname must be a valid lowercase DNS hostname."
-  }
-}
-
-variable "wizarr_pvc_size" {
-  description = "Persistent storage requested for Wizarr configuration and database data"
-  type        = string
-  default     = "2Gi"
-}
-
-variable "wizarr_storage_class_name" {
-  description = "Storage class used by the Wizarr persistent volume claim"
-  type        = string
-  default     = "local-path"
-}
-
-variable "wizarr_puid" {
-  description = "Linux user ID used by the Wizarr process"
-  type        = number
-  default     = 1000
-}
-
-variable "wizarr_pgid" {
-  description = "Linux group ID used by the Wizarr process"
-  type        = number
-  default     = 1000
 }
 
 variable "radarr_version" {

@@ -60,6 +60,7 @@ export function usePlayback(
 ) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const cleanup = useRef<() => Promise<void>>(async () => {})
+  const readPaused = useRef(() => initialPaused)
   const applyPaused = useRef<(paused: boolean) => void>(() => {})
   const requestSeek = useRef<(position: number) => void>(() => {})
   const pendingReports = useRef(Promise.resolve())
@@ -101,6 +102,8 @@ export function usePlayback(
   const [media, setMedia] = useState<MediaState>({
     ...initialMediaState,
     ...initialSettings,
+    position: initial.start,
+    paused: initialPaused,
   })
   const [problem, setProblem] = useState('')
   const [ended, setEnded] = useState(false)
@@ -141,7 +144,12 @@ export function usePlayback(
     // oxlint-disable-next-line react/set-state-in-effect
     setState('loading')
     setWait(currentWait)
-    setMedia((current) => ({ ...current, bufferedAhead: 0 }))
+    setMedia((current) => ({
+      ...current,
+      position: target.start,
+      paused: startPaused,
+      bufferedAhead: 0,
+    }))
     setHasFrame(false)
     setEnded(false)
     setProblem('')
@@ -170,6 +178,12 @@ export function usePlayback(
       }
     }
     recovery.current = recoverRequest
+    readPaused.current = () => {
+      const pending = pendingSeek.current
+      if (pending && pending.request !== request)
+        return pending.request.paused ?? false
+      return initialSeek ? startPaused : video.paused
+    }
 
     function endWait() {
       clearTimeout(timer)
@@ -360,8 +374,18 @@ export function usePlayback(
     }
     applyPaused.current = (paused) => {
       if (finished || failure) return
+      const pending = pendingSeek.current
+      if (pending && pending.request !== request) {
+        const next = { ...pending.request, paused }
+        pendingSeek.current = { ...pending, request: next }
+        setRequest(next)
+        return
+      }
       startPaused = paused
-      if (initialSeek) return
+      if (initialSeek) {
+        setMedia((current) => ({ ...current, paused }))
+        return
+      }
       if (paused) {
         if (!video!.paused) video!.pause()
         // A seek may already have landed while playback was waiting to resume.
@@ -509,9 +533,16 @@ export function usePlayback(
         muted: video!.muted,
         rate: video!.playbackRate,
       }
-      update(true)
+      if (attached) update(true)
+      else {
+        const changed = settings.current
+        setMedia((current) => ({ ...current, ...changed }))
+      }
     }
 
+    video.volume = settings.current.volume
+    video.muted = settings.current.muted
+    video.playbackRate = settings.current.rate
     const listeners: [string, EventListener][] = [
       ['loadedmetadata', onMetadata],
       ['loadeddata', onDataAvailable],
@@ -601,6 +632,10 @@ export function usePlayback(
       try {
         target = await api.resolve(target, abort.signal)
         if (finished || failure) return
+        if (pendingSeek.current?.request === request)
+          target = { ...target, start: pendingSeek.current.position }
+        if (target.start !== request.target.start)
+          setMedia((current) => ({ ...current, position: target.start }))
         beginWait(
           request.operation === 'seeking' ? 'seeking' : 'preparing',
           target.start,
@@ -631,9 +666,6 @@ export function usePlayback(
         inactivity = new PlaybackInactivity(Date.now())
         active.current = { target, stream }
         setPlayback({ ...active.current, request })
-        video.volume = settings.current.volume
-        video.muted = settings.current.muted
-        video.playbackRate = settings.current.rate
         if (stream.hls) {
           const { attachHls } = await import('./hls-engine.ts')
           if (!finished && !failure) {
@@ -709,11 +741,13 @@ export function usePlayback(
     const video = videoRef.current
     if (
       !video ||
-      (!active.current && !pendingSeek.current) ||
+      state === 'error' ||
+      state === 'stopped' ||
       !Number.isFinite(seconds)
     )
       return
-    const position = Math.max(0, Math.min(media.duration || Infinity, seconds))
+    const duration = active.current ? media.duration : 0
+    const position = Math.max(0, Math.min(duration || Infinity, seconds))
     const offset = active.current?.stream.offset ?? 0
     if (
       !active.current ||
@@ -767,6 +801,7 @@ export function usePlayback(
     requestIsActive: playback?.request === request,
     requestedPaused: request.paused,
     seek,
+    isPaused: () => readPaused.current(),
     setPaused: (paused: boolean) => applyPaused.current(paused),
     replaceStream(options: StreamOptions) {
       restart(options, 'bitrate' in options)

@@ -676,8 +676,9 @@ export function SubtitlePanel({
           <a
             className="subtitle-history"
             href={
-              (library.data.administrator ? '/admin/requests' : '/requests') +
-              '?section=subtitles'
+              library.data.administrator
+                ? '/admin?section=subtitles'
+                : '/requests?section=subtitles'
             }
           >
             {t('Suivre les demandes de sous-titres')}

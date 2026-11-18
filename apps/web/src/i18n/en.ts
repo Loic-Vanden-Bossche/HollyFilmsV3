@@ -1,4 +1,35 @@
 export default {
+  Utilisateurs: 'Users',
+  Inscriptions: 'Registrations',
+  Membre: 'Member',
+  'Tous les comptes': 'All accounts',
+  Actifs: 'Active',
+  Suspendus: 'Suspended',
+  Administrateurs: 'Administrators',
+  'Consultez tous les comptes Jellyfin et gérez leurs accès.':
+    'View all Jellyfin accounts and manage their access.',
+  'Rechercher un utilisateur': 'Search users',
+  'Filtrer les utilisateurs': 'Filter users',
+  '{count} sur {total} comptes': '{count} of {total} accounts',
+  'Aucun utilisateur trouvé.': 'No users found.',
+  'Dernière activité le {date}': 'Last active on {date}',
+  'Inscription en cours': 'Setup pending',
+  'Compte masqué': 'Hidden account',
+  'Accès actif': 'Active access',
+  'Accès suspendu': 'Access suspended',
+  'Suspendre l’accès': 'Suspend access',
+  'Rétablir l’accès': 'Restore access',
+  'Accès suspendu pour {name}.': 'Access suspended for {name}.',
+  'Accès rétabli pour {name}.': 'Access restored for {name}.',
+  '{name} pourra à nouveau se connecter.':
+    '{name} will be able to sign in again.',
+  '{name} sera déconnecté et ne pourra plus se connecter jusqu’au rétablissement de son accès.':
+    '{name} will be signed out and unable to sign in until access is restored.',
+  'En cours…': 'Working…',
+  'L’accès de ce compte est protégé.': 'Access to this account is protected.',
+  'Ce compte attend la fin de son inscription.':
+    'This account is waiting for registration to finish.',
+  'Compte Jellyfin introuvable.': 'Jellyfin account not found.',
   'Ouvrez HollyFilms en HTTPS pour activer les alertes sur cet appareil.':
     'Open HollyFilms over HTTPS to enable alerts on this device.',
   'Sur cet appareil': 'On this device',

@@ -2,6 +2,8 @@
 
 Transfert effectué le 18 novembre 2026, depuis `C:/Users/loic/IdeaProjects/chbrx-infrastructure/infrastructure` vers cette racine Terraform.
 
+Ce compte rendu décrit l’installation à la date de la migration. Le module Wizarr a été retiré depuis. La [configuration actuelle](README.md) décrit les services encore déployés.
+
 ## Propriété et continuité
 
 Les **49 instances de ressources** des modules `jellyfin`, `prowlarr`, `radarr`, `sabnzbd`, `seerr` et `wizarr` sont désormais suivies dans le backend Scaleway `chbrx-terraformstate/hollyfilms-v3.tfstate`. Elles ne sont plus suivies dans `chbrx.tfstate`. Les 11 ressources HollyFilms déjà suivies ont été conservées. Le transfert a utilisé les commandes Terraform de déplacement d’état sur des copies privées et des blocs `removed` avec `destroy = false` côté source. Aucun fichier d’état n’a été modifié manuellement.

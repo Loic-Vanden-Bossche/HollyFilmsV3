@@ -2,8 +2,10 @@
 kubeconfig_path = "~/.kube/config"
 # kubeconfig_context = "nom-du-contexte-chbrx"
 namespace_name = "hollyfilms-v3"
-hostname = "hollyfilms-v3.chbrx.com"
-jellyfin_url = "https://hollyfilms.chbrx.com"
+hostname = "hollyfilms.chbrx.com"
+jellyfin_hostname = "jellyfin.chbrx.com"
+jellyfin_url = "https://jellyfin.chbrx.com"
+# legacy_frontend_hostname = "hollyfilms-v3.chbrx.com"
 
 # Le script deploy fournit automatiquement les images par digest après push.
 # Renseigner ces valeurs uniquement pour un plan/apply manuel.
