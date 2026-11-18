@@ -5,6 +5,7 @@ export type ServerConfig = {
   publicOrigin: string
   trustProxy?: string
   tmdbToken?: string
+  seerr?: { url: string; apiKey: string }
   google?: { clientId: string; clientSecret: string; passwordKey: Buffer }
 }
 
@@ -27,6 +28,24 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
   }
 
   const clientId = env.GOOGLE_CLIENT_ID
+  let seerr: ServerConfig['seerr']
+  if (env.SEERR_URL || env.SEERR_API_KEY) {
+    if (!env.SEERR_URL || !env.SEERR_API_KEY?.trim())
+      throw new Error('SEERR_URL et SEERR_API_KEY sont requis ensemble')
+    const url = new URL(env.SEERR_URL)
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new Error('SEERR_URL doit être une URL HTTP(S) sans identifiants')
+    seerr = {
+      url: url.href.replace(/\/$/, ''),
+      apiKey: env.SEERR_API_KEY.trim(),
+    }
+  }
   const clientSecret = env.GOOGLE_CLIENT_SECRET
   const key = env.GOOGLE_PASSWORD_KEY
   let google: ServerConfig['google']
@@ -47,6 +66,7 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
     publicOrigin: publicUrl.origin,
     trustProxy: env.TRUST_PROXY || undefined,
     tmdbToken: env.TMDB_API_TOKEN?.trim() || undefined,
+    seerr,
     google,
   }
 }

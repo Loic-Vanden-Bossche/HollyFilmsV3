@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { subtitleRevision } from './subtitle-tracks.ts'
 import type { RefObject } from 'react'
 import type { MediaStream } from '@jellyfin/sdk/lib/generated-client/index.js'
 import type {
@@ -12,14 +13,22 @@ type CaptionsInput = {
   videoRef: RefObject<HTMLVideoElement | null>
   playback?: { target: PlaybackTarget; stream: PlaybackStream }
   delay: number
+  split?: boolean
   onError: (message: string) => void
 }
 
 function useTrack(
-  { api, videoRef, playback, delay, onError }: CaptionsInput,
+  { api, videoRef, playback, delay, split, onError }: CaptionsInput,
   selected?: MediaStream,
+  slot: 'primary' | 'secondary' = 'primary',
+  plainText = false,
 ) {
-  const [caption, setCaption] = useState('')
+  const [caption, setCaption] = useState<{
+    track?: MediaStream
+    playback?: CaptionsInput['playback']
+    plainText?: boolean
+    text: string
+  }>({ text: '' })
   const delayRef = useRef(delay)
   const updateOffset = useRef<(() => void) | undefined>(undefined)
   useEffect(() => {
@@ -36,6 +45,9 @@ function useTrack(
     )
       return
     const { target, stream } = playback
+    const revision = {
+      SubtitleRevision: subtitleRevision(stream.source.MediaStreams ?? []),
+    }
     const codec = selected.Codec?.toLowerCase() ?? ''
     const path =
       'Videos/' +
@@ -52,6 +64,8 @@ function useTrack(
     const createCanvas = () => {
       canvas = document.createElement('canvas')
       canvas.className = 'player-subtitle-canvas'
+      canvas.dataset.subtitleSlot = slot
+      canvas.dataset.split = String(Boolean(split))
       canvas.style.position = 'absolute'
       canvas.style.pointerEvents = 'none'
       canvas.style.zIndex = '1'
@@ -59,7 +73,7 @@ function useTrack(
       return canvas
     }
 
-    if (/^(ass|ssa)$/.test(codec)) {
+    if (/^(ass|ssa)$/.test(codec) && !plainText) {
       void (async () => {
         const { default: AssRenderer } = await import('jassub')
         if (cancelled) return
@@ -73,7 +87,7 @@ function useTrack(
         const renderer = new AssRenderer({
           video,
           canvas: createCanvas(),
-          subUrl: api.mediaUrl(subPath + 'ass'),
+          subUrl: api.mediaUrl(subPath + 'ass', revision),
           timeOffset: offset(),
           fonts,
           queryFonts: false,
@@ -122,7 +136,7 @@ function useTrack(
         const options = {
           video,
           canvas: createCanvas(),
-          subUrl: api.mediaUrl(subPath + extension),
+          subUrl: api.mediaUrl(subPath + extension, revision),
           timeOffset: offset(),
           onError: () => {
             if (!cancelled) fail()
@@ -145,21 +159,24 @@ function useTrack(
       element.label =
         selected.DisplayTitle ?? selected.Language ?? 'Sous-titres'
       element.srclang = selected.Language ?? 'und'
-      element.src = api.mediaUrl(subPath + 'vtt')
+      element.src = api.mediaUrl(subPath + 'vtt', revision)
       const read = () => {
         const cues = Array.from(element.track.cues ?? []).filter(
           (cue) =>
             cue.startTime <= video.currentTime &&
             cue.endTime > video.currentTime,
         )
-        setCaption(
-          cues
+        setCaption({
+          track: selected,
+          playback,
+          plainText,
+          text: cues
             .map((cue) =>
               cue instanceof VTTCue ? cue.getCueAsHTML().textContent : '',
             )
             .filter(Boolean)
             .join('\n'),
-        )
+        })
       }
       // Retain original timestamps so repeated adjustments never accumulate drift,
       // and cues shifted before zero can be restored without a network reload.
@@ -202,7 +219,6 @@ function useTrack(
         element.track.removeEventListener('cuechange', read)
         element.track.mode = 'disabled'
         element.remove()
-        setCaption('')
       }
     }
     return () => {
@@ -211,14 +227,22 @@ function useTrack(
       dispose?.()
       canvas?.remove()
     }
-  }, [api, videoRef, playback, selected, onError])
-  return selected ? caption : ''
+  }, [api, videoRef, playback, selected, onError, plainText, slot, split])
+  return selected &&
+    caption.track === selected &&
+    caption.playback === playback &&
+    caption.plainText === plainText
+    ? caption.text
+    : ''
 }
 
 export function usePlayerSubtitles(
   options: CaptionsInput & { primary?: MediaStream; secondary?: MediaStream },
 ) {
-  const primary = useTrack(options, options.primary)
-  const secondary = useTrack(options, options.secondary)
+  // Jellyfin converts styled text to VTT for bilingual playback so authored
+  // positions from two ASS files cannot paint over one another.
+  const bilingual = Boolean(options.secondary)
+  const primary = useTrack(options, options.primary, 'primary', bilingual)
+  const secondary = useTrack(options, options.secondary, 'secondary', bilingual)
   return { primary, secondary }
 }

@@ -1,8 +1,35 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, within, waitFor } from 'storybook/test'
 import { Select } from './Select.tsx'
 import { languageFlag } from './language-flags.ts'
+import '../performance/performance.css'
+
+function NativeDialogScene(args: ComponentProps<typeof Select>) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const [value, setValue] = useState(args.value)
+  useEffect(() => {
+    const element = dialog.current
+    if (!element) return
+    element.showModal()
+    return () => element.close()
+  }, [])
+  return (
+    <dialog ref={dialog} className="performance-dialog" aria-label="Réglages">
+      <section className="performance-panel">
+        <h2>Réglages</h2>
+        <Select
+          {...args}
+          value={value}
+          onValueChange={(next) => {
+            setValue(next)
+            args.onValueChange(next)
+          }}
+        />
+      </section>
+    </dialog>
+  )
+}
 
 const meta = {
   title: 'UI/Select',
@@ -92,6 +119,30 @@ export const Keyboard: Story = {
   },
 }
 export const Disabled: Story = { args: { disabled: true, children: options } }
+export const NativeDialog: Story = {
+  args: { children: options },
+  render: (args) => <NativeDialogScene {...args} />,
+  play: async ({ canvas, userEvent, args }) => {
+    const dialog = within(await canvas.findByRole('dialog'))
+    const trigger = dialog.getByRole('combobox', { name: 'Qualité' })
+    if (trigger.tagName === 'SELECT')
+      await userEvent.selectOptions(trigger, '4k')
+    else {
+      await userEvent.click(trigger)
+      await waitFor(() => expect(dialog.getByRole('listbox')).toBeVisible())
+      await userEvent.keyboard('{Escape}')
+      await expect(canvas.getByRole('dialog')).toBeVisible()
+      await userEvent.click(trigger)
+      await userEvent.click(
+        await dialog.findByRole('option', {
+          name: '4K · Ultra haute définition',
+        }),
+      )
+    }
+    await expect(args.onValueChange).toHaveBeenCalledWith('4k')
+    await expect(canvas.getByRole('dialog')).toBeVisible()
+  },
+}
 export const LongList: Story = {
   args: {
     value: '0',

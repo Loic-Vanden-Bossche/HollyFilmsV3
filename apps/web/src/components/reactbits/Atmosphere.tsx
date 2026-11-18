@@ -10,16 +10,17 @@ export function Atmosphere({
   kind: 'aurora' | 'rays'
   paused?: boolean
 }) {
-  const { ref, running, fine } = useEffectActivity(paused)
+  const { ref, running, fine, profile } = useEffectActivity(paused)
+  const rendering = running && profile.shaders
   return (
     <div
       ref={ref}
       className={`rb-atmosphere rb-atmosphere-${kind}`}
-      data-motion={running ? 'running' : 'paused'}
+      data-motion={rendering ? 'running' : 'paused'}
       aria-hidden="true"
     >
       <div className="rb-atmosphere-fallback" />
-      {running && (
+      {rendering && (
         <Suspense fallback={null}>
           {kind === 'aurora' ? (
             <Aurora
@@ -29,10 +30,10 @@ export function Atmosphere({
               height={0.45}
               brightness={0.65}
               glow={0.25}
-              layers={2}
+              layers={profile.id === 'ultra' ? 2 : 1}
               opacity={0.55}
               intro={false}
-              dpr={fine ? 1 : 0.8}
+              dpr={profile.dpr}
               mouseInteraction={fine}
             />
           ) : (
@@ -50,7 +51,7 @@ export function Atmosphere({
               cursorShadow={false}
               clickPulse={false}
               intro={false}
-              maxDevicePixelRatio={1}
+              maxDevicePixelRatio={profile.dpr}
             />
           )}
         </Suspense>

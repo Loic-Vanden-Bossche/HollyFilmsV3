@@ -90,8 +90,12 @@ export const SessionActions: Story = {
 
 function SubtitleClearanceScene({
   styledSubtitles,
+  splitSubtitles,
   ...args
-}: ComponentProps<typeof PlayerShell> & { styledSubtitles?: boolean }) {
+}: ComponentProps<typeof PlayerShell> & {
+  styledSubtitles?: boolean
+  splitSubtitles?: boolean
+}) {
   const [visible, setVisible] = useState(false)
   const stage = useRef<HTMLDivElement>(null)
   useSubtitleClearance(stage, visible)
@@ -119,6 +123,8 @@ function SubtitleClearanceScene({
         {styledSubtitles ? (
           <canvas
             className="player-subtitle-canvas"
+            data-subtitle-slot="primary"
+            data-split={Boolean(splitSubtitles)}
             width={1600}
             height={900}
             style={{
@@ -145,8 +151,19 @@ function SubtitleClearanceScene({
             className="player-captions"
             style={{ fontSize: 'clamp(18px, 2.6vw, 34px)' }}
           >
-            <p>Keep your eyes on the stars.</p>
-            <p>Gardez les yeux tournés vers les étoiles.</p>
+            <p data-subtitle-slot="secondary" lang="zh-Hans">
+              仰望星空。
+            </p>
+            <p data-subtitle-slot="primary" lang="fr">
+              Gardez les yeux tournés vers les étoiles.
+            </p>
+          </div>
+        )}
+        {splitSubtitles && (
+          <div className="player-captions" data-split="true">
+            <p data-subtitle-slot="secondary" lang="zh-Hans">
+              仰望星空。
+            </p>
           </div>
         )}
         <div
@@ -191,6 +208,7 @@ export const SubtitleClearance: Story = {
     <SubtitleClearanceScene
       {...args}
       styledSubtitles={parameters.styledSubtitles}
+      splitSubtitles={parameters.splitSubtitles}
     />
   ),
   play: async ({ canvas, canvasElement, userEvent }) => {
@@ -221,4 +239,9 @@ export const StyledSubtitleClearance: Story = {
   ...SubtitleClearance,
   name: 'ASS et bitmap — zone libre sans recadrage',
   parameters: { styledSubtitles: true },
+}
+export const MixedSubtitleClearance: Story = {
+  ...SubtitleClearance,
+  name: 'Deux pistes — texte et bitmap',
+  parameters: { styledSubtitles: true, splitSubtitles: true },
 }

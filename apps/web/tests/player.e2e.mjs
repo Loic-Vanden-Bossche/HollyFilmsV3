@@ -134,6 +134,11 @@ test(
     )
     await writeInContainer(
       name,
+      '/media/Signal Test (2026)/Signal Test (2026).zh.srt',
+      '1\n00:00:00,000 --> 00:02:59,000\nHollyFilms — 中文字幕测试\n',
+    )
+    await writeInContainer(
+      name,
       '/media/Signal Test (2026)/Signal Test (2026).en.ass',
       [
         '[Script Info]',
@@ -321,6 +326,98 @@ test(
           data: request.postDataJSON(),
         })
     })
+    // Provider transport is simulated; installation and track refresh use this
+    // disposable Jellyfin's real files/metadata and the real HTML video element.
+    await page.route('**/api/media/*/subtitles', async (route) => {
+      const id = new URL(route.request().url()).pathname.split('/')[3]
+      const data = await (
+        await api(`/Items/${id}?userId=${auth.User.Id}`, { headers })
+      ).json()
+      const sources = data.MediaSources?.length
+        ? data.MediaSources
+        : [{ Id: data.Id, Name: data.Name, MediaStreams: data.MediaStreams }]
+      await route.fulfill({
+        json: {
+          administrator: true,
+          languages: [
+            { code: 'fra', iso2: 'fr', name: 'French' },
+            { code: 'deu', iso2: 'de', name: 'German' },
+            { code: 'zho', iso2: 'zh', name: 'Chinese' },
+          ],
+          versions: sources.map((source) => ({
+            id: source.Id,
+            name: source.Name || data.Name,
+            tracks: (source.MediaStreams ?? [])
+              .filter((track) => track.Type === 'Subtitle')
+              .map((track) => ({
+                index: track.Index,
+                title: track.DisplayTitle || track.Language,
+                language: track.Language,
+                codec: track.Codec,
+                external: !!track.IsExternal,
+              })),
+          })),
+          requests: [],
+        },
+      })
+    })
+    await page.route('**/api/admin/media/*/subtitles/search?*', (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              id: 'fixture_german',
+              name: 'German test release',
+              provider: 'Simulated subtitle provider',
+              language: 'deu',
+              format: 'srt',
+              hashMatch: true,
+              forced: false,
+              hearingImpaired: false,
+              machineTranslated: false,
+            },
+          ],
+        },
+      }),
+    )
+    await page.route(
+      '**/api/admin/media/*/subtitles/download',
+      async (route) => {
+        await writeInContainer(
+          name,
+          '/media/Signal Test (2026)/Signal Test (2026).de.srt',
+          '1\n00:00:00,000 --> 00:02:59,000\nHollyFilms — neu geladene Untertitel\n',
+        )
+        await api(
+          `/Items/${item.Id}/Refresh?metadataRefreshMode=FullRefresh&imageRefreshMode=None`,
+          { method: 'POST', headers },
+        )
+        await until(async () => {
+          const data = await (
+            await api(`/Items/${item.Id}?userId=${auth.User.Id}`, { headers })
+          ).json()
+          return data.MediaSources?.some((source) =>
+            source.MediaStreams?.some(
+              (track) =>
+                track.Type === 'Subtitle' &&
+                /deu|ger/.test(track.Language ?? ''),
+            ),
+          )
+        }, 'downloaded subtitle indexed by Jellyfin')
+        await route.fulfill({
+          json: {
+            id: 'fixture-operation',
+            itemId: item.Id,
+            sourceId: item.Id,
+            itemName: item.Name,
+            sourceName: item.Name,
+            language: 'deu',
+            status: 'DOWNLOADED',
+            createdAt: new Date().toISOString(),
+          },
+        })
+      },
+    )
     await page.goto(origin)
     await page.evaluate(
       (accessToken) =>
@@ -584,6 +681,20 @@ test(
     }
     // Verify a seek through the player's keyboard shortcuts.
     await playerView.locator('video').focus()
+    assert.equal(
+      await playerView
+        .locator('video')
+        .evaluate((video) => getComputedStyle(video).outlineStyle),
+      'none',
+      'focusing the video does not outline the player',
+    )
+    assert.equal(
+      await playerView.evaluate(
+        (dialog) => getComputedStyle(dialog).outlineStyle,
+      ),
+      'none',
+      'the fullscreen dialog has no focus outline',
+    )
     await page.keyboard.press('l')
     await until(
       () =>
@@ -630,7 +741,11 @@ test(
       .click()
     const audio = options().getByLabel('Audio', { exact: true })
     await audio.click()
-    await page.getByRole('option').nth(1).click()
+    await page
+      .locator('.holly-select-popup[data-open]')
+      .getByRole('option')
+      .nth(1)
+      .click()
     await page.locator('.player-viewport[data-state="ready"]').waitFor()
     await options()
       .getByRole('button', { name: 'Sous-titres', exact: true })
@@ -638,6 +753,7 @@ test(
     const language = options().getByLabel('Langue', { exact: true })
     await language.click()
     await page
+      .locator('.holly-select-popup[data-open]')
       .getByRole('option')
       .filter({ hasText: /French|Français|SRT/i })
       .first()
@@ -668,6 +784,195 @@ test(
     assert(
       await language.locator('img').count(),
       'subtitle select includes a flag',
+    )
+    stage = 'bilingual subtitles'
+    const secondLanguage = options().getByLabel('Deuxième piste', {
+      exact: true,
+    })
+    const selectSecondLanguage = async (name) => {
+      await secondLanguage.click()
+      await page
+        .locator('.holly-select-popup[data-open]')
+        .getByRole('option')
+        .filter({ hasText: name })
+        .click()
+    }
+    await selectSecondLanguage(/Chinese|Chinois|中文/i)
+    await until(
+      async () =>
+        (
+          await playerView
+            .locator('[data-subtitle-slot="secondary"]')
+            .textContent()
+        ).includes('中文字幕测试'),
+      'Chinese secondary subtitles appear alongside French',
+    )
+    assert(
+      (
+        await playerView.locator('[data-subtitle-slot="primary"]').textContent()
+      ).includes('sous-titres de test'),
+      'French primary subtitles remain visible',
+    )
+    await until(
+      () =>
+        page.evaluate(
+          () => Number(new URLSearchParams(location.search).get('sub2')) >= 0,
+        ),
+      'the second track is saved in the URL',
+    )
+    stage = 'download subtitles without restarting playback'
+    const beforeInstall = await playerView
+      .locator('video')
+      .evaluate((video) => {
+        window.subtitleInstallVideo = video
+        return {
+          src: video.currentSrc,
+          time: video.currentTime,
+          paused: video.paused,
+        }
+      })
+    const startsBeforeInstall = reports.filter((report) =>
+      /\/Sessions\/Playing$/.test(report.path),
+    ).length
+    const externalPanel = options().getByRole('region', {
+      name: 'Sous-titres externes',
+    })
+    await externalPanel
+      .getByRole('combobox', { name: 'Langue des sous-titres' })
+      .click()
+    await page
+      .locator('.holly-select-popup[data-open]')
+      .getByRole('option')
+      .filter({ hasText: /allemand|German/i })
+      .click()
+    await externalPanel
+      .getByRole('button', { name: 'Rechercher des sous-titres' })
+      .click()
+    await externalPanel
+      .getByRole('button', { name: 'Télécharger ce sous-titre' })
+      .click()
+    // The native confirmation owns keyboard input; player shortcuts stay idle.
+    const beforeConfirmationKeys = await playerView
+      .locator('video')
+      .evaluate((video) => ({ time: video.currentTime, muted: video.muted }))
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('m')
+    const afterConfirmationKeys = await playerView
+      .locator('video')
+      .evaluate((video) => ({ time: video.currentTime, muted: video.muted }))
+    assert.deepEqual(afterConfirmationKeys, beforeConfirmationKeys)
+    await externalPanel
+      .getByRole('button', { name: 'Confirmer le téléchargement' })
+      .click()
+    await externalPanel
+      .getByText('Sous-titre installé', { exact: true })
+      .waitFor()
+    await externalPanel
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Fermer', exact: true })
+      .click()
+    await externalPanel.getByRole('dialog').waitFor({ state: 'detached' })
+    await until(
+      async () =>
+        (
+          await playerView
+            .locator('[data-subtitle-slot="primary"]')
+            .textContent()
+        ).includes('sous-titres de test') &&
+        (
+          await playerView
+            .locator('[data-subtitle-slot="secondary"]')
+            .textContent()
+        ).includes('中文字幕测试'),
+      'both selected languages survive the live track refresh',
+      10000,
+    ).catch(async (error) => {
+      console.log(
+        'Live subtitle refresh diagnostic:',
+        JSON.stringify(
+          await playerView.evaluate((root) => ({
+            primary: root.querySelector('[data-subtitle-slot="primary"]')
+              ?.textContent,
+            secondary: root.querySelector('[data-subtitle-slot="secondary"]')
+              ?.textContent,
+            captionTracks: Array.from(root.querySelectorAll('video track')).map(
+              (t) => ({
+                language: t.srclang,
+                path: new URL(t.src).pathname,
+                state: t.readyState,
+              }),
+            ),
+            selectors: Array.from(
+              root.querySelectorAll('.holly-select-trigger'),
+            ).map((e) => ({
+              label: e.getAttribute('aria-label'),
+              text: e.textContent,
+            })),
+            alerts: Array.from(root.querySelectorAll('[role=alert]')).map(
+              (e) => e.textContent,
+            ),
+          })),
+        ),
+      )
+      throw error
+    })
+    const afterInstall = await playerView
+      .locator('video')
+      .evaluate((video) => ({
+        sameElement: window.subtitleInstallVideo === video,
+        src: video.currentSrc,
+        time: video.currentTime,
+        paused: video.paused,
+      }))
+    assert.equal(afterInstall.sameElement, true)
+    assert.equal(afterInstall.src, beforeInstall.src)
+    assert.equal(afterInstall.paused, beforeInstall.paused)
+    assert.ok(afterInstall.time >= beforeInstall.time - 0.25)
+    assert.equal(
+      reports.filter((report) => /\/Sessions\/Playing$/.test(report.path))
+        .length,
+      startsBeforeInstall,
+      'no new playback negotiation/session is needed',
+    )
+    await options().getByLabel('Langue', { exact: true }).click()
+    await page
+      .locator('.holly-select-popup[data-open]')
+      .getByRole('option')
+      .filter({ hasText: /German|allemand/i })
+      .waitFor()
+    await page.keyboard.press('Escape')
+    await page.reload()
+    await until(
+      async () =>
+        (
+          await playerView
+            .locator('[data-subtitle-slot="secondary"]')
+            .textContent()
+        ).includes('中文字幕测试') &&
+        (
+          await playerView
+            .locator('[data-subtitle-slot="primary"]')
+            .textContent()
+        ).includes('sous-titres de test'),
+      'both languages restore after reloading',
+    )
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await selectSecondLanguage(/^Désactivée$/)
+    await until(
+      async () =>
+        (await playerView
+          .locator('[data-subtitle-slot="secondary"]')
+          .count()) === 0,
+      'disabling the second track removes its captions',
+    )
+    await until(
+      () =>
+        playerView
+          .locator('video track')
+          .evaluate((track) => Boolean(track.track.cues?.length)),
+      'primary subtitle cue after toggling bilingual captions',
     )
     const originalCue = await playerView
       .locator('video track')
@@ -737,6 +1042,7 @@ test(
       .click()
     await language.click()
     await page
+      .locator('.holly-select-popup[data-open]')
       .getByRole('option')
       .filter({ hasText: /English|Anglais|ASS/i })
       .first()
@@ -781,8 +1087,22 @@ test(
         }),
       'ASS subtitle plane clears controls without clipping top captions',
     )
+    await selectSecondLanguage(/French|Français/i)
+    await until(
+      async () =>
+        (await playerView.locator('.player-captions').textContent()).includes(
+          'ASS subtitle fixture',
+        ) &&
+        (await playerView.locator('.player-captions').textContent()).includes(
+          'sous-titres de test',
+        ),
+      'ASS and SRT subtitles render together without overlapping canvases',
+    )
+    assert.equal(await playerView.locator('.player-subtitle-canvas').count(), 0)
+    await selectSecondLanguage(/^Désactivée$/)
     await language.click()
     await page
+      .locator('.holly-select-popup[data-open]')
       .getByRole('option')
       .filter({ hasText: /French|Français|SRT/i })
       .first()

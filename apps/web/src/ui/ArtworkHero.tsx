@@ -1,7 +1,8 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
 import { ArtworkHeroContext as Context } from './artwork-hero-context.ts'
 import type {
   ArtworkEntry as Entry,

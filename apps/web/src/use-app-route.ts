@@ -7,7 +7,7 @@ const authReturnKey = 'hollyfilms-auth-return'
 export function rememberAppReturn() {
   try {
     if (
-      /^\/(app(?:\/(favorites|movies|series|collections))?|profile)\/?$/.test(
+      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|requests|admin\/requests)\/?$/.test(
         window.location.pathname,
       )
     )
@@ -25,7 +25,7 @@ export function takeAppReturn() {
     const url = new URL(saved ?? '/app', window.location.origin)
     if (
       url.origin === location.origin &&
-      /^\/(app(?:\/(favorites|movies|series|collections))?|profile)\/?$/.test(
+      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|requests|admin\/requests)\/?$/.test(
         url.pathname,
       )
     )

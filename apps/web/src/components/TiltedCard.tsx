@@ -31,7 +31,8 @@ export default function TiltedCard({
   disabled?: boolean
   trackingRef?: RefObject<HTMLElement | null>
 }) {
-  const { running, fine } = useMotionPolicy()
+  const { running, fine, profile } = useMotionPolicy()
+  const tilt = tiltStrength * profile.depth
   const disabled = disabledProp || !running || !fine
   const root = useRef<HTMLDivElement>(null)
   const x = useSpring(0, spring)
@@ -44,12 +45,12 @@ export default function TiltedCard({
   const rotateX = useTransform(
     y,
     [-1, 1],
-    [depth.tiltX * tiltStrength, -depth.tiltX * tiltStrength],
+    [depth.tiltX * tilt, -depth.tiltX * tilt],
   )
   const rotateY = useTransform(
     x,
     [-1, 1],
-    [-depth.tiltY * tiltStrength, depth.tiltY * tiltStrength],
+    [-depth.tiltY * tilt, depth.tiltY * tilt],
   )
   const lightX = useTransform(x, [-1, 1], [-25, 25])
   const lightY = useTransform(y, [-1, 1], [-25, 25])

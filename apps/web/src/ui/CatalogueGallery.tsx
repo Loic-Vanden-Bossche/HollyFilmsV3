@@ -29,7 +29,7 @@ export function CatalogueGallery({
   state?: 'loading' | 'ready' | 'error'
 }) {
   const { t } = useI18n()
-  const { ref, running, reduced } = useEffectActivity(stopped)
+  const { ref, running, reduced, profile } = useEffectActivity(stopped)
   const floating = useRef<ReturnType<typeof animate>[]>([])
   const entrances = useRef<ReturnType<typeof animate>[]>([])
   const posters = items.slice(0, positions.length)
@@ -60,42 +60,47 @@ export function CatalogueGallery({
       animation.pause()
       return animation
     })
-    floating.current = reduced
-      ? []
-      : Array.from(drifts, (card, index) => {
-          const direction = index % 2 ? -1 : 1
-          const animation = animate(
-            card,
-            {
-              transform: [
-                'translateY(0px)',
-                `translateY(${direction * 12}px)`,
-                'translateY(0px)',
-              ],
-            },
-            { duration: 10 + index * 1.3, repeat: Infinity, ease: 'easeInOut' },
-          )
-          animation.pause()
-          return animation
-        })
+    floating.current =
+      reduced || !profile.ambient
+        ? []
+        : Array.from(drifts, (card, index) => {
+            const direction = index % 2 ? -1 : 1
+            const animation = animate(
+              card,
+              {
+                transform: [
+                  'translateY(0px)',
+                  `translateY(${direction * 12}px)`,
+                  'translateY(0px)',
+                ],
+              },
+              {
+                duration: 10 + index * 1.3,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              },
+            )
+            animation.pause()
+            return animation
+          })
     return () => {
       floating.current.forEach((animation) => animation.cancel())
       entrances.current.forEach((animation) => animation.cancel())
     }
-  }, [posterKey, reduced, ref])
+  }, [posterKey, reduced, ref, profile.ambient])
 
   useEffect(() => {
     floating.current.forEach((animation) =>
       running ? animation.play() : animation.pause(),
     )
     entrances.current.forEach((animation) => {
-      if (stopped || reduced) animation.complete()
+      if (stopped || reduced || !profile.ambient) animation.complete()
       else if (animation.state !== 'finished') {
         if (running) animation.play()
         else animation.pause()
       }
     })
-  }, [running, stopped, posterKey, reduced])
+  }, [running, stopped, posterKey, reduced, profile.ambient])
 
   return (
     <div

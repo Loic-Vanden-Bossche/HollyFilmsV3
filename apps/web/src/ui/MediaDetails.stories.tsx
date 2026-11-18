@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, fn, waitFor, within } from 'storybook/test'
+import { expect, fn, mocked, waitFor, within } from 'storybook/test'
+import { getSubtitleLibrary } from '../subtitles-api.ts'
+import {
+  subtitleLibraryFixture,
+  subtitleSession,
+} from '../subtitle-fixtures.ts'
 import { MediaDetails } from './MediaDetails.tsx'
 import { homeItems, homeResume } from '../home-fixtures.ts'
 import {
@@ -44,6 +49,21 @@ export const Complete: Story = {
       items: homeItems,
       total: homeItems.length,
     })),
+  },
+}
+export const ExternalSubtitles: Story = {
+  ...Complete,
+  args: { ...Complete.args, session: subtitleSession, userId: 'story-user' },
+  beforeEach: () => {
+    mocked(getSubtitleLibrary).mockResolvedValue(subtitleLibraryFixture)
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByText('Sous-titres externes', { selector: 'summary' }),
+    )
+    await expect(
+      await canvas.findByRole('button', { name: 'Rechercher des sous-titres' }),
+    ).toBeVisible()
   },
 }
 export const ChaptersAndCollection: Story = {

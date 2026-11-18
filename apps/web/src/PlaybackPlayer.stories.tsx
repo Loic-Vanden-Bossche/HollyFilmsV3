@@ -55,6 +55,13 @@ export const Loading: Story = {
       '0',
     )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
+    const video = canvasElement.querySelector('video')!
+    video.focus()
+    await expect(video).toHaveFocus()
+    await expect(getComputedStyle(video).outlineStyle).toBe('none')
+    await expect(
+      getComputedStyle(canvas.getByRole('dialog')).outlineStyle,
+    ).toBe('none')
     await expect(
       canvasElement.querySelector('.player-artwork-hero img'),
     ).toBeInTheDocument()

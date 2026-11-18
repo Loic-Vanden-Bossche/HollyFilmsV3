@@ -14,6 +14,16 @@ database_password = ""
 jellyfin_api_key = ""
 tmdb_api_token = ""
 
+# Services médias existants repris dans ce même état ; ne jamais recréer leurs PVC.
+# Les versions et chemins sont dans media-variables.tf.
+# Conserver la clé existante du sidecar Jellyfin (stockée dans media.auto.tfvars.json sur la machine de migration).
+# jellyfin_home_defaults_api_key = "...clé historique..."
+# Instance Seerr consommée par l'API HollyFilms :
+# seerr = {
+#   url = "https://seerr.chbrx.com"
+#   api_key = "...clé serveur Seerr..."
+# }
+
 # Garder exactement la clé existante en cas de reprise d'une base SSO !
 # google = {
 #   client_id = "...apps.googleusercontent.com"

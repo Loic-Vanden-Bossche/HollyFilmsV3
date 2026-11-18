@@ -11,6 +11,7 @@
   color: var(--color-foreground, #edf4fc);
   background: #080f1b;
   overflow: hidden;
+  outline: none;
 }
 .player-shell::backdrop {
   background: #080f1b;
@@ -202,8 +203,7 @@
   }
 }
 .player-video:focus-visible {
-  outline: 2px solid var(--color-ring, #4ade80);
-  outline-offset: -3px;
+  outline: none;
 }
 .player-controls-layer {
   position: absolute;
@@ -637,7 +637,8 @@
 }
 .player-subtitle-canvas {
   transform-origin: top center;
-  transform: scale(var(--subtitle-plane-scale, 1));
+  transform: translateY(var(--subtitle-plane-y, 0px))
+    scale(var(--subtitle-plane-scale, 1));
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -653,6 +654,17 @@
   padding: 0 8px;
   background: #000b;
   border-radius: 4px;
+}
+.player-captions[data-split='true'] {
+  inset-block: 0;
+}
+.player-captions[data-split='true'] p {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 6%;
+}
+.player-captions[data-split='true'] [data-subtitle-slot='secondary'] {
+  bottom: 56%;
 }
 .player-menu {
   position: absolute;

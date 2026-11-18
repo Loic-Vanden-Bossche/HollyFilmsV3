@@ -1,6 +1,23 @@
 import { localizeText, type Message, type Translate } from './messages.ts'
 
 export const apiMessages = {
+  SUBTITLE_UNAVAILABLE: 'Le service de sous-titres est indisponible.',
+  SUBTITLE_SELECTION_EXPIRED:
+    'Ce sous-titre n’est plus disponible. Relance la recherche.',
+  SUBTITLE_BUSY: 'Un téléchargement est déjà en cours pour cette version.',
+  SUBTITLE_UNCONFIRMED:
+    'Le nouveau sous-titre n’a pas pu être confirmé dans la bibliothèque. Vérifiez le fournisseur puis réessayez.',
+  SEERR_DISABLED: 'Les demandes de médias sont indisponibles.',
+  SEERR_UNAVAILABLE: 'Le service de demandes est momentanément indisponible.',
+  SEERR_IDENTITY: 'Impossible de lier le compte au service de demandes.',
+  REQUEST_NOT_FOUND: 'Demande de média introuvable.',
+  REQUEST_EXISTS: 'Ce titre est déjà disponible ou ne peut pas être demandé.',
+  REQUEST_FORBIDDEN: 'Tu n’as pas l’autorisation d’envoyer cette demande.',
+  REQUEST_APPROVAL_POLICY:
+    'Les permissions Seerr de ce compte doivent être vérifiées par un administrateur.',
+  REQUEST_SERVICE_MISSING:
+    'Aucun service de téléchargement par défaut n’est configuré pour ce type de média.',
+  REQUEST_CHANGED: 'Cette demande a déjà été traitée. Actualise la page.',
   AUTH_REQUIRED: 'Reconnecte-toi pour continuer.',
   ACCESS_DENIED: 'Tu n’as pas accès à cette ressource.',
   PREFERENCES_DISABLED:

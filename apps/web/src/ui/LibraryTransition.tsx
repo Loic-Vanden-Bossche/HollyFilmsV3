@@ -1,10 +1,6 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useState, type ReactNode } from 'react'
-import {
-  AnimatePresence,
-  motion,
-  useIsPresent,
-  useReducedMotion,
-} from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 
 const ease = [0.22, 1, 0.36, 1] as const
 

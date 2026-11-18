@@ -3,18 +3,19 @@
 Cette racine Terraform reprend l’architecture du [portfolio](https://github.com/Loic-Vanden-Bossche/portfolio/tree/master/infrastructure) pour la plateforme CHBRX : modules `database`, `app`, `domain`, backend Scaleway, images GHCR et migrations Prisma avant la mise à jour de l’application.
 
 - **HollyFilms :** `https://hollyfilms-v3.chbrx.com`.
-- **Jellyfin existant :** `https://hollyfilms.chbrx.com`, consommé via HTTPS ; il n’est ni déployé ni modifié par ce projet.
-- **Namespace dédié :** `hollyfilms-v3`.
+- **Jellyfin existant :** `https://hollyfilms.chbrx.com`, consommé via HTTPS et désormais administré par le module `jellyfin` de cette racine.
+- **Namespaces :** `hollyfilms-v3` pour le frontend/API/PostgreSQL ; les services médias conservent leurs namespaces historiques.
 - **État distant :** bucket `chbrx-terraformstate`, clé **`hollyfilms-v3.tfstate`**, endpoint Scaleway Paris. Aucun état du portfolio n’est réutilisé.
 
 ## Architecture
 
-| Module     | Ressources                                                                                                                                                 |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Racine     | Backend S3, provider Kubernetes, namespace protégé, variables et outputs.                                                                                  |
-| `database` | PostgreSQL 17, Secret, Service privé, Deployment `Recreate`, PVC 5 Gi par défaut avec `prevent_destroy`. `PGDATA` utilise un sous-dossier du volume.       |
-| `app`      | Secret de configuration, authentification GHCR facultative, Job de migration et Deployment avec deux conteneurs : API Node 24 et web NGINX non privilégié. |
-| `domain`   | Ingress NGINX vers le port web 8080 et certificat via `letsencrypt-production`.                                                                            |
+| Module          | Ressources                                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Racine          | Backend S3, provider Kubernetes, namespace protégé, variables et outputs.                                                                                                       |
+| `database`      | PostgreSQL 17, Secret, Service privé, Deployment `Recreate`, PVC 5 Gi par défaut avec `prevent_destroy`. `PGDATA` utilise un sous-dossier du volume.                            |
+| `app`           | Secret de configuration, authentification GHCR facultative, Job de migration et Deployment avec deux conteneurs : API Node 24 et web NGINX non privilégié.                      |
+| `domain`        | Ingress NGINX vers le port web 8080 et certificat via `letsencrypt-production`.                                                                                                 |
+| Services médias | Modules `jellyfin`, `prowlarr`, `radarr`, `sabnzbd`, `seerr`, `wizarr`, repris sans recréation depuis `chbrx.tfstate`. Voir [le compte rendu de migration](MEDIA-MIGRATION.md). |
 
 Le web sert Vite et relaie `/api` vers l’API du même pod et `/jellyfin` vers le serveur existant. Le Service n’expose que le port web. PostgreSQL n’a ni NodePort ni ingress. Les cookies Google et les appels du navigateur restent sur la même origine.
 
@@ -22,7 +23,7 @@ Les flux vidéo ne sont pas mis en tampon ou en cache par les proxies. Range, le
 
 ## Prérequis et configuration
 
-Terraform **1.15.8+**, Docker/Buildx, Git, GitHub CLI (`gh`), Node 24 et Corepack. Le kubeconfig doit cibler CHBRX ; préciser `kubeconfig_context` pour éviter de dépendre du contexte courant. NGINX, cert-manager, le ClusterIssuer et la StorageClass existants ne sont pas gérés ici. Le stockage par défaut `local-path` utilise `WaitForFirstConsumer`, d’où `wait_until_bound = false` sur le PVC.
+Terraform **1.15.8+**, Docker/Buildx, Git, GitHub CLI (`gh`), Node 24 et Corepack. Le kubeconfig doit cibler CHBRX ; préciser `kubeconfig_context` pour éviter de dépendre du contexte courant. NGINX, cert-manager, le ClusterIssuer et le provisionneur `local-path` restent gérés par l’infrastructure CHBRX. Les StorageClasses statiques `*-protected` des services médias sont gérées ici. Le stockage dynamique `local-path` utilise `WaitForFirstConsumer`, d’où `wait_until_bound = false` sur les PVC concernés.
 
 Depuis la racine du dépôt :
 
@@ -36,7 +37,10 @@ Renseigner le fichier ignoré par Git :
 - `jellyfin_api_key` : clé API du **serveur de production** `hollyfilms.chbrx.com`. L’API refuse de démarrer sans elle.
 - `google` : facultatif, mais ses trois champs sont requis ensemble. Pour une nouvelle installation, `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"` génère `password_key`. Conserver la clé existante si une base contenant des comptes Google est restaurée.
 - `tmdb_api_token` : facultatif, jeton de lecture TMDB.
+- `seerr` : facultatif, objet `url` et `api_key` de l’instance Seerr existante ; transmis uniquement au Secret API. Voir [les demandes de médias](../../docs/media-requests.md).
 - `ghcr_credentials` : compte et jeton `read:packages` si les images sont privées ; `null` pour des images publiques.
+- `media-variables.tf` : versions, hôtes et chemins persistants des six services médias. Les valeurs effectivement utilisées lors du transfert sont conservées dans `media.auto.tfvars.json`, ignoré par Git. `jellyfin_home_defaults_api_key` conserve la clé du sidecar historique ; elle est distincte de la configuration du backend HollyFilms et ne doit pas être supprimée pendant une mise à jour.
+- `production-images.auto.tfvars.json`, ignoré par Git, conserve les digests actuellement déployés. Le script `deploy` fournit explicitement les images de la nouvelle release et prend ainsi priorité sur ces valeurs.
 
 Les Secrets Kubernetes gérés par Terraform figurent aussi dans son état, malgré `sensitive = true`. Protéger le bucket, les sauvegardes, le fichier de variables et les plans. Les variables peuvent également être fournies avec `TF_VAR_*`. Aucun `.env` local n’est chargé par le script de déploiement ni copié dans les images.
 
@@ -129,6 +133,8 @@ corepack yarn test:infrastructure
 ```
 
 Les tests Terraform utilisent un provider simulé, sans connexion au cluster ni au backend distant. Le test conteneurs utilise une base PostgreSQL isolée, les deux images de production et un serveur média simulé. Il vérifie l’application et la réexécution des migrations, le démarrage sans secrets côté web, les routes SPA, le cache des assets, les refus d’accès API, les requêtes Range et les WebSockets. Il nettoie uniquement ses conteneurs et son réseau.
+
+Les scénarios `media.tftest.hcl` vérifient également la conservation des adresses publiques et internes, des interfaces d’administration privées, du stockage partagé Radarr/SABnzbd et du PVC Wizarr existant.
 
 Le Compose racine reste réservé au développement : Vite et Fastify continuent à démarrer localement avec autoreload et `concurrently`.
 

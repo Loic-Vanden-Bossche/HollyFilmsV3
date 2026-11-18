@@ -1,6 +1,7 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Select } from './Select.tsx'
-import { motion, useIsPresent, useReducedMotion } from 'motion/react'
+import { motion, useIsPresent } from 'motion/react'
 import type { CSSProperties } from 'react'
 import {
   ArrowLeft,

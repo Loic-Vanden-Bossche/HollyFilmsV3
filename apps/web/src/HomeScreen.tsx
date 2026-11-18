@@ -1,4 +1,5 @@
 import { useI18n } from './i18n/I18nProvider.tsx'
+import { DiscoveryResults } from './ui/DiscoveryResults.tsx'
 import type { InfiniteData } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -434,6 +435,21 @@ export function HomeScreen({
           },
           onRetry: () => void searchLibrary.refetch(),
         }}
+        discovery={
+          <DiscoveryResults
+            userId={user.id}
+            session={session}
+            query={search}
+            administrator={user.isAdministrator}
+            type={
+              filter === 'movies'
+                ? 'movie'
+                : filter === 'series'
+                  ? 'tv'
+                  : undefined
+            }
+          />
+        }
         resumeItems={resume.data ?? []}
         resumeError={resume.isError}
         state={pageState}
@@ -508,6 +524,7 @@ export function HomeScreen({
             route.source,
             route.audio,
             route.subtitle,
+            route.secondarySubtitle,
             route.paused,
             playback.openedAt,
           ])}
@@ -515,6 +532,7 @@ export function HomeScreen({
           userId={user.id}
           resume={playback.resume}
           initialPaused={route.paused}
+          initialSecondarySubtitle={route.secondarySubtitle}
           onLocationChange={savePlaybackLocation}
           session={session}
           initialOptions={playback.options}

@@ -11,7 +11,7 @@ export function CatalogueBackdrop({ paused = false }: { paused?: boolean }) {
   const animations = useRef<ReturnType<typeof animate>[]>([])
 
   useEffect(() => {
-    if (policy.reduced) return
+    if (policy.reduced || !policy.profile.ambient) return
     const loops = [
       animate(
         '.catalogue-nebula-green',
@@ -79,11 +79,11 @@ export function CatalogueBackdrop({ paused = false }: { paused?: boolean }) {
       loops.forEach((loop) => loop.cancel())
       animations.current = []
     }
-  }, [animate, policy.reduced])
+  }, [animate, policy.reduced, policy.profile.ambient])
 
   useEffect(() => {
     animations.current.forEach((loop) => (running ? loop.play() : loop.pause()))
-  }, [running, policy.reduced])
+  }, [running, policy.reduced, policy.profile.ambient])
 
   return (
     <div

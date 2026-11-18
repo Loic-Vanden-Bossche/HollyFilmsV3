@@ -1,4 +1,5 @@
 import { useI18n } from '../i18n/I18nProvider.tsx'
+import { usePerformanceProfile } from '../performance/PerformanceProvider.tsx'
 import {
   memo,
   useCallback,
@@ -32,6 +33,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
   ...tileProps
 }: Props) {
   const { t } = useI18n()
+  const profile = usePerformanceProfile()
   const root = useRef<HTMLDivElement>(null)
   const probe = useRef<HTMLDivElement>(null)
   const [layout, setLayout] = useState({
@@ -45,18 +47,29 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
   useLayoutEffect(() => {
     const element = root.current!
     const grid = probe.current!
+    let frame = 0
+    let previousWidth = -1
+    let columns = 6
+    let gap = 0
+    let columnGap = 0
     const measure = () => {
-      const style = getComputedStyle(grid)
-      const columns = style.gridTemplateColumns.split(' ').length
+      frame = 0
       const width = element.clientWidth
+      // The body also resizes as images/rows arrive. Only reread responsive
+      // grid styles when its width changes, and batch geometry reads per frame.
+      if (width !== previousWidth) {
+        const style = getComputedStyle(grid)
+        columns = style.gridTemplateColumns.split(' ').length
+        gap = parseFloat(style.rowGap) || 0
+        columnGap = parseFloat(style.columnGap) || 0
+        previousWidth = width
+      }
       const next = {
         columns,
         width,
-        gap: parseFloat(style.rowGap) || 0,
+        gap,
         top: element.getBoundingClientRect().top + window.scrollY,
-        cardWidth:
-          (width - (columns - 1) * (parseFloat(style.columnGap) || 0)) /
-          columns,
+        cardWidth: (width - (columns - 1) * columnGap) / columns,
       }
       setLayout((previous) =>
         Object.keys(next).every(
@@ -68,14 +81,19 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
           : next,
       )
     }
-    measure()
-    const observer = new ResizeObserver(measure)
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure)
+    }
+    // The initial ResizeObserver delivery follows browser layout. Measuring in
+    // the mount commit forced layout of the entire page during its intro.
+    const observer = new ResizeObserver(schedule)
     observer.observe(element)
     observer.observe(document.body)
-    window.addEventListener('resize', measure)
+    window.addEventListener('resize', schedule)
     return () => {
+      cancelAnimationFrame(frame)
       observer.disconnect()
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', schedule)
     }
   }, [])
   const focusedIndex = items.findIndex((item) => item.id === focusedId)
@@ -102,10 +120,11 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
   // TanStack owns mutable measurements; React Compiler must not memoize this hook.
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+    enabled: layout.width > 0,
     count: Math.ceil(items.length / layout.columns),
     estimateSize: () => (layout.cardWidth - 2) * 1.5 + 76,
     gap: layout.gap,
-    overscan: 2,
+    overscan: profile.overscan,
     scrollMargin: layout.top,
     getItemKey,
     rangeExtractor,

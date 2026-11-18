@@ -36,6 +36,12 @@ export const Member: Story = {
     await expect(
       canvas.queryByRole('link', { name: 'Demandes d’approbation' }),
     ).not.toBeInTheDocument()
+    await expect(
+      canvas.getByRole('link', { name: 'Mes demandes' }),
+    ).toHaveAttribute('href', '/requests')
+    await expect(
+      canvas.queryByRole('link', { name: 'Demandes de médias' }),
+    ).not.toBeInTheDocument()
   },
 }
 export const Administrator: Story = {
@@ -50,6 +56,9 @@ export const Administrator: Story = {
     await expect(
       canvas.getByRole('link', { name: 'Demandes d’approbation' }),
     ).toHaveAttribute('href', '/admin')
+    await expect(
+      canvas.getByRole('link', { name: 'Demandes de médias' }),
+    ).toHaveAttribute('href', '/admin/requests')
   },
 }
 export const KeyboardAndDismiss: Story = {

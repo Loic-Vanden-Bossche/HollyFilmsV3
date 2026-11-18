@@ -84,3 +84,50 @@ export const ThousandTitles: Story = {
 }
 
 export const Empty: Story = { args: { items: [], total: 0 } }
+
+export const ContentArrivesAbove: Story = {
+  name: 'Repositionnement après chargement du contenu précédent',
+  decorators: [
+    (Story) => {
+      const [expanded, setExpanded] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setExpanded((value) => !value)}>
+            Afficher le contenu précédent
+          </button>
+          <div aria-hidden="true" style={{ height: expanded ? 360 : 0 }} />
+          <Story />
+        </>
+      )
+    },
+  ],
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    window.scrollTo(0, 0)
+    const first = await canvas.findByRole('button', {
+      name: 'Voir la fiche de Film 1',
+    })
+    await waitFor(() => expect(first).toBeVisible())
+    const grid = canvasElement.querySelector('.virtual-media-grid')!
+    const top = grid.getBoundingClientRect().top + window.scrollY
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Afficher le contenu précédent' }),
+    )
+    await waitFor(() =>
+      expect(
+        Math.round(grid.getBoundingClientRect().top + window.scrollY - top),
+      ).toBe(360),
+    )
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Voir la fiche de Film 1000' }),
+      ).toBeVisible(),
+    )
+    window.scrollTo(0, 0)
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Voir la fiche de Film 1' }),
+      ).toBeVisible(),
+    )
+  },
+}

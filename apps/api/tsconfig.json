@@ -13,5 +13,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "prisma.config.ts", "tests/accounts.test.ts"]
+  "include": [
+    "src",
+    "prisma.config.ts",
+    "tests/accounts.test.ts",
+    "tests/requests.test.ts",
+    "tests/subtitles.test.ts"
+  ]
 }

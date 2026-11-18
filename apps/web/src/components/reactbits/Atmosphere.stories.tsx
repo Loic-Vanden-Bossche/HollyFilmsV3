@@ -1,17 +1,30 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect } from 'storybook/test'
 import { Atmosphere } from './Atmosphere.tsx'
+import { useState } from 'react'
+import { PerformanceProvider } from '../../performance/PerformanceProvider.tsx'
+import { PerformanceController } from '../../performance/profiles.ts'
 const meta = {
   title: 'UI/React Bits/Atmosphère',
   component: Atmosphere,
   args: { kind: 'aurora' },
   parameters: { layout: 'fullscreen' },
   decorators: [
-    (Story) => (
-      <div style={{ height: '100dvh', position: 'relative' }}>
-        <Story />
-      </div>
-    ),
+    (Story) => {
+      const [controller] = useState(() => {
+        const value = new PerformanceController()
+        value.setAdmin(true)
+        value.select('ultra', 0)
+        return value
+      })
+      return (
+        <PerformanceProvider controller={controller} measure={false}>
+          <div style={{ height: '100dvh', position: 'relative' }}>
+            <Story />
+          </div>
+        </PerformanceProvider>
+      )
+    },
   ],
 } satisfies Meta<typeof Atmosphere>
 export default meta

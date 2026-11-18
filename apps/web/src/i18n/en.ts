@@ -744,4 +744,216 @@ export default {
   Vu: 'Watched',
   'Impossible d’effectuer cette action. Réessaie.':
     'Could not complete this action. Please try again.',
+  Essentiel: 'Essential',
+  Léger: 'Light',
+  Équilibré: 'Balanced',
+  Élevé: 'High',
+  Ultra: 'Ultra',
+  Performances: 'Performance',
+  'Débogage des performances': 'Performance debugging',
+  'Mode de performance': 'Performance mode',
+  'Profil actif': 'Active profile',
+  'Sélection manuelle': 'Manual selection',
+  'Image p95': 'Frame time p95',
+  'Temps bloqué': 'Main thread blocked',
+  'Interaction maximale': 'Maximum interaction latency',
+  'Mesure en cours…': 'Collecting measurements…',
+  Étalonnage: 'Warming up',
+  'Mesure active': 'Measuring active work',
+  'En attente d’activité': 'Waiting for activity',
+  'Adaptation suspendue pendant la lecture':
+    'Adaptation paused during playback',
+  'Ralentissement mesuré': 'Measured slowdown',
+  'Performance stable': 'Stable performance',
+  'Retour au mode automatique': 'Automatic mode resumed',
+  'Fréquence des images et changements de profil':
+    'Frame rate and profile changes',
+  'FPS mesurés par rAF · pointillés = changement de profil · bande = profil actif':
+    'Measured rAF FPS · dashed lines = profile changes · strip = active profile',
+  'Réduction après deux mesures lentes. Remontée après 30 secondes stables en activité. Les onglets masqués sont exclus.':
+    'Reduced after two slow samples. Increased after 30 stable seconds of activity. Hidden tabs are excluded.',
+  'La préférence système de mouvement réduit reste prioritaire. — indique une mesure indisponible.':
+    'System reduced-motion settings take priority. — means the measurement is unavailable.',
+  'Changements de profil': 'Profile changes',
+  'Aucun changement pour le moment.': 'No changes yet.',
+  'Mes demandes': 'My requests',
+  Catalogue: 'Catalogue',
+  'Gérer les demandes de médias': 'Manage media requests',
+  'GESTION DU CATALOGUE': 'CATALOGUE MANAGEMENT',
+  'VOTRE SÉLECTION À VENIR': 'COMING TO YOUR LIBRARY',
+  'Demandes de médias': 'Media requests',
+  'Approuvez les demandes et suivez leur acquisition.':
+    'Approve requests and follow their acquisition.',
+  'Suivez vos demandes, de l’approbation à la disponibilité.':
+    'Follow your requests from approval to availability.',
+  'Services et statistiques': 'Services and statistics',
+  Disponibles: 'Available',
+  'En traitement': 'Processing',
+  'En échec': 'Failed',
+  'Non configuré': 'Not configured',
+  'Ouvrir Seerr': 'Open Seerr',
+  'État des demandes': 'Request status',
+  'Impossible de traiter cette demande.': 'Unable to process this request.',
+  'Impossible de charger les services.': 'Unable to load services.',
+  'Services indisponibles : {names}': 'Unavailable services: {names}',
+  'Chargement des demandes…': 'Loading requests…',
+  'Impossible de charger les demandes.': 'Unable to load requests.',
+  'Rechercher un titre dans le catalogue':
+    'Search for a title in the catalogue',
+  Approuvée: 'Approved',
+  Disponible: 'Available',
+  'Partiellement disponible': 'Partially available',
+  'Téléchargement en cours': 'Downloading',
+  'État inconnu': 'Unknown status',
+  'Demandé le {date}': 'Requested on {date}',
+  'Saisons : {seasons}': 'Seasons: {seasons}',
+  'Progression du téléchargement': 'Download progress',
+  'Progression indisponible': 'Progress unavailable',
+  'Informations administrateur': 'Administrator information',
+  'Demandé par': 'Requested by',
+  'Traité par': 'Processed by',
+  'Mis à jour': 'Updated',
+  'Profil de qualité': 'Quality profile',
+  Dossier: 'Folder',
+  'Identifiant externe': 'External ID',
+  'Ouvrir le service': 'Open service',
+  'Refuser cette demande ?': 'Decline this request?',
+  'Confirmer le refus': 'Confirm decline',
+  'Titres à demander': 'Titles to request',
+  'AU-DELÀ DE VOTRE BIBLIOTHÈQUE': 'BEYOND YOUR LIBRARY',
+  'La demande n’a pas pu être envoyée.': 'The request could not be sent.',
+  'Demande approuvée automatiquement.': 'Request automatically approved.',
+  'Demande envoyée. Elle attend une approbation.':
+    'Request sent. Awaiting approval.',
+  'La découverte de titres est indisponible.':
+    'Title discovery is unavailable.',
+  'Le service de demandes n’est pas configuré.':
+    'The request service is not configured.',
+  'Demander toutes les saisons disponibles ?': 'Request all available seasons?',
+  'Ajouter ce film aux demandes ?': 'Request this movie?',
+  'Déjà demandé': 'Already requested',
+  'Service indisponible': 'Service unavailable',
+  Demander: 'Request',
+  'Aucun autre titre à demander pour cette recherche.':
+    'No additional titles to request for this search.',
+  'Métadonnées fournies par TMDB.': 'Metadata provided by TMDB.',
+  'Les demandes de médias sont indisponibles.':
+    'Media requests are unavailable.',
+  'Le service de demandes est momentanément indisponible.':
+    'The request service is temporarily unavailable.',
+  'La demande n’a pas pu être traitée.': 'The request could not be processed.',
+  'Impossible de lier le compte au service de demandes.':
+    'Unable to link your account to the request service.',
+  'Les permissions Seerr de ce compte doivent être vérifiées par un administrateur.':
+    'An administrator needs to review this account’s Seerr permissions.',
+  'Ce titre est déjà disponible ou ne peut pas être demandé.':
+    'This title is already available or cannot be requested.',
+  'Aucun service de téléchargement par défaut n’est configuré pour ce type de média.':
+    'No default download service is configured for this media type.',
+  'Cette demande a déjà été traitée. Actualise la page.':
+    'This request has already been processed. Refresh the page.',
+  'Tu n’as pas l’autorisation d’envoyer cette demande.':
+    'You are not allowed to send this request.',
+  'Demande de média introuvable.': 'Media request not found.',
+  'À télécharger': 'Awaiting download',
+  'En pause': 'Paused',
+  'En file d’attente': 'Queued',
+  Importation: 'Importing',
+  Échec: 'Failed',
+  Serveur: 'Server',
+  Pagination: 'Pagination',
+  'Demande déjà enregistrée. Consultez son statut dans Mes demandes.':
+    'Request already recorded. Check its status in My requests.',
+  'Les demandes administrateur sont approuvées automatiquement.':
+    'Administrator requests are automatically approved.',
+  'Une approbation administrateur sera nécessaire.':
+    'Administrator approval will be required.',
+  'Téléchargement terminé': 'Download complete',
+  'Attention requise': 'Attention required',
+  'Sous-titres externes': 'External subtitles',
+  'Vérification du sous-titre…': 'Verifying subtitle…',
+  'Sous-titre installé': 'Subtitle installed',
+  'Actualiser les pistes': 'Refresh tracks',
+  'Chargement des sous-titres…': 'Loading subtitles…',
+  'Impossible de charger les sous-titres.': 'Unable to load subtitles.',
+  'Version du média': 'Media version',
+  'Langue des sous-titres': 'Subtitle language',
+  'Pistes installées': 'Installed tracks',
+  Externe: 'External',
+  Intégré: 'Embedded',
+  'Aucune piste de sous-titres pour cette version.':
+    'No subtitle tracks for this version.',
+  'Correspondance exacte uniquement': 'Exact matches only',
+  'Rechercher des sous-titres': 'Search subtitles',
+  'Aucun sous-titre trouvé. Essayez sans la correspondance exacte.':
+    'No subtitles found. Try turning off exact matches.',
+  'Correspondance exacte': 'Exact match',
+  Malentendants: 'Hearing impaired',
+  Forcés: 'Forced',
+  'Traduction automatique': 'Machine translated',
+  'Installer ce sous-titre pour cette version ?':
+    'Install this subtitle for this version?',
+  'Téléchargement…': 'Downloading…',
+  'Confirmer l’approbation et télécharger': 'Confirm approval and download',
+  'Confirmer le téléchargement': 'Confirm download',
+  'Approuver et télécharger': 'Approve and download',
+  'Télécharger ce sous-titre': 'Download this subtitle',
+  'Un administrateur choisira et téléchargera le sous-titre demandé.':
+    'An administrator will select and download the requested subtitle.',
+  'Demander cette langue': 'Request this language',
+  'Impossible de traiter les sous-titres.': 'Unable to process subtitles.',
+  'Le téléchargement est envoyé. Vérification de son apparition dans la bibliothèque…':
+    'Download sent. Checking for the new library track…',
+  'Sous-titres installés. Actualisez les pistes pour les afficher dans le lecteur.':
+    'Subtitles installed. Refresh tracks to show them in the player.',
+  'Suivre les demandes de sous-titres': 'Track subtitle requests',
+  'Demandes de sous-titres': 'Subtitle requests',
+  'SOUS-TITRES À LA DEMANDE': 'SUBTITLES ON REQUEST',
+  'Choisissez la bonne version et approuvez son téléchargement.':
+    'Choose the matching release and approve its download.',
+  'Suivez l’ajout des langues demandées à vos films et épisodes.':
+    'Track requested languages for your movies and episodes.',
+  'Aucune demande de sous-titres pour le moment.': 'No subtitle requests yet.',
+  'Ouvrez un film ou les sous-titres du lecteur pour demander une langue.':
+    'Open a movie or the player’s subtitles to request a language.',
+  'Rechercher et approuver': 'Search and approve',
+  'Type de demande': 'Request type',
+  Médias: 'Media',
+  'Le service de sous-titres est indisponible.':
+    'The subtitle service is unavailable.',
+  'Ce sous-titre n’est plus disponible. Relance la recherche.':
+    'This subtitle is no longer available. Search again.',
+  'Un téléchargement est déjà en cours pour cette version.':
+    'A download is already in progress for this version.',
+  'Le nouveau sous-titre n’a pas pu être confirmé dans la bibliothèque. Vérifiez le fournisseur puis réessayez.':
+    'The new subtitle could not be confirmed in the library. Check the provider, then try again.',
+  'Impossible d’actualiser les pistes du lecteur. Réessayez.':
+    'Unable to refresh player tracks. Try again.',
+  'DEMANDE DE MÉDIA': 'MEDIA REQUEST',
+  'Demande enregistrée': 'Request received',
+  'Retrouvez son avancement dans Mes demandes. Souhaitez-vous y aller ?':
+    'Track its progress in My requests. Would you like to go there?',
+  'Voir mes demandes': 'View my requests',
+  'Continuer à explorer': 'Keep exploring',
+  'Fermer la confirmation': 'Close confirmation',
+  'Confirmer la demande': 'Confirm request',
+  'Demander des sous-titres dans cette langue ?':
+    'Request subtitles in this language?',
+  'Installation puis vérification de la piste dans votre bibliothèque.':
+    'Installing and checking the track in your library.',
+  'Le sous-titre est disponible dans cette version du média.':
+    'The subtitle is available for this media version.',
+  'Choisissez la langue et la version qui vous correspondent.':
+    'Choose your language and the matching media version.',
+  'Parcours des sous-titres': 'Subtitle steps',
+  'Version et langue': 'Version and language',
+  Recherche: 'Search',
+  Approbation: 'Approval',
+  Installation: 'Installation',
+  'Les fournisseurs de sous-titres sont interrogés.':
+    'Checking subtitle providers.',
+  'Sous-titres trouvés : {count}': 'Subtitles found: {count}',
+  Installé: 'Installed',
+  'Traitement en cours…': 'Processing…',
+  'Aucun résultat': 'No results',
 } as const

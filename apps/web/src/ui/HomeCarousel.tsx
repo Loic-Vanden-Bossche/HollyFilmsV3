@@ -1,4 +1,6 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
+import { usePerformanceProfile } from '../performance/PerformanceProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
   useCallback,
@@ -18,7 +20,6 @@ import {
   useInView,
   useAnimate,
   useMotionValue,
-  useReducedMotion,
 } from 'motion/react'
 import {
   ChevronLeft,
@@ -92,6 +93,7 @@ export function HomeCarousel({
 }) {
   const { t, locale } = useI18n()
   const reduced = useReducedMotion()
+  const profile = usePerformanceProfile()
   const backdropWidth = useSyncExternalStore(
     subscribeViewport,
     backdropResolution,
@@ -147,13 +149,14 @@ export function HomeCarousel({
         item,
         signal,
       ),
-    enabled: Boolean(item && session && userId && enabled),
+    enabled: Boolean(item && session && userId && enabled && profile.trailers),
     retry: false,
     staleTime: 300000,
     gcTime: 0,
     refetchOnWindowFocus: false,
   })
-  const playingPreview = previewStatus?.id === item?.id && previewStatus.playing
+  const playingPreview =
+    profile.trailers && previewStatus?.id === item?.id && previewStatus.playing
   const duration = preview.data ? 30 : 10
 
   useEffect(() => {
@@ -258,7 +261,7 @@ export function HomeCarousel({
           <HeroVideo
             key={item.id}
             source={preview.data}
-            running={running}
+            running={running && profile.trailers}
             muted={muted}
             onStatus={(status) =>
               setPreviewStatus({ id: item.id, playing: status === 'playing' })
@@ -402,7 +405,7 @@ export function HomeCarousel({
             ? t('BANDE-ANNONCE')
             : t('LA SÉLECTION HOLLYFILMS')}
         </span>
-        {preview.data && (
+        {preview.data && profile.trailers && (
           <Tooltip>
             <button
               type="button"

@@ -143,3 +143,11 @@ yarn build
 Pour tester les inscriptions, créer un PostgreSQL 17 de test et un Jellyfin 12.4 neuf dans des conteneurs isolés. Appliquer les migrations avec `yarn db:deploy` en pointant `DATABASE_URL` vers la base de test. Renseigner `HOLLYFILMS_TEST_DATABASE_URL` et `HOLLYFILMS_TEST_JELLYFIN_URL`, puis lancer `yarn test:accounts`. Le test initialise l’assistant Jellyfin de cette instance et simule le fournisseur Google.
 
 `yarn format` applique Prettier. `docker compose down` arrête les services et conserve leurs volumes.
+
+## Demandes de médias
+
+La recherche et les pages utilisateur/admin réutilisent Seerr et les services Radarr/Sonarr existants. Voir [la configuration et les tests des demandes](docs/media-requests.md).
+
+## Sous-titres externes
+
+Recherche et téléchargement administrateur depuis la fiche média ou le lecteur, avec demandes de langues soumises à approbation pour les utilisateurs. Voir [le fonctionnement et les tests des sous-titres](docs/subtitles.md).

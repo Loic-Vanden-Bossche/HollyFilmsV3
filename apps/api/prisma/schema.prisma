@@ -72,3 +72,37 @@ model MediaReview {
   @@unique([itemId, userId])
   @@index([itemId, createdAt])
 }
+
+enum SubtitleRequestStatus {
+  PENDING
+  DOWNLOADING
+  DOWNLOADED
+  REJECTED
+  FAILED
+}
+
+model SubtitleRequest {
+  id            String                @id @default(uuid()) @db.Uuid
+  itemId        String
+  sourceId      String
+  itemName      String
+  sourceName    String
+  language      String
+  requesterId   String
+  requesterName String
+  activeKey     String?               @unique
+  status        SubtitleRequestStatus @default(PENDING)
+  remoteId      String?
+  baseline      String?
+  startedAt     DateTime?
+  decidedBy     String?
+  decidedByName String?
+  decidedAt     DateTime?
+  lastError     String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([requesterId, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceId, status])
+}

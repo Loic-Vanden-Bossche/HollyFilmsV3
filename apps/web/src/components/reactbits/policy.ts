@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useSyncExternalStore } from 'react'
 import { useInView, useReducedMotion } from 'motion/react'
+import { usePerformanceProfile } from '../../performance/PerformanceProvider.tsx'
 
 export const cinemaMotion = {
   ease: [0.22, 1, 0.36, 1] as const,
@@ -45,14 +46,21 @@ const fineSubscribe = sharedSubscription((notify) => {
 const finePointer = () => fineQuery().matches
 export function useMotionPolicy(localPaused = false) {
   const parentPaused = useContext(Paused)
-  const reduced = Boolean(useReducedMotion())
+  const profile = usePerformanceProfile()
+  const reduced = Boolean(useReducedMotion()) || profile.id === 'essential'
   const pageVisible = useSyncExternalStore(subscribe, visible, () => false)
   const fine = useSyncExternalStore(fineSubscribe, finePointer, () => false)
   return {
     reduced,
-    fine,
+    fine: fine && profile.pointer,
+    profile,
     pageVisible,
-    running: !parentPaused && !localPaused && !reduced && pageVisible,
+    running:
+      !parentPaused &&
+      !localPaused &&
+      !reduced &&
+      pageVisible &&
+      profile.ambient,
   }
 }
 export function useEffectActivity(paused = false) {

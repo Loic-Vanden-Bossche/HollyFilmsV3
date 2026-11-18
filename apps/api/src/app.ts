@@ -12,6 +12,8 @@ import type { GoogleProvider } from './google.ts'
 import { addShowcaseRoutes } from './showcase.ts'
 import { addMediaRoutes } from './media.ts'
 import { addProfileRoutes } from './profile.ts'
+import { addRequestRoutes } from './requests.ts'
+import { addSubtitleRoutes } from './subtitles.ts'
 
 type Credentials = { username: string; password: string }
 type RegistrationParams = { id: string }
@@ -123,6 +125,8 @@ export async function createApp(config: ServerConfig, google?: GoogleProvider) {
   addShowcaseRoutes(app, config)
   addMediaRoutes(app, db, config)
   addProfileRoutes(app, db, config)
+  addRequestRoutes(app, config, db)
+  addSubtitleRoutes(app, db, config)
 
   app.get('/api/auth/options', async () => ({
     googleStartUrl: config.google

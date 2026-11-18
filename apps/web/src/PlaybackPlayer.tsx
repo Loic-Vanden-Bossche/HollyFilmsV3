@@ -1,15 +1,21 @@
+import { usePerformanceReducedMotion as useReducedMotion } from './performance/PerformanceProvider.tsx'
 import { localizeText, type Message } from './i18n/messages.ts'
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { Tooltip } from './ui/Tooltip.tsx'
 import { languageFlag } from './ui/language-flags.ts'
 import { PlayerSessionActions } from './ui/PlayerSessionActions.tsx'
 import { SubtitleOffset } from './ui/SubtitleOffset.tsx'
+import { SubtitlePanel } from './ui/SubtitlePanel.tsx'
+import {
+  remapSubtitleIndex,
+  subtitleRevision,
+} from './playback/subtitle-tracks.ts'
 import { Select } from './ui/Select.tsx'
 import { AnimatedList } from './components/reactbits/Effects.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Play, X } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { toMediaItem, type MediaItem } from '@hollyfilms/shared/library'
 import { PlayerShell } from './ui/PlayerShell.tsx'
@@ -70,6 +76,7 @@ export function PlaybackPlayer({
   queuedLast,
   remoteCommand,
   initialPaused,
+  initialSecondarySubtitle,
   onLocationChange,
 }: {
   item: MediaItem
@@ -83,6 +90,7 @@ export function PlaybackPlayer({
   queuedLast?: PlaybackTarget[]
   remoteCommand?: RemoteControlMessage
   initialPaused?: boolean
+  initialSecondarySubtitle?: number
   onLocationChange?: (location: Partial<AppRoute>, previousId: string) => void
 }) {
   const { t } = useI18n()
@@ -116,6 +124,7 @@ export function PlaybackPlayer({
     media: localMedia,
     state: localState,
     preferences,
+    refreshSubtitles,
   } = player
   const devices = usePlaybackDevices(api)
   const closing = useRef(false)
@@ -127,6 +136,9 @@ export function PlaybackPlayer({
     initialOptions?.subtitle,
   )
   const locationSubtitle = selectedSubtitle ?? player.options.subtitle
+  const [secondarySubtitle, setSecondarySubtitle] = useState(
+    initialSecondarySubtitle ?? -1,
+  )
   const locationSource = player.requestIsActive
     ? source?.Id
     : player.options.sourceId
@@ -151,6 +163,7 @@ export function PlaybackPlayer({
         source: locationSource,
         audio: player.options.audio,
         subtitle: locationSubtitle,
+        secondarySubtitle,
       },
       reportedId.current,
     )
@@ -164,6 +177,7 @@ export function PlaybackPlayer({
     locationSource,
     player.options.audio,
     locationSubtitle,
+    secondarySubtitle,
   ])
   const reduced = useReducedMotion()
   const [menu, setMenu] = useState<
@@ -181,7 +195,6 @@ export function PlaybackPlayer({
   const [fullscreen, setFullscreen] = useState(false)
   const [pip, setPip] = useState(false)
   const [fit, setFit] = useState(saved.fit)
-  const [secondarySubtitle, setSecondarySubtitle] = useState(-1)
   const [subtitleDelay, setSubtitleDelay] = useState(0)
   const [offsetOpen, setOffsetOpen] = useState(false)
   const closeOffset = useCallback(() => {
@@ -285,10 +298,74 @@ export function PlaybackPlayer({
   const subtitles = tracks.filter(
     (track) => track.Type === 'Subtitle' && track.Index != null,
   )
+  const subtitlesKey = useMemo(
+    () => subtitleRevision(source?.MediaStreams ?? []),
+    [source?.MediaStreams],
+  )
+  const subtitleSelection = useRef({ primary: -1, secondary: -1 })
+  const latestSubtitlePlayback = useRef(playback)
+  latestSubtitlePlayback.current = playback
   const primary = selectedSubtitle ?? source?.DefaultSubtitleStreamIndex ?? -1
+  subtitleSelection.current = { primary, secondary: secondarySubtitle }
+  const reloadSubtitles = useCallback(async () => {
+    if (!playback) return
+    const data = await api.details(
+      playback.target.id,
+      new AbortController().signal,
+    )
+    if (
+      latestSubtitlePlayback.current?.target.id !== playback.target.id ||
+      latestSubtitlePlayback.current?.stream.source.Id !==
+        playback.stream.source.Id
+    )
+      return
+    const fresh = data.MediaSources?.length
+      ? data.MediaSources
+      : [{ Id: data.Id, MediaStreams: data.MediaStreams }]
+    const updated = fresh.find(
+      (entry) => entry.Id === playback.stream.source.Id,
+    )
+    if (!updated) return
+    const selected = subtitleSelection.current
+    const previous =
+      latestSubtitlePlayback.current.stream.source.MediaStreams ?? []
+    if (
+      subtitleRevision(previous) ===
+      subtitleRevision(updated.MediaStreams ?? [])
+    )
+      return
+
+    setSelectedSubtitle(
+      remapSubtitleIndex(
+        previous,
+        updated.MediaStreams ?? [],
+        selected.primary,
+      ),
+    )
+    preferences.current.subtitle = remapSubtitleIndex(
+      previous,
+      updated.MediaStreams ?? [],
+      selected.primary,
+    )
+    setSecondarySubtitle(
+      remapSubtitleIndex(
+        previous,
+        updated.MediaStreams ?? [],
+        selected.secondary,
+      ),
+    )
+    refreshSubtitles(playback.target.id, fresh)
+  }, [api, playback, preferences, refreshSubtitles])
   const primaryTrack = subtitles.find((track) => track.Index === primary)
   const secondaryTrack = subtitles.find(
     (track) => track.Index === secondarySubtitle && track.Index !== primary,
+  )
+  const splitCaptions = Boolean(
+    secondaryTrack &&
+    (player.options.burnSubtitle ||
+      [primaryTrack, secondaryTrack].some((track) =>
+        /pgs|dvd|vobsub/i.test(track?.Codec ?? ''),
+      )),
   )
   const captions = usePlayerSubtitles({
     api,
@@ -296,6 +373,7 @@ export function PlaybackPlayer({
     playback: devices.destination ? undefined : playback,
     primary: player.options.burnSubtitle ? undefined : primaryTrack,
     secondary: secondaryTrack,
+    split: splitCaptions,
     delay: subtitleDelay,
     onError: setSubtitleProblem,
   })
@@ -506,6 +584,7 @@ export function PlaybackPlayer({
   }
   function subtitle(value: number) {
     setSelectedSubtitle(value)
+    if (value === secondarySubtitle) setSecondarySubtitle(-1)
     setSubtitleProblem('')
     preferences.current.subtitle = value
     if (player.options.burnSubtitle) {
@@ -748,14 +827,29 @@ export function PlaybackPlayer({
           <div
             className="player-captions"
             data-controls={showControls}
+            data-split={splitCaptions}
             style={{
               color: subtitleColor,
               fontSize:
                 'calc(clamp(15px, 2.6vw, 34px) * ' + subtitleScale + ')',
             }}
           >
-            {captions.secondary && <p>{captions.secondary}</p>}
-            {captions.primary && <p>{captions.primary}</p>}
+            {captions.secondary && (
+              <p
+                data-subtitle-slot="secondary"
+                lang={secondaryTrack?.Language ?? undefined}
+              >
+                {captions.secondary}
+              </p>
+            )}
+            {captions.primary && (
+              <p
+                data-subtitle-slot="primary"
+                lang={primaryTrack?.Language ?? undefined}
+              >
+                {captions.primary}
+              </p>
+            )}
           </div>
         )}
         {state === 'ready' && media.paused && (
@@ -863,7 +957,7 @@ export function PlaybackPlayer({
               pip={pip}
               hasPrevious={Boolean(previous)}
               hasNext={Boolean(next)}
-              subtitles={primary >= 0}
+              subtitles={primary >= 0 || Boolean(secondaryTrack)}
               onToggle={toggle}
               onSeek={seek}
               onVolume={volume}
@@ -883,9 +977,7 @@ export function PlaybackPlayer({
                   : undefined
               }
               onSubtitles={
-                !devices.destination && subtitles.length
-                  ? () => toggleMenu('subtitles')
-                  : undefined
+                !devices.destination ? () => toggleMenu('subtitles') : undefined
               }
               onSettings={() => toggleMenu('settings')}
               onPreview={trickplay}
@@ -1119,7 +1211,7 @@ export function PlaybackPlayer({
                       </label>
                     )}
                     <div className="player-menu-actions">
-                      {subtitles.length > 0 && (
+                      {!devices.destination && (
                         <button
                           type="button"
                           onClick={() => setMenu('subtitles')}
@@ -1190,9 +1282,20 @@ export function PlaybackPlayer({
                 )}
                 {menu === 'subtitles' && (
                   <>
+                    {playback && !devices.destination && (
+                      <SubtitlePanel
+                        key={`${playback.target.id}:${source?.Id}`}
+                        session={session}
+                        itemId={playback.target.id}
+                        sourceId={source?.Id}
+                        onChanged={reloadSubtitles}
+                      />
+                    )}
                     <label>
                       {t('Langue')}
+                      {/* Rebuild the option registry when Jellyfin renumbers tracks. */}
                       <Select
+                        key={subtitlesKey + ':primary'}
                         aria-label={t('Langue')}
                         optionIcon={(value) => {
                           const flag = languageFlag(
@@ -1224,6 +1327,7 @@ export function PlaybackPlayer({
                     <label>
                       {t('Deuxième piste')}
                       <Select
+                        key={subtitlesKey + ':secondary'}
                         aria-label={t('Deuxième piste')}
                         optionIcon={(value) => {
                           const flag = languageFlag(
@@ -1241,18 +1345,15 @@ export function PlaybackPlayer({
                             />
                           ) : null
                         }}
-                        value={secondarySubtitle}
-                        onValueChange={(value) =>
+                        value={secondaryTrack?.Index ?? -1}
+                        onValueChange={(value) => {
+                          setSubtitleProblem('')
                           setSecondarySubtitle(Number(value))
-                        }
+                        }}
                       >
                         <option value={-1}>{t('Désactivée')}</option>
                         {subtitles
-                          .filter(
-                            (track) =>
-                              track.Index !== primary &&
-                              track.IsTextSubtitleStream,
-                          )
+                          .filter((track) => track.Index !== primary)
                           .map((track) => (
                             <option key={track.Index} value={track.Index}>
                               {trackName(track, t)}

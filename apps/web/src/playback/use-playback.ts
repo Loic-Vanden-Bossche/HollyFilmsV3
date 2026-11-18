@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { refreshSubtitleSource } from './subtitle-tracks.ts'
+import type { MediaSourceInfo } from '@jellyfin/sdk/lib/generated-client/index.js'
 import { ticksPerSecond } from './playback-api.ts'
 import { bufferedAhead, type LoadingPhase } from './loading-progress.ts'
 import type {
@@ -442,6 +444,35 @@ export function usePlayback(
     }
   }, [api, request])
 
+  const refreshSubtitles = useCallback(
+    (itemId: string, fresh: MediaSourceInfo[]) => {
+      const current = active.current
+      if (!current || current.target.id !== itemId) return
+      const latest = fresh.find(
+        (source) => source.Id === current.stream.source.Id,
+      )
+      if (!latest) return
+      const previous = current.stream
+      const stream = {
+        ...previous,
+        source: refreshSubtitleSource(previous.source, latest),
+        sources: previous.sources.map((source) => {
+          const replacement = fresh.find((entry) => entry.Id === source.Id)
+          return replacement
+            ? refreshSubtitleSource(source, replacement)
+            : source
+        }),
+      }
+      active.current = { ...current, stream }
+      if (versions.current?.id === itemId)
+        versions.current = { id: itemId, sources: stream.sources }
+      setPlayback((value) =>
+        value?.stream === previous ? { ...value, stream } : value,
+      )
+      // The active video element, stream URL, playback request and session stay intact.
+    },
+    [],
+  )
   function replaceStream(options: StreamOptions) {
     const video = videoRef.current
     if (!active.current || !video) return
@@ -527,6 +558,7 @@ export function usePlayback(
     seek,
     toggle,
     replaceStream,
+    refreshSubtitles,
     open(target: PlaybackTarget, paused = false) {
       pendingSeek.current = undefined
       setRequest({

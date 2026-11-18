@@ -1,5 +1,6 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useLayoutEffect, useRef } from 'react'
-import { useAnimate, useReducedMotion } from 'motion/react'
+import { useAnimate } from 'motion/react'
 import { cinemaMotion } from '../components/reactbits/policy.ts'
 import { lockBodyScroll } from './body-scroll-lock.ts'
 

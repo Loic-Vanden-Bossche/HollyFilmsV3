@@ -7,7 +7,13 @@ import {
   useIsPresent,
   useReducedMotion,
 } from 'motion/react'
-import { ChevronDown, ShieldCheck, UserRound } from 'lucide-react'
+import {
+  ChevronDown,
+  ShieldCheck,
+  UserRound,
+  Clapperboard,
+  ListChecks,
+} from 'lucide-react'
 import { ProfileAvatar } from './ProfileAvatar.tsx'
 import './account-menu.css'
 
@@ -111,6 +117,16 @@ function AccountLinks({
         <a href="/admin">
           <ShieldCheck size={18} aria-hidden="true" />
           <span>{t('Demandes d’approbation')}</span>
+        </a>
+      )}
+      <a href="/requests">
+        <Clapperboard size={18} aria-hidden="true" />
+        <span>{t('Mes demandes')}</span>
+      </a>
+      {isAdmin && (
+        <a href="/admin/requests">
+          <ListChecks size={18} aria-hidden="true" />
+          <span>{t('Demandes de médias')}</span>
         </a>
       )}
     </motion.nav>

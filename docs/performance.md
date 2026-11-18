@@ -196,3 +196,100 @@ Les contrôles `lint`, `format:check`, `build`, `build-storybook`, `test` (19 te
 et `test:player` passent. Le test lecteur utilise Jellyfin 12.4 isolé et des médias
 synthétiques ; la bibliothèque personnelle n'est pas authentifiée dans Playwright.
 Les avertissements de taille de chunks Vite déjà présents subsistent.
+
+## Profils adaptatifs
+
+Le navigateur démarre en mode automatique avec le profil Équilibré. Les cinq
+profils pilotent les effets réellement exécutés, sans modifier les droits d’accès
+aux médias ni les réglages de qualité du lecteur.
+
+| Profil    | Effets                                                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Essentiel | Fond statique, mouvements physiques désactivés, surfaces opaques, une rangée de marge pour la grille virtuelle.         |
+| Léger     | Fond statique, fondus courts, verre limité à 4 px, aucune inclinaison au pointeur.                                      |
+| Équilibré | Fond CSS animé, profondeur des cartes à 50 %, verre à 8 px, deux rangées de marge, shaders et aperçus vidéo désactivés. |
+| Élevé     | Shaders à DPR 0,85 avec une couche Aurora, profondeur à 80 %, verre à 16 px, aperçus vidéo.                             |
+| Ultra     | Shaders à DPR 1 avec deux couches Aurora, profondeur complète, verre à 24 px et trois rangées de marge.                 |
+
+`apps/web/src/performance` contient les profils, le contrôleur et un seul collecteur
+par application. Toutes les deux secondes, il publie la cadence rAF, le p95 des
+intervalles entre images, la proportion d’intervalles supérieurs à 25 ms, le temps
+de tâches longues et la latence maximale d’interaction. Les API PerformanceObserver
+sont optionnelles. La latence entrée → prochaine image sert aussi de repli. Une
+mesure absente s’affiche avec « — ». La cadence rAF mesure les possibilités de
+rendu du navigateur, elle ne mesure pas directement l’utilisation du GPU.
+
+Deux fenêtres actives lentes déclenchent une baisse, avec au moins quatre secondes
+entre les changements. Une fenêtre est lente si son p95 dépasse 28 ms, si plus de
+16 % des images dépassent 25 ms, si les tâches longues occupent plus de 15 % du
+temps, ou si une interaction dépasse 200 ms. Une dégradation sévère peut retirer
+deux niveaux. La remontée ajoute un seul niveau après quinze fenêtres actives
+stables et au moins trente secondes depuis le dernier changement. Les mesures
+de démarrage, les périodes masquées, les périodes sans activité ni décoration
+animée et la lecture vidéo sont exclues des décisions. Les écouteurs, observers
+et la boucle rAF sont nettoyés au démontage. Le mouvement réduit système reste
+prioritaire, y compris en sélection manuelle.
+
+Après vérification du rôle par Jellyfin, un bouton **Performances** permet aux
+administrateurs de choisir Auto ou un des cinq profils. Les autres comptes
+utilisent Auto. Une perte du rôle annule le choix manuel. Le graphe conserve
+120 échantillons et 60 événements au maximum, uniquement en mémoire, avec le
+profil actif, les changements et leurs raisons. Aucun appel réseau de télémétrie
+n’est ajouté. Le choix Auto ou manuel est conservé dans `localStorage`, par
+origine/serveur Jellyfin et identifiant de compte. Il est restauré uniquement
+après vérification du rôle administrateur par Jellyfin. Un compte ordinaire
+ne lit pas cette préférence et reste en Auto. La déconnexion et le nettoyage
+React ne remplacent pas le choix enregistré. Un stockage bloqué ou une valeur
+invalide laisse l’application fonctionner en Auto. Le profil calculé par Auto
+et l’historique des mesures ne sont pas persistés.
+
+Les tests du contrôleur couvrent dégradation, remontée, temporisations, exclusions,
+mesures manquantes, contrôle admin et limites des historiques. Le test navigateur
+avec une charge réelle du thread principal a mesuré un p95 de 109 ms et 75 % de
+temps bloqué, puis un passage automatique Équilibré → Essentiel. Les cinq choix
+manuels, la fermeture au clavier, le focus restauré, le format 390 × 844 et le
+fonctionnement sans PerformanceObserver ont été vérifiés dans Storybook. Un test
+de visibilité simulée confirme l’arrêt des mesures pendant la période masquée.
+
+## Rechargement et contrôle Ultra — 17 novembre 2026
+
+Le sélecteur privilégie le dialogue natif qui le contient, même en plein écran,
+afin que ses options restent dans la couche interactive du dialogue. La fermeture
+du panneau exige maintenant un geste commencé et terminé sur son fond : une
+sélection ou un glissement commencé dans le panneau ne le ferme plus. Échap
+ferme d’abord la liste ouverte, puis le panneau, avec restitution du focus.
+
+Le profilage a été effectué avec le CLI Chrome DevTools fourni par WebStorm,
+dans Chrome isolé headless, viewport 1440 × 900, DPR 1 et CPU ralenti ×4.
+La session Chrome personnelle n’exposait pas le débogage distant. Les traces
+portent donc sur la story **Ultra — catalogue de 96 titres**, compilée et
+servie sur 6007, avec données simulées, sans réseau Jellyfin ni vidéo réelle.
+Les mesures de la version de développement comportaient une forte surcharge
+de débogage React ; elles ne sont pas utilisées comme référence de production.
+
+Deux lectures synchrones au montage ont été corrigées : la grille attend la
+première mesure de taille du navigateur avant d’activer sa virtualisation,
+regroupe les lectures de géométrie par frame et conserve les styles de grille
+tant que sa largeur reste identique. L’accueil ne lance plus un `scrollTo(0)`
+au montage ; ce retour en haut reste appliqué aux changements de destination.
+Les animations, la navigation immédiate et le scroll natif restent disponibles.
+
+Les traces initiales relevaient un recalcul forcé de 209 ms déclenché par la
+grille. Dans la dernière trace, ses recalculs forcés sont limités à 8 ms ;
+des recalculs importants restent déclenchés par l’instrumentation Storybook.
+Ce déplacement du coût ne démontre pas une réduction équivalente du coût total
+du premier rendu. Le CLS mesuré reste à 0.
+
+Trois passages de huit secondes de scroll haut → catalogue → haut en Ultra :
+avant, cadence rAF médiane 113,75/s et p95 médian 8,4 ms ; après, 102/s et
+11,6 ms (97,5–114,125/s selon le passage). La variance ne permet pas de conclure
+à un gain global de cadence : aucune promesse de FPS sur tous les appareils.
+Les résultats et traces sont conservés localement dans le répertoire temporaire
+Windows sous `hollyfilms-ultra-*`. La story permet de reproduire le contrôle.
+
+Vérifications Playwright : Ultra puis Auto conservés après rechargement de
+`/app` avec identité Jellyfin simulée ; liste dans le dialogue en plein écran ;
+sélection, Échap, restitution du focus et vrai clic extérieur ; grille de
+1 000 titres, arrivée de contenu au-dessus et animations d’introduction.
+Les tests unitaires couvrent aussi l’isolation des comptes/serveurs et le
+stockage invalide ou indisponible.

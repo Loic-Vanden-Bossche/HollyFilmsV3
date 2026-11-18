@@ -87,6 +87,8 @@ const adminHeaders = (session: JellyfinSession) => ({
   'X-HollyFilms-Device': session.deviceId,
 })
 
+export { request as accountRequest, adminHeaders as accountHeaders }
+
 export const authOptions = (signal: AbortSignal) =>
   request<AuthOptions>('/auth/options', { signal })
 export const registerAccount = (username: string, password: string) =>

@@ -1,3 +1,4 @@
+import { usePerformanceReducedMotion as useReducedMotion } from './performance/PerformanceProvider.tsx'
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { Tooltip } from './ui/Tooltip.tsx'
 import {
@@ -7,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useAnimate, useReducedMotion } from 'motion/react'
+import { useAnimate } from 'motion/react'
 import {
   ArrowRight,
   ChevronLeft,
@@ -70,6 +71,7 @@ export type HomePageProps = {
   filter: LibraryFilter
   search: string
   searchResults?: SearchPageData
+  discovery?: React.ReactNode
   collections?: CollectionItem[]
   collectionId?: string
   collection?: CollectionItem
@@ -107,6 +109,7 @@ export function HomePage({
   filter,
   search,
   searchResults,
+  discovery,
   collections,
   collectionId,
   collection,
@@ -279,7 +282,14 @@ export function HomePage({
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
+  const previousPage = useRef({ filter, collectionId })
   useLayoutEffect(() => {
+    const previous = previousPage.current
+    previousPage.current = { filter, collectionId }
+    // Mount already has the browser's scroll position. An unconditional
+    // scrollTo(0) here forced layout of the whole page during the intro.
+    if (previous.filter === filter && previous.collectionId === collectionId)
+      return
     // Browser Back/Forward must also leave the previous page's expanded search.
     // oxlint-disable-next-line react/set-state-in-effect
     setSearchFocused(false)
@@ -451,6 +461,7 @@ export function HomePage({
               ) : searchActive ? (
                 <SearchResults
                   query={search}
+                  discovery={discovery}
                   results={
                     search.trim()
                       ? (searchResults ?? {

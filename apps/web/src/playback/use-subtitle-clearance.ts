@@ -27,11 +27,19 @@ export function useSubtitleClearance(
           0,
           stage.clientHeight - clearance - canvas.offsetTop,
         )
+        const split = canvas.dataset.split === 'true'
+        const slotHeight = split ? available / 2 : available
         const scale =
-          clearance && canvas.offsetHeight
-            ? Math.min(1, available / canvas.offsetHeight)
+          (clearance || split) && canvas.offsetHeight
+            ? Math.min(1, slotHeight / canvas.offsetHeight)
             : 1
         canvas.style.setProperty('--subtitle-plane-scale', String(scale))
+        canvas.style.setProperty(
+          '--subtitle-plane-y',
+          split && canvas.dataset.subtitleSlot === 'primary'
+            ? `${slotHeight}px`
+            : '0px',
+        )
       }
     }
     const resize = new ResizeObserver(measure)

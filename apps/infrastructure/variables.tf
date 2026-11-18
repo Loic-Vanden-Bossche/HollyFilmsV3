@@ -141,6 +141,19 @@ variable "tmdb_api_token" {
   default     = ""
   description = "TMDB API Read Access Token, optionnel"
 }
+variable "seerr" {
+  description = "Seerr existant : URL serveur et clé API, jamais transmis au navigateur"
+  type        = object({ url = string, api_key = string })
+  default     = null
+  sensitive   = true
+  validation {
+    condition = var.seerr == null ? true : (
+      can(regex("^https?://[A-Za-z0-9.-]+(:[0-9]+)?/?$", var.seerr.url)) &&
+      length(trimspace(var.seerr.api_key)) > 0
+    )
+    error_message = "Seerr requiert une origine HTTP(S) valide et sa clé API."
+  }
+}
 variable "google" {
   description = "Configuration Google complète ou null pour désactiver le SSO"
   type = object({
@@ -159,4 +172,3 @@ variable "google" {
     error_message = "Google demande un client ID, un secret et une clé de 32 octets encodée en base64."
   }
 }
-

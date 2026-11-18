@@ -1,4 +1,9 @@
 variable "namespace" { type = string }
+variable "seerr" {
+  type      = object({ url = string, api_key = string })
+  default   = null
+  sensitive = true
+}
 variable "api_image" { type = string }
 variable "web_image" { type = string }
 variable "image_pull_policy" { type = string }

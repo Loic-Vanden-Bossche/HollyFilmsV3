@@ -104,7 +104,8 @@ export function Select({
       onOpenChange={(next) => {
         if (next)
           setContainer(
-            (document.fullscreenElement ??
+            (trigger.current?.closest('dialog') ??
+              document.fullscreenElement ??
               trigger.current?.closest(
                 'dialog, [role="dialog"], .player-viewport, .media-dialog',
               ) ??

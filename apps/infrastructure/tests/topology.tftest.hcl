@@ -40,6 +40,7 @@ run "private_images_and_runtime" {
     public_origin            = "https://hollyfilms-v3.chbrx.com"
     jellyfin_url             = "https://hollyfilms.chbrx.com"
     tmdb_api_token           = "fake-tmdb"
+    seerr                    = { url = "https://seerr.example.com", api_key = "fake-seerr-key" }
     google                   = null
     ghcr_credentials         = { username = "test", token = "fake-registry" }
   }
@@ -54,6 +55,10 @@ run "private_images_and_runtime" {
   assert {
     condition     = kubernetes_job_v1.database_migration.spec[0].template[0].spec[0].container[0].command[3] == "deploy"
     error_message = "Le Job doit utiliser migrate deploy, jamais migrate dev."
+  }
+  assert {
+    condition     = kubernetes_secret_v1.runtime.data["SEERR_URL"] == "https://seerr.example.com" && kubernetes_secret_v1.runtime.data["SEERR_API_KEY"] == "fake-seerr-key"
+    error_message = "La clé Seerr doit être disponible uniquement dans le Secret runtime de l’API."
   }
   assert {
     condition     = length([for c in kubernetes_deployment_v1.application.spec[0].template[0].spec[0].container : c.name if c.name == "web" && length(c.env_from) == 0 && length(c.env) == 1]) == 1

@@ -27,6 +27,8 @@
     "test": "yarn workspace @hollyfilms/web test",
     "test:accounts": "yarn workspace @hollyfilms/api test",
     "test:media": "yarn workspace @hollyfilms/api test:media",
+    "test:requests": "yarn workspace @hollyfilms/api test:requests",
+    "test:subtitles": "yarn workspace @hollyfilms/api test:subtitles",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:player": "yarn workspace @hollyfilms/web test:player"

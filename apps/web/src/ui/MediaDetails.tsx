@@ -25,6 +25,7 @@ import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
 import { formatDuration } from '../format-duration.ts'
 import { AudioLanguages } from './AudioLanguages.tsx'
+import { SubtitlePanel } from './SubtitlePanel.tsx'
 import {
   getMediaDetails,
   getMediaRelations,
@@ -125,6 +126,7 @@ export function MediaDetails({
     }
   })
   const [page, setPage] = useState(1)
+  const [showSubtitles, setShowSubtitles] = useState(false)
   const providers = useQuery({
     queryKey: [...key, 'providers', region],
     queryFn: ({ signal }) =>
@@ -554,6 +556,18 @@ export function MediaDetails({
             )}
           </dl>
         ) : null}
+        {session && (item.kind === 'Film' || item.kind === 'Épisode') && (
+          <details
+            className="subtitle-detail glass-panel"
+            open={showSubtitles}
+            onToggle={(event) => setShowSubtitles(event.currentTarget.open)}
+          >
+            <summary>{t('Sous-titres externes')}</summary>
+            {showSubtitles && (
+              <SubtitlePanel session={session} itemId={item.id} />
+            )}
+          </details>
+        )}
         {enabled && details.isPending && (
           <p role="status" className="detail-status">
             {t('Chargement de la fiche complète…')}

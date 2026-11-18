@@ -11,6 +11,7 @@ export type AppRoute = {
   source?: string
   audio?: number
   subtitle?: number
+  secondarySubtitle?: number
   paused?: boolean
 }
 
@@ -52,6 +53,7 @@ export function readAppRoute(search: string, pathname = '/app'): AppRoute {
     source: play ? id(params.get('source')) : undefined,
     audio: play ? number(params.get('audio')) : undefined,
     subtitle: play ? number(params.get('sub'), -1) : undefined,
+    secondarySubtitle: play ? number(params.get('sub2'), -1) : undefined,
     paused: play ? params.get('paused') === '1' : undefined,
   }
 }
@@ -75,6 +77,7 @@ export function appRouteUrl(href: string, patch: Partial<AppRoute>) {
     source: route.play ? route.source : undefined,
     audio: route.play ? route.audio : undefined,
     sub: route.play ? route.subtitle : undefined,
+    sub2: route.play ? route.secondarySubtitle : undefined,
     paused: route.play && route.paused ? 1 : undefined,
   }
   for (const [key, value] of Object.entries(values)) {

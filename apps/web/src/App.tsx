@@ -23,13 +23,22 @@ import { Button } from './ui/Button.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { GlassPanel } from './ui/GlassPanel.tsx'
 import { takeAppReturn } from './use-app-route.ts'
+import { performanceController } from './performance/profiles.ts'
+import { bindPerformancePreference } from './performance/preferences.ts'
 
 const jellyfinUrl = new URL('/jellyfin', window.location.origin).href
 const isAdminPage = /^\/admin\/?$/.test(window.location.pathname)
 const isProfilePage = /^\/profile\/?$/.test(window.location.pathname)
+const isRequestsPage = /^\/(?:admin\/)?requests\/?$/.test(
+  window.location.pathname,
+)
+const isAdminRequestsPage = /^\/admin\/requests\/?$/.test(
+  window.location.pathname,
+)
 const isPrivatePage =
   isAdminPage ||
   isProfilePage ||
+  isRequestsPage ||
   /^\/app(?:\/(favorites|movies|series|collections))?\/?$/.test(
     window.location.pathname,
   )
@@ -40,6 +49,11 @@ const HomeScreen = lazy(() =>
 const ProfileScreen = lazy(() =>
   import('./ProfileScreen.tsx').then((module) => ({
     default: module.ProfileScreen,
+  })),
+)
+const RequestsPage = lazy(() =>
+  import('./RequestsPage.tsx').then((module) => ({
+    default: module.RequestsPage,
   })),
 )
 
@@ -81,6 +95,21 @@ export default function App({
     refetchOnWindowFocus: false,
   })
   const sessionRejected = isJellyfinAccessDenied(user.error)
+  useEffect(() => {
+    return bindPerformancePreference(
+      performanceController,
+      jellyfinUrl,
+      session && user.isSuccess && user.data.isAdministrator && !isSigningOut
+        ? user.data.id
+        : null,
+    )
+  }, [
+    session,
+    user.isSuccess,
+    user.data?.isAdministrator,
+    user.data?.id,
+    isSigningOut,
+  ])
 
   useEffect(() => {
     writeSession(session)
@@ -173,7 +202,19 @@ export default function App({
           </main>
         }
       >
-        {isProfilePage ? (
+        {isRequestsPage ? (
+          isAdminRequestsPage && !user.data.isAdministrator ? (
+            <GlassPanel>
+              <p role="alert">{t('Un compte administrateur est requis.')}</p>
+              <a href="/requests">{t('Mes demandes')}</a>
+            </GlassPanel>
+          ) : (
+            <RequestsPage
+              session={session}
+              administrator={isAdminRequestsPage}
+            />
+          )
+        ) : isProfilePage ? (
           <ProfileScreen
             session={session}
             onSignOut={() => void signOut()}

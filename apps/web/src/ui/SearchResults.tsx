@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { motion, useReducedMotion } from 'motion/react'
 import { Search, RotateCcw } from 'lucide-react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { VirtualMediaGrid, CatalogueLoadTrigger } from './VirtualMediaGrid.tsx'
 
 export type SearchPageData = {
@@ -19,11 +19,13 @@ export function SearchResults({
   query,
   results,
   paused,
+  discovery,
   ...tileProps
 }: Omit<ComponentProps<typeof VirtualMediaGrid>, 'items' | 'total'> & {
   query: string
   results: SearchPageData
   paused: boolean
+  discovery?: ReactNode
 }) {
   const { t } = useI18n()
   const reduced = useReducedMotion()
@@ -142,6 +144,7 @@ export function SearchResults({
           </div>
         )}
       </motion.div>
+      {discovery}
     </section>
   )
 }

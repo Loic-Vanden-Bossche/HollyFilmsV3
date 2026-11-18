@@ -8,6 +8,8 @@ import { homeItems, homeResume } from './home-fixtures.ts'
 import type { LibraryFilter } from '@hollyfilms/shared/library'
 import { avatarFixture } from './profile-fixtures.ts'
 import { collectionFixtures, episodeFixtures } from './library-fixtures.ts'
+import { PerformanceProvider } from './performance/PerformanceProvider.tsx'
+import { PerformanceController } from './performance/profiles.ts'
 
 const meta = {
   title: 'HollyFilms/Accueil',
@@ -93,6 +95,31 @@ const meta = {
 } satisfies Meta<typeof HomePage>
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const UltraPerformance: Story = {
+  name: 'Ultra — catalogue de 96 titres',
+  args: {
+    items: Array.from({ length: 96 }, (_, index) => ({
+      ...homeItems[index % homeItems.length],
+      id: 'ultra-' + index,
+    })),
+  },
+  decorators: [
+    function Ultra(Story) {
+      const [controller] = useState(() => {
+        const value = new PerformanceController()
+        value.setAdmin(true)
+        value.select('ultra', 0)
+        return value
+      })
+      return (
+        <PerformanceProvider controller={controller}>
+          <Story />
+        </PerformanceProvider>
+      )
+    },
+  ],
+}
 
 export const Opening: Story = {
   name: 'Ouverture cinéma — navigation immédiate',

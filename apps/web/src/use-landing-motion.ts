@@ -1,30 +1,26 @@
+import {
+  usePerformanceProfile,
+  usePerformanceReducedMotion,
+} from './performance/PerformanceProvider.tsx'
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { useAnimate, useMotionValue } from 'motion/react'
 
-function subscribeMotion(callback: () => void) {
-  const media = matchMedia('(prefers-reduced-motion: reduce)')
-  media.addEventListener('change', callback)
-  return () => media.removeEventListener('change', callback)
-}
 const subscribeVisibility = (callback: () => void) => {
   document.addEventListener('visibilitychange', callback)
   return () => document.removeEventListener('visibilitychange', callback)
 }
 
 export function useMotionClock(stopped: boolean) {
-  const reduced = useSyncExternalStore(
-    subscribeMotion,
-    () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-    () => true,
-  )
+  const reduced = usePerformanceReducedMotion()
   const hidden = useSyncExternalStore(
     subscribeVisibility,
     () => document.hidden,
     () => false,
   )
+  const profile = usePerformanceProfile()
   const clock = useMotionValue(0)
   useEffect(() => {
-    if (stopped || reduced || hidden) return
+    if (stopped || reduced || hidden || !profile.ambient) return
     let frame = 0,
       previous = performance.now()
     const tick = (time: number) => {
@@ -34,16 +30,12 @@ export function useMotionClock(stopped: boolean) {
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [stopped, reduced, hidden, clock])
+  }, [stopped, reduced, hidden, clock, profile.ambient])
   return clock
 }
 
 export function useLandingMotion(paused: boolean, modalOpen: boolean) {
-  const reduced = useSyncExternalStore(
-    subscribeMotion,
-    () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-    () => true,
-  )
+  const reduced = usePerformanceReducedMotion()
   const hidden = useSyncExternalStore(
     subscribeVisibility,
     () => document.hidden,

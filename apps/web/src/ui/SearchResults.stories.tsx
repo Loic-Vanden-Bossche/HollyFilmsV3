@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, fn, waitFor, within } from 'storybook/test'
+import { expect, fn, mocked, waitFor, within } from 'storybook/test'
+import { DiscoveryResults } from './DiscoveryResults.tsx'
+import { getRequestOptions, searchRequestTitles } from '../requests-api.ts'
+import {
+  requestSession,
+  requestServices,
+  discoveryFixtures,
+} from '../request-fixtures.ts'
 import { SearchResults } from './SearchResults.tsx'
 import { homeItems } from '../home-fixtures.ts'
 import '../home.css'
@@ -66,6 +73,30 @@ export const Empty: Story = {
   args: {
     query: 'Introuvable',
     results: { ...meta.args.results, items: [], total: 0 },
+  },
+}
+export const MissingMovieRequests: Story = {
+  args: {
+    query: 'Orbital',
+    results: { ...meta.args.results, items: [], total: 0 },
+    discovery: <DiscoveryResults session={requestSession} query="Orbital" />,
+  },
+  beforeEach: () => {
+    mocked(getRequestOptions).mockResolvedValue(requestServices)
+    mocked(searchRequestTitles).mockResolvedValue({
+      items: discoveryFixtures,
+      page: 1,
+      pages: 1,
+    })
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Aucun titre trouvé.')).toBeVisible()
+    await expect(
+      await canvas.findByRole('heading', { name: 'ORBITAL' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('link', { name: 'Mes demandes' }),
+    ).toHaveAttribute('href', '/requests')
   },
 }
 export const Unavailable: Story = {

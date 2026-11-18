@@ -22,6 +22,7 @@ module "app" {
   jellyfin_api_key         = var.jellyfin_api_key
   google                   = var.google
   tmdb_api_token           = var.tmdb_api_token
+  seerr                    = var.seerr
 }
 
 module "domain" {
