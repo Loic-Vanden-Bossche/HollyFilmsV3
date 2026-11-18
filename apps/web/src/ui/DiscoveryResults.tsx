@@ -24,6 +24,13 @@ import {
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { localizeError } from '../i18n/api-messages.ts'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
+import {
+  duration,
+  ease,
+  distance,
+  scale,
+  staggerDelay,
+} from '../motion/tokens.ts'
 import { claimRequestFollowUp } from '../request-follow-up.ts'
 import { MediaRequestDialog } from './MediaRequestDialog.tsx'
 import '../requests.css'
@@ -65,9 +72,20 @@ export function DiscoveryResults({
     retry: false,
     enabled: query.trim().length >= 2,
   })
-  const results = useInfiniteQuery({
+  const results = useInfiniteQuery<
+    DiscoveryPage,
+    Error,
+    InfiniteData<DiscoveryPage>,
+    readonly unknown[],
+    number
+  >({
     queryKey: ['request-search', session, language, type, debounced],
     initialPageParam: 1,
+    placeholderData: (previous, previousQuery) => {
+      const key = previousQuery?.queryKey
+      if (key?.[1] === session && key[2] === language && key[3] === type)
+        return previous
+    },
     queryFn: ({ pageParam, signal }) =>
       searchRequestTitles(
         session,
@@ -131,21 +149,24 @@ export function DiscoveryResults({
     }
   }
   if (query.trim().length < 2) return null
-  const items = searching
-    ? []
-    : [
-        ...new Map(
-          results.data?.pages
-            .flatMap((page) => page.items)
-            .map((item) => [`${item.type}:${item.id}`, item]),
-        ).values(),
-      ]
+  const replacing = searching || results.isPlaceholderData
+  const items = [
+    ...new Map(
+      results.data?.pages
+        .flatMap((page) => page.items)
+        .map((item) => [`${item.type}:${item.id}`, item]),
+    ).values(),
+  ]
   return (
     <section className="discovery-results" aria-label={t('Titres à demander')}>
       <div className="home-section-header">
         <div>
           <p className="home-section-kicker">
-            {t('AU-DELÀ DE VOTRE BIBLIOTHÈQUE')}
+            {replacing && items.length ? (
+              <span role="status">{t('Recherche en cours…')}</span>
+            ) : (
+              t('AU-DELÀ DE VOTRE BIBLIOTHÈQUE')
+            )}
           </p>
           <h2>{t('Titres à demander')}</h2>
         </div>
@@ -162,7 +183,7 @@ export function DiscoveryResults({
             initial={{ opacity: 0, y: reduced ? 0 : -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0.1 : 0.2 }}
+            transition={{ duration: reduced ? duration.press : duration.micro }}
           >
             <Check size={16} aria-hidden="true" />
             {success.status === 1
@@ -175,7 +196,7 @@ export function DiscoveryResults({
           </motion.p>
         )}
       </AnimatePresence>
-      {options.isError || results.isError ? (
+      {options.isError || (results.isError && !searching) ? (
         <div className="request-empty" role="alert">
           <p>{t('La découverte de titres est indisponible.')}</p>
           <button
@@ -193,11 +214,13 @@ export function DiscoveryResults({
         <p className="request-empty">
           {t('Le service de demandes n’est pas configuré.')}
         </p>
-      ) : searching || options.isPending || results.isPending ? (
+      ) : options.isPending ||
+        results.isPending ||
+        (replacing && !items.length) ? (
         <p role="status">{t('Recherche en cours…')}</p>
       ) : (
         <>
-          <div className="discovery-grid">
+          <div className="discovery-grid" aria-busy={replacing}>
             {items.map((item, index) => {
               const supported =
                 item.type === 'movie'
@@ -209,11 +232,17 @@ export function DiscoveryResults({
                 <motion.article
                   key={`${item.type}:${item.id}`}
                   className="discovery-card glass-panel"
-                  initial={reduced ? false : { opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={
+                    reduced ? false : { opacity: 0.65, y: distance.control }
+                  }
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '32px' }}
+                  layout={reduced ? false : 'position'}
+                  layoutDependency={debounced}
                   transition={{
-                    duration: 0.3,
-                    delay: Math.min(index * 0.025, 0.15),
+                    duration: reduced ? duration.press : duration.panel,
+                    ease: ease.out,
+                    delay: reduced ? 0 : staggerDelay(index),
                   }}
                 >
                   <div className="discovery-artwork">
@@ -239,10 +268,14 @@ export function DiscoveryResults({
                     </p>
                     <h3>{item.title}</h3>
                     <motion.button
-                      whileHover={reduced ? undefined : { y: -2 }}
-                      whileTap={reduced ? undefined : { scale: 0.97 }}
+                      whileTap={reduced ? undefined : { scale: scale.pressed }}
                       className="request-button glass-control"
-                      disabled={requested || !supported || mutation.isPending}
+                      disabled={
+                        replacing ||
+                        requested ||
+                        !supported ||
+                        mutation.isPending
+                      }
                       onClick={() => {
                         mutation.reset()
                         setSuccess(undefined)
@@ -250,14 +283,16 @@ export function DiscoveryResults({
                         setConfirming(item)
                       }}
                     >
-                      <AnimatePresence mode="wait" initial={false}>
+                      <AnimatePresence mode="popLayout" initial={false}>
                         <motion.span
                           key={requested ? 'requested' : 'request'}
                           className="request-button-label"
                           initial={{ opacity: 0, y: reduced ? 0 : 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: reduced ? 0 : -6 }}
-                          transition={{ duration: 0.16 }}
+                          transition={{
+                            duration: reduced ? duration.press : duration.micro,
+                          }}
                         >
                           {requested ? (
                             <Clock3 size={16} />
@@ -285,7 +320,7 @@ export function DiscoveryResults({
           {results.hasNextPage && (
             <button
               className="home-more glass-control"
-              disabled={results.isFetchingNextPage}
+              disabled={replacing || results.isFetchingNextPage}
               onClick={() => void results.fetchNextPage()}
             >
               {results.isFetchingNextPage

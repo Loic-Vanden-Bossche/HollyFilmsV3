@@ -9,6 +9,7 @@
     "storybook": "storybook dev --port 6006 --host 127.0.0.1 --no-open --exact-port",
     "build-storybook": "storybook build",
     "test": "node --test tests/*.test.ts",
+    "test:pwa": "yarn build && node tests/pwa.e2e.mjs",
     "test:player": "yarn workspace @hollyfilms/api db:generate && yarn workspace @hollyfilms/api exec node tests/requests.e2e.mjs ../web/tests/player.e2e.mjs"
   },
   "dependencies": {

@@ -17,7 +17,6 @@
 .catalogue-nebula {
   position: absolute;
   border-radius: 50%;
-  filter: blur(55px);
 }
 .catalogue-nebula-green {
   width: 75%;
@@ -105,9 +104,6 @@
     linear-gradient(#080f1b33, transparent 25%, transparent 75%, #080f1b66);
 }
 @media (max-width: 680px) {
-  .catalogue-nebula {
-    filter: blur(32px);
-  }
   .catalogue-nebula-green {
     width: 120%;
     left: -55%;

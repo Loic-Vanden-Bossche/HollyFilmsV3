@@ -9,7 +9,9 @@ import { TooltipProvider } from './ui/Tooltip.tsx'
 import { I18nProvider } from './i18n/I18nProvider.tsx'
 import { PerformanceProvider } from './performance/PerformanceProvider.tsx'
 import { PerformanceDebug } from './performance/PerformanceDebug.tsx'
+import { initializePwa } from './pwa/runtime.ts'
 
+initializePwa()
 const queryClient = new QueryClient()
 const googleReturn = completeGoogleRedirect()
 

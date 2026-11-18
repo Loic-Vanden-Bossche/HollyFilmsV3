@@ -26,6 +26,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Member: Story = {
+  args: { unreadNotifications: 3 },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Menu du compte : Alex' }),
@@ -39,6 +40,10 @@ export const Member: Story = {
     await expect(
       canvas.getByRole('link', { name: 'Mes demandes' }),
     ).toHaveAttribute('href', '/requests')
+    await expect(
+      canvas.getByRole('link', { name: /Notifications/ }),
+    ).toHaveAttribute('href', '/notifications')
+    await expect(canvas.getByLabelText('Non lues · 3')).toBeVisible()
     await expect(
       canvas.queryByRole('link', { name: 'Demandes de médias' }),
     ).not.toBeInTheDocument()
@@ -90,5 +95,11 @@ export const KeyboardAndDismiss: Story = {
     await userEvent.click(trigger)
     await userEvent.click(trigger)
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.keyboard('{Enter}')
+    await expect(
+      canvas.getByRole('navigation', { name: 'Compte' }),
+    ).not.toHaveAttribute('inert')
+    await userEvent.keyboard('{Escape}')
+    await expect(trigger).toHaveFocus()
   },
 }

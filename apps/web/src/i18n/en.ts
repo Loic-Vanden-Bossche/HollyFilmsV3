@@ -1,4 +1,64 @@
 export default {
+  'Ouvrez HollyFilms en HTTPS pour activer les alertes sur cet appareil.':
+    'Open HollyFilms over HTTPS to enable alerts on this device.',
+  'Sur cet appareil': 'On this device',
+  'Application HollyFilms': 'HollyFilms app',
+  'HollyFilms est installée sur cet appareil.':
+    'HollyFilms is installed on this device.',
+  'Ajoutez HollyFilms à votre écran d’accueil pour ouvrir directement le catalogue.':
+    'Add HollyFilms to your home screen to open the catalogue directly.',
+  'Dans Safari, touchez Partager puis « Sur l’écran d’accueil ».':
+    'In Safari, tap Share, then Add to Home Screen.',
+  'Ouvrez le menu du navigateur pour voir les options d’installation disponibles.':
+    'Open your browser menu to see the available installation options.',
+  'Impossible de lancer l’installation. Réessayez depuis le menu du navigateur.':
+    'Installation could not start. Try again from your browser menu.',
+  'Installer HollyFilms': 'Install HollyFilms',
+  'Une mise à jour de HollyFilms est prête.': 'A HollyFilms update is ready.',
+  'Recharger pour mettre à jour': 'Reload to update',
+  'Alertes sur cet appareil': 'Alerts on this device',
+  'Voir toutes les notifications': 'View all notifications',
+  'Vérification des alertes de cet appareil…':
+    'Checking alerts on this device…',
+  'Recevez les nouvelles de vos demandes de films, de séries et de sous-titres, même après avoir fermé HollyFilms.':
+    'Get updates on your film, series and subtitle requests, even when HollyFilms is closed.',
+  'Les mises à jour de vos demandes sont envoyées sur cet appareil.':
+    'Updates about your requests are sent to this device.',
+  'Reconnectez-vous pour gérer les alertes de cet appareil.':
+    'Reconnect to the internet to manage alerts on this device.',
+  'Pour recevoir les alertes, ouvrez HollyFilms depuis votre écran d’accueil.':
+    'To receive alerts, open HollyFilms from your home screen.',
+  'Ce navigateur ne prend pas en charge les notifications sur cet appareil.':
+    'This browser does not support notifications on this device.',
+  'Autorisez les notifications dans les réglages du navigateur pour ce site.':
+    'Allow notifications for this site in your browser settings.',
+  'Les notifications sur appareil ne sont pas encore configurées sur ce serveur.':
+    'Device notifications have not been configured on this server yet.',
+  'Impossible de vérifier les alertes de cet appareil.':
+    'Could not check alerts on this device.',
+  'Activer les alertes': 'Enable alerts',
+  'Envoyer un test': 'Send a test',
+  'Désactiver les alertes': 'Turn off alerts',
+  'Activation…': 'Enabling…',
+  'Désactivation…': 'Turning off…',
+  'Le test a été envoyé au service de notification de cet appareil.':
+    'The test was sent to this device’s notification service.',
+  'Cet appareil recevra les prochaines alertes.':
+    'This device will receive future alerts.',
+  'Les alertes sont désactivées sur cet appareil.':
+    'Alerts are turned off on this device.',
+  'Un autre compte reçoit déjà les alertes ici. Désactivez-les depuis ce compte pour changer.':
+    'Another account already receives alerts here. Turn them off in that account to switch.',
+  'Cet abonnement a expiré. Réactivez les alertes sur cet appareil.':
+    'This subscription has expired. Enable alerts again on this device.',
+  'Patientez un instant avant d’envoyer un autre test.':
+    'Wait a moment before sending another test.',
+  'L’autorisation n’a pas été accordée. Vous pouvez réessayer à tout moment.':
+    'Permission was not granted. You can try again at any time.',
+  'La clé de notification a changé. Réinitialisez les autorisations de ce site, puis réactivez les alertes.':
+    'The notification key has changed. Reset this site’s permissions, then enable alerts again.',
+  'Impossible de modifier les alertes pour le moment. Réessayez.':
+    'Could not update alerts right now. Please try again.',
   'Lecture interrompue': 'Playback interrupted',
   'Ouverture du titre…': 'Opening title…',
   'Préparation de la lecture…': 'Preparing playback…',
@@ -1065,4 +1125,29 @@ export default {
   Jaune: 'Yellow',
   'Couleur personnalisée': 'Custom color',
   'Rétablir le style d’origine': 'Restore original style',
+  Notifications: 'Notifications',
+  'Notifications précédentes': 'Older notifications',
+  'Réglages de l’appareil': 'Device settings',
+  'Non lues · {count}': 'Unread · {count}',
+  'Tout est lu': 'All caught up',
+  'Tout marquer comme lu': 'Mark all as read',
+  'Marquer comme lu · {title}': 'Mark as read · {title}',
+  'Marquer comme lu': 'Mark as read',
+  'Chargement des notifications…': 'Loading notifications…',
+  'Impossible de charger les notifications.': 'Couldn’t load notifications.',
+  'La lecture de la notification n’a pas été enregistrée.':
+    'Couldn’t mark the notification as read.',
+  'Aucune notification pour le moment': 'No notifications yet',
+  'Les nouvelles concernant tes demandes apparaîtront ici.':
+    'Updates about your requests will appear here.',
+  'Demande de média approuvée': 'Media request approved',
+  'Demande de média refusée': 'Media request declined',
+  'Demande de média relancée': 'Media request retried',
+  'Sous-titres disponibles': 'Subtitles available',
+  'Demande de sous-titres refusée': 'Subtitle request declined',
+  'Notifications activées': 'Notifications enabled',
+  'Cet appareil peut recevoir les notifications HollyFilms.':
+    'This device can receive HollyFilms notifications.',
+  'Ouvre tes demandes pour consulter la mise à jour.':
+    'Open your requests to see the update.',
 } as const

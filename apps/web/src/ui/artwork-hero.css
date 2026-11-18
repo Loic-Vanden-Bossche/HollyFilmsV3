@@ -16,6 +16,11 @@
   background: transparent;
   pointer-events: none;
 }
+[data-artwork-flight] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 .artwork-hero-flight {
   position: absolute;
   top: 0;
@@ -28,16 +33,12 @@
   height: 100%;
   display: block;
 }
-.artwork-hero-frost {
+.artwork-hero-bounds {
   position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 50% 35%, #080f1b08, #080f1b80 85%),
-    linear-gradient(#080f1b66, #080f1b26 40%, #080f1bcc);
+  inset: 0 auto auto 0;
+  pointer-events: none;
 }
-@media (prefers-reduced-transparency: reduce) {
-  .artwork-hero-frost {
-    backdrop-filter: none !important;
-    background: #080f1bb3;
-  }
+body:has(.player-viewport:is([data-state='playing'], [data-has-frame='true']))
+  [data-artwork-destination='player'] {
+  visibility: hidden;
 }

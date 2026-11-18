@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { expect, fn, waitFor } from 'storybook/test'
 import { SubtitleActionDialog } from './SubtitleActionDialog.tsx'
 const meta = {
@@ -26,6 +28,40 @@ export const Confirmation: Story = {
     await expect(args.onConfirm).toHaveBeenCalledTimes(1)
     await userEvent.keyboard('{Escape}')
     await expect(args.onClose).toHaveBeenCalledTimes(1)
+  },
+}
+export const ImmediateReopen: Story = {
+  render: function Render(args) {
+    const [open, setOpen] = useState(false)
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Installer la piste
+        </button>
+        <AnimatePresence>
+          {open && (
+            <SubtitleActionDialog
+              {...args}
+              onClose={() => {
+                setOpen(false)
+                args.onClose()
+              }}
+            />
+          )}
+        </AnimatePresence>
+      </>
+    )
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    const trigger = canvas.getByRole('button', { name: 'Installer la piste' })
+    await userEvent.click(trigger)
+    await userEvent.keyboard('{Escape}')
+    await expect(trigger).toHaveFocus()
+    await userEvent.click(trigger)
+    await expect(canvas.getByRole('dialog')).not.toHaveAttribute('inert')
+    await userEvent.click(canvas.getByRole('button', { name: 'Annuler' }))
+    await expect(trigger).toHaveFocus()
+    await expect(args.onClose).toHaveBeenCalledTimes(2)
   },
 }
 export const Pending: Story = {

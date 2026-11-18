@@ -1,4 +1,6 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useMotionPolicy } from '../components/reactbits/policy.ts'
+import { duration, ease } from '../motion/tokens.ts'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import type { LibraryImage } from '@hollyfilms/shared/library'
 import { MediaArtwork } from './MediaArtwork.tsx'
@@ -13,7 +15,7 @@ export function PlayerArtwork({
   session?: JellyfinSession
   visible: boolean
 }) {
-  const reduced = useReducedMotion()
+  const { reduced, pageVisible } = useMotionPolicy()
   return (
     <AnimatePresence>
       {visible && (
@@ -22,10 +24,20 @@ export function PlayerArtwork({
           aria-hidden="true"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: reduced ? 0.12 : 0.45 } }}
-          transition={{ duration: reduced ? 0 : 0.35 }}
+          exit={{
+            opacity: 0,
+            transition: { duration: reduced ? 0 : duration.press },
+          }}
+          transition={{
+            duration: reduced ? 0 : duration.micro,
+            ease: ease.out,
+          }}
         >
-          <div className="player-artwork-camera">
+          <div
+            className="player-artwork-camera"
+            data-motion={reduced ? 'reduced' : 'full'}
+            style={{ animationPlayState: pageVisible ? 'running' : 'paused' }}
+          >
             <MediaArtwork
               source={source}
               session={session}

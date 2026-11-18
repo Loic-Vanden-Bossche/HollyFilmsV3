@@ -1,14 +1,8 @@
 import { usePerformanceReducedMotion as useReducedMotion } from './performance/PerformanceProvider.tsx'
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { Tooltip } from './ui/Tooltip.tsx'
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
-import { useAnimate } from 'motion/react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { AnimatePresence, useAnimate } from 'motion/react'
 import {
   ArrowRight,
   ChevronLeft,
@@ -39,6 +33,7 @@ import { HomeCarousel } from './ui/HomeCarousel.tsx'
 import { CatalogueBackdrop } from './ui/CatalogueBackdrop.tsx'
 import { SearchBar } from './ui/SearchBar.tsx'
 import { SearchResults, type SearchPageData } from './ui/SearchResults.tsx'
+import { useCatalogueReturn } from './ui/use-catalogue-return.ts'
 import { LibraryTransition } from './ui/LibraryTransition.tsx'
 import { LibraryView } from './ui/LibraryView.tsx'
 import {
@@ -48,12 +43,14 @@ import {
   CountUp,
 } from './components/reactbits/Effects.tsx'
 import { MotionEnvironment } from './components/reactbits/MotionEnvironment.tsx'
+import { ease as curves } from './motion/tokens.ts'
 import './home.css'
 
-const ease = [0.22, 1, 0.36, 1] as const
+const ease = curves.out
 
 export type HomePageProps = {
   username: string
+  unreadNotifications?: number
   avatarUrl?: string
   isAdmin?: boolean
   session?: JellyfinSession
@@ -76,6 +73,7 @@ export type HomePageProps = {
   collectionId?: string
   collection?: CollectionItem
   sort?: LibrarySort
+  updatingOrder?: boolean
   onSort?: (sort: LibrarySort) => void
   onCollection?: (id?: string) => void
   hasMore?: boolean
@@ -92,6 +90,7 @@ export type HomePageProps = {
 
 export function HomePage({
   username,
+  unreadNotifications,
   avatarUrl,
   isAdmin,
   session,
@@ -114,6 +113,7 @@ export function HomePage({
   collectionId,
   collection,
   sort,
+  updatingOrder,
   onSort,
   onCollection,
   hasMore,
@@ -132,14 +132,36 @@ export function HomePage({
   const [scope, animate] = useAnimate<HTMLDivElement>()
   const [opening, setOpening] = useState(filter === 'all' && !reduced)
   const [introElapsed, setIntroElapsed] = useState(false)
-  const [readyHero, setReadyHero] = useState<string>()
-  const [loadingExpired, setLoadingExpired] = useState(false)
   const [entranceKey, setEntranceKey] = useState(0)
   const [skipEntrance, setSkipEntrance] = useState(false)
   const animation = useRef<ReturnType<typeof animate> | null>(null)
   const [localSelected, setLocalSelected] = useState<MediaItem | null>(null)
   const selected = selectedItem === undefined ? localSelected : selectedItem
-  const setSelected = onSelectItem ?? setLocalSelected
+  const catalogueInvoker = useRef<HTMLElement | null>(null)
+  const setSelected = useCallback(
+    (item: MediaItem | null) => {
+      const control = document.activeElement
+      if (
+        item &&
+        control instanceof HTMLElement &&
+        control !== document.body &&
+        !control.closest('dialog')
+      )
+        catalogueInvoker.current = control
+      const select = onSelectItem ?? setLocalSelected
+      select(item)
+    },
+    [onSelectItem],
+  )
+  // Starting playback may unmount and later reopen the detail dialog. Keep
+  // the original grid/rail control until that entire round trip has ended.
+  useLayoutEffect(() => {
+    if (selected || playbackOpen || !catalogueInvoker.current) return
+    const control = catalogueInvoker.current
+    catalogueInvoker.current = null
+    if (control.isConnected && !document.querySelector('dialog[open]'))
+      control.focus({ preventScroll: true })
+  }, [selected, playbackOpen])
   const [backgroundPaused, setBackgroundPaused] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const searchActive = searchFocused || Boolean(search.trim())
@@ -150,6 +172,10 @@ export function HomePage({
   }
   const resumeRail = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLElement>(null)
+  const rememberPlace = useCatalogueReturn(
+    content,
+    filter + '/' + (collectionId ?? ''),
+  )
   const featured = items[0]
   const browsing = filter !== 'all'
   const finishOpening = useCallback(() => {
@@ -181,7 +207,7 @@ export function HomePage({
           opacity: [0, 0.7],
           transform: ['scale(.94)', 'scale(1.015)'],
         },
-        { duration: 0.65, at: 0, ease },
+        { duration: 0.4, at: 0, ease },
       ],
       [
         '.home-aperture',
@@ -189,21 +215,12 @@ export function HomePage({
           transform: ['rotate(-12deg) scaleX(.08)', 'rotate(5deg) scaleX(1)'],
           opacity: [0, 0.85],
         },
-        { duration: 0.6, at: 0, ease },
+        { duration: 0.42, at: 0, ease },
       ],
       [
         '.home-intro-bloom',
         { opacity: [0, 0.65], transform: ['scale(.65)', 'scale(1.2)'] },
-        { duration: 0.6, at: 0, ease },
-      ],
-      [
-        '.home-ident',
-        {
-          opacity: [0, 1],
-          transform: ['translateY(14px)', 'translateY(0px)'],
-          filter: ['blur(5px)', 'blur(0px)'],
-        },
-        { duration: 0.35, at: 0.05, ease },
+        { duration: 0.42, at: 0, ease },
       ],
       [
         '.home-topbar',
@@ -211,7 +228,7 @@ export function HomePage({
           transform: ['translateY(-12px)', 'translateY(0px)'],
           opacity: [0.35, 1],
         },
-        { duration: 0.6, at: 0, ease },
+        { duration: 0.42, at: 0, ease },
       ],
     ])
     animation.current = controls
@@ -229,39 +246,25 @@ export function HomePage({
     }
   }, [opening, reduced, animate])
 
-  // The intro and authenticated artwork load concurrently. A slow server holds
-  // the lit bar briefly, then hand off directly to the staged hero entrance.
-  useEffect(() => {
-    if (!opening) return
-    const timeout = setTimeout(() => setLoadingExpired(true), 8000)
-    return () => clearTimeout(timeout)
-  }, [opening])
-  const heroSettled = featured ? readyHero === featured.id : state !== 'loading'
-  const releaseIntro = introElapsed && (heroSettled || loadingExpired)
   useLayoutEffect(() => {
-    if (!opening || !releaseIntro) return
+    if (!opening || !introElapsed) return
     let active = true
     // The hero starts on this same render, while the light finishes its sweep.
     const exit = animate([
       [
         '.home-aperture',
         { opacity: 0, transform: 'rotate(5deg) scaleX(1.2)' },
-        { duration: 0.45, at: 0, ease },
+        { duration: 0.3, at: 0, ease },
       ],
       [
         '.home-intro-frame',
         { opacity: 0, transform: 'scale(1.04)' },
-        { duration: 0.45, at: 0, ease },
+        { duration: 0.3, at: 0, ease },
       ],
       [
         '.home-intro-bloom',
         { opacity: 0, transform: 'scale(1.4)' },
-        { duration: 0.45, at: 0, ease },
-      ],
-      [
-        '.home-ident',
-        { opacity: 0, transform: 'translateY(-12px)' },
-        { duration: 0.25, at: 0, ease },
+        { duration: 0.3, at: 0, ease },
       ],
     ])
     void exit.then(() => {
@@ -271,15 +274,15 @@ export function HomePage({
       active = false
       exit.stop()
     }
-  }, [opening, releaseIntro, animate])
+  }, [opening, introElapsed, animate])
 
   function changeFilter(next: LibraryFilter) {
     if (next === filter && !searchActive && !collectionId) return
     finishOpening()
     setSearchFocused(false)
+    rememberPlace()
     onFilter(next)
     onSearch('')
-    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   const previousPage = useRef({ filter, collectionId })
@@ -293,7 +296,6 @@ export function HomePage({
     // Browser Back/Forward must also leave the previous page's expanded search.
     // oxlint-disable-next-line react/set-state-in-effect
     setSearchFocused(false)
-    window.scrollTo({ top: 0, behavior: 'instant' })
   }, [filter, collectionId])
 
   const pageOrder = [
@@ -315,6 +317,7 @@ export function HomePage({
         state={state}
         total={total}
         sort={sort}
+        updatingOrder={updatingOrder}
         search={search}
         session={session}
         hasMore={hasMore}
@@ -324,6 +327,7 @@ export function HomePage({
         onSort={onSort}
         onCollection={(id) => {
           setSearchFocused(false)
+          rememberPlace(!id)
           onCollection?.(id)
         }}
         onNavigate={changeFilter}
@@ -421,7 +425,11 @@ export function HomePage({
                 }
                 value={search}
                 expanded={searchActive}
-                loading={searchResults?.state === 'loading'}
+                loading={
+                  searchResults?.state === 'loading' &&
+                  !selected &&
+                  !playbackOpen
+                }
                 onChange={onSearch}
                 onExpand={() => {
                   finishOpening()
@@ -431,6 +439,7 @@ export function HomePage({
               />
               <AccountMenu
                 username={username}
+                unreadNotifications={unreadNotifications}
                 avatarUrl={avatarUrl}
                 isAdmin={isAdmin}
               />
@@ -523,8 +532,7 @@ export function HomePage({
                       session={session}
                       userId={userId}
                       active={!selected && !playbackOpen && !backgroundPaused}
-                      reveal={!opening || releaseIntro}
-                      onReady={setReadyHero}
+                      reveal
                       entranceKey={entranceKey}
                       skipEntrance={skipEntrance}
                       onSelect={(item) => {
@@ -763,7 +771,6 @@ export function HomePage({
                             window.scrollTo({ top: 0, behavior: 'instant' })
                             setSkipEntrance(false)
                             setIntroElapsed(false)
-                            setLoadingExpired(false)
                             setEntranceKey((value) => value + 1)
                             setOpening(true)
                           }}
@@ -778,25 +785,29 @@ export function HomePage({
               )}
             </LibraryTransition>
           </main>
-          {selected && (
-            <MediaDetails
-              key={selected.id}
-              item={selected}
-              session={session}
-              userId={userId}
-              onSelect={setSelected}
-              onFavorite={onFavorite}
-              onWatched={onWatched}
-              onPlay={
-                onPlay
-                  ? (item, resume, queue) => {
-                      if (!onSelectItem) setSelected(null)
-                      onPlay(item, resume, queue)
-                    }
-                  : undefined
-              }
-              onClose={() => setSelected(null)}
-            />
+          {!playbackOpen && (
+            <AnimatePresence>
+              {selected && (
+                <MediaDetails
+                  key={selected.id}
+                  item={selected}
+                  session={session}
+                  userId={userId}
+                  onSelect={setSelected}
+                  onFavorite={onFavorite}
+                  onWatched={onWatched}
+                  onPlay={
+                    onPlay
+                      ? (item, resume, queue) => {
+                          if (!onSelectItem) setSelected(null)
+                          onPlay(item, resume, queue)
+                        }
+                      : undefined
+                  }
+                  onClose={() => setSelected(null)}
+                />
+              )}
+            </AnimatePresence>
           )}
         </div>
         {opening && (
@@ -804,10 +815,6 @@ export function HomePage({
             <div className="home-intro-frame" aria-hidden="true" />
             <div className="home-intro-bloom" aria-hidden="true" />
             <div className="home-aperture" aria-hidden="true" />
-            <div className="home-ident" aria-hidden="true">
-              <Wordmark compact />
-              <span>3.0</span>
-            </div>
           </div>
         )}
       </div>

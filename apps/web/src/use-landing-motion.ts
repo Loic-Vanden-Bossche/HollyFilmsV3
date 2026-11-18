@@ -1,26 +1,17 @@
-import {
-  usePerformanceProfile,
-  usePerformanceReducedMotion,
-} from './performance/PerformanceProvider.tsx'
+import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { useAnimate, useMotionValue } from 'motion/react'
+import { duration, ease, distance, staggerDelay } from './motion/tokens.ts'
 
 const subscribeVisibility = (callback: () => void) => {
   document.addEventListener('visibilitychange', callback)
   return () => document.removeEventListener('visibilitychange', callback)
 }
 
-export function useMotionClock(stopped: boolean) {
-  const reduced = usePerformanceReducedMotion()
-  const hidden = useSyncExternalStore(
-    subscribeVisibility,
-    () => document.hidden,
-    () => false,
-  )
-  const profile = usePerformanceProfile()
+function useMotionClock(stopped: boolean) {
   const clock = useMotionValue(0)
   useEffect(() => {
-    if (stopped || reduced || hidden || !profile.ambient) return
+    if (stopped) return
     let frame = 0,
       previous = performance.now()
     const tick = (time: number) => {
@@ -30,7 +21,7 @@ export function useMotionClock(stopped: boolean) {
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [stopped, reduced, hidden, clock, profile.ambient])
+  }, [stopped, clock])
   return clock
 }
 
@@ -47,15 +38,32 @@ export function useLandingMotion(paused: boolean, modalOpen: boolean) {
   const clock = useMotionClock(stopped)
 
   useLayoutEffect(() => {
-    intro.current = animate(
-      '.title-brand',
-      { y: [26, 0], opacity: [0, 1], filter: ['blur(8px)', 'blur(0px)'] },
-      { duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: reduced ? 0 : 0.15 },
-    )
-    if (reduced) intro.current.complete()
-    return () => intro.current?.stop()
-  }, [animate, reduced])
-  useEffect(() => {
+    const reveal = animate([
+      [
+        '.eyebrow-line',
+        { scaleX: [0, 1] },
+        { at: 0, duration: duration.scene, ease: ease.out },
+      ],
+      [
+        '.title-brand',
+        { y: [distance.scene, 0], opacity: [0.35, 1] },
+        { at: 0, duration: duration.feature, ease: ease.out },
+      ],
+      [
+        '.feature-reel',
+        { y: [distance.panel, 0], opacity: [0.65, 1] },
+        { at: staggerDelay(3), duration: duration.scene, ease: ease.out },
+      ],
+      [
+        '.hero-actions',
+        { y: [distance.control, 0], opacity: [0.85, 1] },
+        { at: staggerDelay(4), duration: duration.panel, ease: ease.out },
+      ],
+    ])
+    intro.current = reveal
+    return () => reveal.stop()
+  }, [animate])
+  useLayoutEffect(() => {
     if (stopped) intro.current?.complete()
   }, [stopped])
 

@@ -23,6 +23,7 @@ module "app" {
   jellyfin_url             = trimsuffix(var.jellyfin_url, "/")
   jellyfin_api_key         = var.jellyfin_api_key
   google                   = var.google
+  web_push                 = var.web_push
   tmdb_api_token           = var.tmdb_api_token
   seerr                    = var.seerr
 }

@@ -1,11 +1,14 @@
 import { localizeText } from './i18n/messages.ts'
 import { useI18n } from './i18n/I18nProvider.tsx'
-import { useRef, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { motion } from 'motion/react'
+import { duration, ease, staggerDelay } from './motion/tokens.ts'
+import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
 import {
   ArrowLeft,
   Camera,
   Check,
+  CircleAlert,
   LockKeyhole,
   LogOut,
   ShieldCheck,
@@ -23,6 +26,7 @@ export type ProfilePageProps = {
   avatarUrl?: string
   state: 'loading' | 'ready' | 'error'
   signingOut?: boolean
+  deviceSettings?: ReactNode
   onRetry: () => void
   onUpload: (file: File) => Promise<void>
   onDeleteImage: () => Promise<void>
@@ -35,6 +39,7 @@ export function ProfilePage({
   avatarUrl,
   state,
   signingOut,
+  deviceSettings,
   onRetry,
   onUpload,
   onDeleteImage,
@@ -42,22 +47,43 @@ export function ProfilePage({
   onSignOut,
 }: ProfilePageProps) {
   const { t } = useI18n()
-  const reduced = useReducedMotion()
+  const reduced = usePerformanceReducedMotion()
   const fileInput = useRef<HTMLInputElement>(null)
+  const changePhoto = useRef<HTMLButtonElement>(null)
+  const resetPhoto = useRef<HTMLButtonElement>(null)
+  const cancelPhoto = useRef<HTMLButtonElement>(null)
+  const wasConfirming = useRef(false)
   const passwordForm = useRef<HTMLFormElement>(null)
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<{ error: boolean; text: string }>()
+  const [notice, setNotice] = useState<{
+    place: 'photo' | 'password'
+    error: boolean
+    text: string
+  }>()
   const [removePassword, setRemovePassword] = useState(false)
   const [confirmPhoto, setConfirmPhoto] = useState(false)
-  async function save(action: () => Promise<void>, success: string) {
+  useLayoutEffect(() => {
+    if (confirmPhoto) cancelPhoto.current?.focus({ preventScroll: true })
+    else if (wasConfirming.current)
+      (resetPhoto.current ?? changePhoto.current)?.focus({
+        preventScroll: true,
+      })
+    wasConfirming.current = confirmPhoto
+  }, [confirmPhoto])
+  async function save(
+    place: 'photo' | 'password',
+    action: () => Promise<void>,
+    success: string,
+  ) {
     if (busy) return
     setBusy(true)
     setNotice(undefined)
     try {
       await action()
-      setNotice({ error: false, text: success })
+      setNotice({ place, error: false, text: success })
     } catch (error) {
       setNotice({
+        place,
         error: true,
         text:
           error instanceof Error
@@ -68,11 +94,32 @@ export function ProfilePage({
       setBusy(false)
     }
   }
-  const entry = (delay: number) => ({
-    initial: { opacity: 0, y: reduced ? 0 : 18 },
+  const entry = (order: number) => ({
+    initial: { opacity: reduced ? 1 : 0, y: reduced ? 0 : 12 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: reduced ? 0.1 : 0.45, delay: reduced ? 0 : delay },
+    transition: {
+      duration: reduced ? 0 : duration.scene,
+      ease: ease.out,
+      delay: reduced ? 0 : staggerDelay(order),
+    },
   })
+  const feedback = notice && (
+    <motion.p
+      key={notice.text}
+      className={notice.error ? 'profile-notice is-error' : 'profile-notice'}
+      role={notice.error ? 'alert' : 'status'}
+      initial={{ opacity: 0.55, y: reduced ? 0 : 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: duration.micro, ease: ease.out }}
+    >
+      {notice.error ? (
+        <CircleAlert size={17} aria-hidden="true" />
+      ) : (
+        <Check size={17} aria-hidden="true" />
+      )}
+      {localizeText(t, notice.text, 'Impossible d’enregistrer. Réessaie.')}
+    </motion.p>
+  )
   return (
     <main className="profile-page">
       <header className="profile-topbar">
@@ -92,8 +139,15 @@ export function ProfilePage({
         <p>{t('Votre compte, à votre image.')}</p>
       </motion.div>
       {state === 'loading' && (
-        <div className="profile-panel profile-loading" role="status">
-          {t('Chargement du profil…')}
+        <div className="profile-grid" role="status">
+          <div className="profile-panel profile-identity profile-pending">
+            <span className="profile-portrait" aria-hidden="true" />
+            {t('Chargement du profil…')}
+          </div>
+          <div className="profile-settings" aria-hidden="true">
+            <div className="profile-panel surface-placeholder" />
+            <div className="profile-panel surface-placeholder" />
+          </div>
         </div>
       )}
       {state === 'error' && (
@@ -109,7 +163,7 @@ export function ProfilePage({
           <motion.section
             className="profile-panel profile-identity"
             aria-labelledby="profile-name"
-            {...entry(0.07)}
+            {...entry(1)}
           >
             <div className="profile-portrait">
               <ProfileAvatar name={profile.name} src={avatarUrl} />
@@ -148,12 +202,14 @@ export function ProfilePage({
                     event.target.value = ''
                     if (file)
                       void save(
+                        'photo',
                         () => onUpload(file),
                         'Photo de profil mise à jour.',
                       )
                   }}
                 />
                 <button
+                  ref={changePhoto}
                   className="profile-button profile-primary"
                   disabled={busy}
                   onClick={() => fileInput.current?.click()}
@@ -165,8 +221,10 @@ export function ProfilePage({
                 </p>
                 {profile.imageTag && (
                   <button
+                    ref={resetPhoto}
                     className="profile-text-button"
                     disabled={busy}
+                    aria-expanded={confirmPhoto}
                     onClick={() => setConfirmPhoto(true)}
                   >
                     <Trash2 size={15} />
@@ -175,17 +233,24 @@ export function ProfilePage({
                       : t('Supprimer la photo')}
                   </button>
                 )}
-                <AnimatePresence>
-                  {confirmPhoto && (
-                    <motion.div
-                      className="profile-confirm"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
+                <div
+                  className="profile-confirm"
+                  data-disclosure={confirmPhoto ? 'open' : 'closed'}
+                  inert={!confirmPhoto}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape' && !busy) {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setConfirmPhoto(false)
+                    }
+                  }}
+                >
+                  <div>
+                    <div className="profile-confirm-body">
                       <p>{t('Supprimer la photo personnalisée ?')}</p>
                       <div>
                         <button
+                          ref={cancelPhoto}
                           className="profile-button"
                           disabled={busy}
                           onClick={() => setConfirmPhoto(false)}
@@ -196,18 +261,23 @@ export function ProfilePage({
                           className="profile-button"
                           disabled={busy}
                           onClick={() =>
-                            void save(async () => {
-                              await onDeleteImage()
-                              setConfirmPhoto(false)
-                            }, 'Photo réinitialisée.')
+                            void save(
+                              'photo',
+                              async () => {
+                                await onDeleteImage()
+                                setConfirmPhoto(false)
+                              },
+                              'Photo réinitialisée.',
+                            )
                           }
                         >
                           {t('Confirmer')}
                         </button>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
+                  </div>
+                </div>
+                {notice?.place === 'photo' && feedback}
               </>
             )}
             {profile.google && !profile.google.picture && !profile.imageTag && (
@@ -229,7 +299,7 @@ export function ProfilePage({
             <motion.section
               className="profile-panel"
               aria-labelledby="profile-preferences"
-              {...entry(0.1)}
+              {...entry(2)}
             >
               <h2
                 id="profile-preferences"
@@ -239,10 +309,11 @@ export function ProfilePage({
               </h2>
               <LanguageSelect />
             </motion.section>
+            {deviceSettings}
             <motion.section
               className="profile-panel"
               aria-labelledby="profile-security"
-              {...entry(0.14)}
+              {...entry(3)}
             >
               <div className="profile-section-title">
                 <span>
@@ -298,12 +369,19 @@ export function ProfilePage({
                       next !== String(form.get('confirm') ?? '')
                     ) {
                       setNotice({
+                        place: 'password',
                         error: true,
                         text: 'Les mots de passe ne correspondent pas.',
                       })
+                      passwordForm.current
+                        ?.querySelector<HTMLInputElement>(
+                          'input[name="confirm"]',
+                        )
+                        ?.focus()
                       return
                     }
                     void save(
+                      'password',
                       async () => {
                         await onPassword(current, next)
                         passwordForm.current?.reset()
@@ -382,13 +460,14 @@ export function ProfilePage({
                       )}
                     </div>
                   </fieldset>
+                  {notice?.place === 'password' && feedback}
                 </form>
               )}
             </motion.section>
             <motion.section
               className="profile-panel profile-session"
               aria-label={t('Session')}
-              {...entry(0.21)}
+              {...entry(4)}
             >
               <div>
                 <h2>{t('Votre session')}</h2>
@@ -413,33 +492,6 @@ export function ProfilePage({
           </div>
         </div>
       )}
-      <div className="profile-feedback" aria-live="polite">
-        <AnimatePresence mode="wait">
-          {notice && (
-            <motion.p
-              key={localizeText(
-                t,
-                notice.text,
-                'Impossible d’enregistrer. Réessaie.',
-              )}
-              className={
-                notice.error ? 'profile-notice is-error' : 'profile-notice'
-              }
-              role={notice.error ? 'alert' : 'status'}
-              initial={{ opacity: 0, y: reduced ? 0 : 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
-              <Check size={18} aria-hidden="true" />
-              {localizeText(
-                t,
-                notice.text,
-                'Impossible d’enregistrer. Réessaie.',
-              )}
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
     </main>
   )
 }

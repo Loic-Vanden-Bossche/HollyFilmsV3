@@ -57,9 +57,11 @@ export const Loading: Story = {
     )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
     const video = canvasElement.querySelector('video')!
+    await userEvent.tab()
     video.focus()
     await expect(video).toHaveFocus()
-    await expect(getComputedStyle(video).outlineStyle).toBe('none')
+    await expect(video.matches(':focus-visible')).toBe(true)
+    await expect(getComputedStyle(video).outlineStyle).toBe('solid')
     await expect(
       getComputedStyle(canvas.getByRole('dialog')).outlineStyle,
     ).toBe('none')
@@ -77,11 +79,11 @@ export const Loading: Story = {
 export const Unavailable: Story = {
   beforeEach: () =>
     mockPlayback(async () => {
-      throw new Error('Aucun flux compatible.')
+      throw new Error('Le serveur ne propose pas de flux compatible.')
     }),
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('alert')).toHaveTextContent(
-      'Aucun flux compatible.',
+      'Le serveur ne propose pas de flux compatible.',
     )
   },
 }

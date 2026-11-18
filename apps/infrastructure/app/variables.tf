@@ -1,4 +1,9 @@
 variable "namespace" { type = string }
+variable "web_push" {
+  type      = object({ subject = string, public_key = string, private_key = string })
+  default   = null
+  sensitive = true
+}
 variable "seerr" {
   type      = object({ url = string, api_key = string })
   default   = null

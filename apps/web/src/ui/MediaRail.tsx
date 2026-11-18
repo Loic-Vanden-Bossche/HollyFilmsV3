@@ -2,7 +2,9 @@ import { Tooltip } from './Tooltip.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Children, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { duration, staggerDelay } from '../motion/tokens.ts'
 import { cinemaMotion } from '../components/reactbits/policy.ts'
 
 export function MediaRail({
@@ -108,8 +110,8 @@ export function MediaRail({
                     .forEach((animation) => animation.finish())
                 }}
                 transition={{
-                  duration: reduced ? 0 : 0.48,
-                  delay: reduced ? 0 : Math.min(index, 5) * 0.045,
+                  duration: reduced ? 0 : duration.scene,
+                  delay: reduced ? 0 : staggerDelay(index % 5),
                   ease: cinemaMotion.ease,
                 }}
               >

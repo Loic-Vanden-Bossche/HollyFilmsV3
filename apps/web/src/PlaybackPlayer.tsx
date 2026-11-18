@@ -38,7 +38,8 @@ import {
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Play } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
+import { duration, ease } from './motion/tokens.ts'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { toMediaItem, type MediaItem } from '@hollyfilms/shared/library'
 import { PlayerShell } from './ui/PlayerShell.tsx'
@@ -91,6 +92,36 @@ const qualities = [
   [720_000, '720 kb/s'],
   [420_000, '420 kb/s'],
 ] as const
+
+function SegmentPrompt({
+  label,
+  activate,
+}: {
+  label: string
+  activate: () => void
+}) {
+  const present = useIsPresent()
+  const reduced = useReducedMotion()
+  return (
+    <motion.button
+      initial={reduced ? false : { opacity: 0, x: 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{
+        opacity: 0,
+        x: reduced ? 0 : 4,
+        transition: { duration: reduced ? 0 : duration.press },
+      }}
+      transition={{ duration: reduced ? 0 : duration.micro, ease: ease.out }}
+      className="player-skip glass-control"
+      type="button"
+      inert={!present}
+      aria-hidden={!present}
+      onClick={activate}
+    >
+      {label}
+    </motion.button>
+  )
+}
 
 export function PlaybackPlayer({
   item,
@@ -301,6 +332,16 @@ export function PlaybackPlayer({
   const [subtitleProblem, setSubtitleProblem] = useState('')
   const [controlsHovered, setControlsHovered] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
+  const keyboardNavigation = useRef(false)
+  type ControlResponse = 'transport' | 'seek' | 'volume' | 'captions'
+  const [controlResponse, setControlResponse] = useState<ControlResponse>()
+  const responseTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(responseTimer.current), [])
+  function cueControl(control: ControlResponse) {
+    clearTimeout(responseTimer.current)
+    setControlResponse(control)
+    responseTimer.current = setTimeout(() => setControlResponse(undefined), 650)
+  }
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
@@ -561,7 +602,15 @@ export function PlaybackPlayer({
 
   const scheduleControlsHide = useCallback(() => {
     clearTimeout(controlsTimer.current)
-    controlsTimer.current = setTimeout(() => setControlsVisible(false), 3500)
+    controlsTimer.current = setTimeout(() => {
+      const focused = document.activeElement
+      if (
+        keyboardNavigation.current &&
+        focused?.closest('.player-controls, .player-heading-actions')
+      )
+        return
+      setControlsVisible(false)
+    }, 3500)
   }, [])
 
   useEffect(() => {
@@ -779,19 +828,33 @@ export function PlaybackPlayer({
       forceTranscode: true,
     })
   }
-  function openMenu(nextMenu: PlayerMenu) {
-    if (document.activeElement instanceof HTMLElement)
+  function openMenu(nextMenu: PlayerMenu, trigger?: HTMLButtonElement) {
+    if (trigger) menuTrigger.current = trigger
+    else if (document.activeElement instanceof HTMLElement)
       menuTrigger.current = document.activeElement
     setMenu(nextMenu)
   }
   function closeMenu() {
     setMenu(undefined)
-    if (menuTrigger.current?.isConnected)
-      menuTrigger.current.focus({ preventScroll: true })
+    const target = currentMenuTrigger() ?? videoRef.current
+    target?.focus({ preventScroll: true })
   }
-  function toggleMenu(nextMenu: PlayerMenu) {
+  function currentMenuTrigger() {
+    const trigger = menuTrigger.current
+    if (!trigger || trigger.isConnected) return trigger
+    // A stream replacement may temporarily remove the transport controls.
+    const key = trigger.dataset.playerMenuTrigger
+    return key
+      ? stageRef.current
+          ?.closest('.player-viewport')
+          ?.querySelector<HTMLButtonElement>(
+            `[data-player-menu-trigger="${key}"]`,
+          )
+      : undefined
+  }
+  function toggleMenu(nextMenu: PlayerMenu, trigger: HTMLButtonElement) {
     if (menu === nextMenu) closeMenu()
-    else openMenu(nextMenu)
+    else openMenu(nextMenu, trigger)
   }
 
   useMediaSession(statusVisible ? (target?.title ?? item.title) : undefined, {
@@ -895,7 +958,11 @@ export function PlaybackPlayer({
       problem={player.problem}
       interrupted={player.hasFrame}
       showHeading={!statusVisible || showControls || waitStage > 0}
-      onInteraction={revealControls}
+      onInteraction={(intent) => {
+        if (intent === 'keyboard') keyboardNavigation.current = true
+        if (intent === 'pointer') keyboardNavigation.current = false
+        revealControls()
+      }}
       onBackHover={holdControls}
       onClose={() => void close()}
       onRetry={player.retry}
@@ -934,14 +1001,14 @@ export function PlaybackPlayer({
           casting={Boolean(devices.destination)}
           syncing={Boolean(sync.group)}
           disabled={!statusVisible}
-          onCast={() => {
+          onCast={(trigger) => {
             setEditor(undefined)
-            openMenu('devices')
+            openMenu('devices', trigger)
             void devices.list()
           }}
-          onSync={() => {
+          onSync={(trigger) => {
             setEditor(undefined)
-            openMenu('sync')
+            openMenu('sync', trigger)
             void sync.list()
           }}
         />
@@ -980,6 +1047,7 @@ export function PlaybackPlayer({
       <div
         ref={stageRef}
         className="player-stage"
+        data-response={controlResponse}
         style={
           {
             '--primary-bitmap-tint': subtitleStyles.primary.customized
@@ -1043,6 +1111,21 @@ export function PlaybackPlayer({
           if (actions[key]) {
             event.preventDefault()
             actions[key]()
+            if ([' ', 'k'].includes(key)) cueControl('transport')
+            else if (
+              [
+                'j',
+                'l',
+                'arrowleft',
+                'arrowright',
+                'pageup',
+                'pagedown',
+              ].includes(key)
+            )
+              cueControl('seek')
+            else if (['arrowup', 'arrowdown', 'm'].includes(key))
+              cueControl('volume')
+            else if (key === 'c') cueControl('captions')
             revealControls()
           }
         }}
@@ -1084,7 +1167,15 @@ export function PlaybackPlayer({
             title: target?.title ?? item.title,
           })}
           style={{ objectFit: fit }}
-          onClick={statusVisible ? toggle : undefined}
+          onClick={
+            statusVisible
+              ? () => {
+                  toggle()
+                  cueControl('transport')
+                  revealControls()
+                }
+              : undefined
+          }
           onDoubleClick={fullscreenToggle}
         />
         <PlayerArtwork
@@ -1135,59 +1226,46 @@ export function PlaybackPlayer({
             </p>
           </div>
         )}
-        {statusVisible && activeSegment?.Type && (
-          <motion.button
-            initial={{ opacity: 0, y: reduced ? 0 : 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduced ? 0 : 0.25 }}
-            className="player-skip glass-control"
-            type="button"
-            onClick={() =>
-              player.seek((activeSegment.EndTicks ?? 0) / ticksPerSecond)
-            }
-          >
-            {t(segmentLabels[activeSegment.Type]!)}
-          </motion.button>
-        )}
-        {statusVisible && player.ended && !autoNext && next && (
-          <motion.button
-            initial={{ opacity: 0, y: reduced ? 0 : 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduced ? 0 : 0.25 }}
-            className="player-skip glass-control"
-            type="button"
-            onClick={() => open(next)}
-          >
-            {t('Lire l’épisode suivant')}
-          </motion.button>
-        )}
-        {continueNext && (
-          <motion.button
-            initial={{ opacity: 0, y: reduced ? 0 : 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduced ? 0 : 0.25 }}
-            className="player-skip glass-control"
-            type="button"
-            onClick={() => {
-              watched.current = 0
-              open(continueNext)
-            }}
-          >
-            {t('Toujours là ? Continuer')}
-          </motion.button>
-        )}
+        <AnimatePresence initial={false}>
+          {continueNext ? (
+            <SegmentPrompt
+              key="continue"
+              label={t('Toujours là ? Continuer')}
+              activate={() => {
+                watched.current = 0
+                open(continueNext)
+              }}
+            />
+          ) : statusVisible && player.ended && !autoNext && next ? (
+            <SegmentPrompt
+              key="next"
+              label={t('Lire l’épisode suivant')}
+              activate={() => open(next)}
+            />
+          ) : statusVisible && activeSegment?.Type ? (
+            <SegmentPrompt
+              key={activeSegment.Type}
+              label={t(segmentLabels[activeSegment.Type]!)}
+              activate={() =>
+                seek((activeSegment.EndTicks ?? 0) / ticksPerSecond)
+              }
+            />
+          ) : null}
+        </AnimatePresence>
         {statusVisible && (
           <motion.div
-            initial={{ opacity: 0, y: reduced ? 0 : 28 }}
+            initial={{ opacity: 0.6, y: reduced ? 0 : 10 }}
             animate={{
               opacity: showControls ? 1 : 0,
               y: reduced || showControls ? 0 : 14,
             }}
             transition={{
-              type: 'spring',
-              stiffness: 420,
-              damping: 36,
-              opacity: { duration: reduced ? 0 : 0.16 },
+              duration: reduced
+                ? 0
+                : showControls
+                  ? duration.micro
+                  : duration.panel,
+              ease: ease.out,
             }}
             className="player-controls-layer"
             onPointerEnter={() => holdControls(true)}
@@ -1203,6 +1281,13 @@ export function PlaybackPlayer({
               hasPrevious={Boolean(previous)}
               hasNext={Boolean(next)}
               subtitles={Boolean(primaryTrack)}
+              openPanel={
+                menu === 'subtitles'
+                  ? 'subtitles'
+                  : menu && menu !== 'devices' && menu !== 'sync'
+                    ? 'settings'
+                    : undefined
+              }
               onToggle={toggle}
               onSeek={seek}
               onVolume={volume}
@@ -1222,9 +1307,11 @@ export function PlaybackPlayer({
                   : undefined
               }
               onSubtitles={
-                !devices.destination ? () => toggleMenu('subtitles') : undefined
+                !devices.destination
+                  ? (trigger) => toggleMenu('subtitles', trigger)
+                  : undefined
               }
-              onSettings={() => toggleMenu('settings')}
+              onSettings={(trigger) => toggleMenu('settings', trigger)}
               onPreview={trickplay}
               loadPreview={api.previewImage}
               markers={chapters.map((chapter) => ({
@@ -1236,7 +1323,11 @@ export function PlaybackPlayer({
         )}
         <AnimatePresence initial={false}>
           {menu && statusVisible && (
-            <PlayerSettingsPanel key={menu} menu={menu} onClose={closeMenu}>
+            <PlayerSettingsPanel
+              menu={menu}
+              anchor={currentMenuTrigger()}
+              onClose={closeMenu}
+            >
               {menu === 'settings' && devices.destination && (
                 <div className="player-menu-actions">
                   <button type="button" onClick={() => setMenu('devices')}>

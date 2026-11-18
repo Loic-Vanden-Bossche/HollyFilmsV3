@@ -12,6 +12,8 @@ import { getSubtitleRequests, rejectSubtitleRequest } from './subtitles-api.ts'
 import { SubtitlePanel } from './ui/SubtitlePanel.tsx'
 import { subtitleStatuses } from './subtitle-status.ts'
 import { Select } from './ui/Select.tsx'
+import { RequestRow } from './ui/RequestRow.tsx'
+import { duration, ease } from './motion/tokens.ts'
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { apiMessage, localizeError } from './i18n/api-messages.ts'
 import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
@@ -95,7 +97,7 @@ export function SubtitleRequests({
       <motion.div
         initial={reduced ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: duration.scene, ease: ease.out }}
       >
         <p className="home-section-kicker">{t('SOUS-TITRES À LA DEMANDE')}</p>
         <h1>{t('Demandes de sous-titres')}</h1>
@@ -198,17 +200,10 @@ export function SubtitleRequests({
         <div className="requests-list">
           <AnimatePresence initial={false} mode="popLayout">
             {data.data.items.map((row, index) => (
-              <motion.article
-                layout={reduced ? false : 'position'}
+              <RequestRow
                 key={row.id}
                 className="request-row glass-panel"
-                initial={reduced ? false : { opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: reduced ? 0 : -8 }}
-                transition={{
-                  duration: reduced ? 0.1 : 0.28,
-                  delay: reduced ? 0 : Math.min(index * 0.035, 0.18),
-                }}
+                order={index}
               >
                 <div className="request-body">
                   <div className="request-heading">
@@ -226,12 +221,7 @@ export function SubtitleRequests({
                       </p>
                       <h2>{row.itemName}</h2>
                     </div>
-                    <AnimatePresence mode="wait" initial={false}>
-                      <SubtitleStatusBadge
-                        key={row.status}
-                        status={row.status}
-                      />
-                    </AnimatePresence>
+                    <SubtitleStatusBadge key={row.status} status={row.status} />
                   </div>
                   <p className="request-date">
                     {t('Demandé le {date}', {
@@ -315,7 +305,7 @@ export function SubtitleRequests({
                     )}
                   </AnimatePresence>
                 </div>
-              </motion.article>
+              </RequestRow>
             ))}
           </AnimatePresence>
         </div>

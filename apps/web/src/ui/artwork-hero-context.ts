@@ -4,6 +4,9 @@ import type { LibraryImage } from '@hollyfilms/shared/library'
 
 export type ArtworkEntry = { key: string; element: HTMLElement; blob?: Blob }
 export type ArtworkRegistry = {
+  capture: (button: Element, destination: 'details' | 'player') => void
+  returnToOrigin: (dialog: HTMLDialogElement) => void
+  cancel: () => void
   add: (entry: ArtworkEntry) => () => void
   update: (element: HTMLElement, blob?: Blob) => void
 }

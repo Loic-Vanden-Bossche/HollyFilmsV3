@@ -1,5 +1,4 @@
 import type { ComponentPropsWithoutRef } from 'react'
-import { Magnet } from '../components/reactbits/Effects.tsx'
 
 const variants = {
   primary:
@@ -25,13 +24,13 @@ export function Button({
       type={type}
       className={[
         variants[variant],
-        'min-h-11 cursor-pointer transition duration-200 enabled:active:scale-[.98] disabled:cursor-wait disabled:opacity-50 motion-reduce:transform-none',
+        'holly-button min-h-11 cursor-pointer disabled:cursor-wait disabled:opacity-50',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {variant === 'primary' ? <Magnet>{children}</Magnet> : children}
+      {children}
     </button>
   )
 }

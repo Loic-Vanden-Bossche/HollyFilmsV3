@@ -67,6 +67,37 @@ export const Discover: Story = {
     ).toBeDisabled()
   },
 }
+export const RefineSearch: Story = {
+  render: function Render(args) {
+    const [query, setQuery] = useState(args.query)
+    return (
+      <>
+        <input
+          aria-label="Recherche"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <DiscoveryResults {...args} query={query} />
+      </>
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const title = await canvas.findByText('ORBITAL')
+    const field = canvas.getByRole('textbox', { name: 'Recherche' })
+    await userEvent.type(field, ' 2')
+    await expect(canvas.getByText('ORBITAL')).toBe(title)
+    await expect(
+      canvas.getAllByRole('button', { name: 'Demander' })[0],
+    ).toBeDisabled()
+    await waitFor(() =>
+      expect(
+        canvas.getAllByRole('button', { name: 'Demander' })[0],
+      ).toBeEnabled(),
+    )
+    await expect(canvas.getByText('ORBITAL')).toBe(title)
+    await expect(field).toHaveFocus()
+  },
+}
 export const MemberRequest: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(

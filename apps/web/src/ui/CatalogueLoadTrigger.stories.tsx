@@ -21,7 +21,7 @@ const meta = {
     }
     return (
       <main>
-        <div style={{ height: '220vh', padding: 24 }}>
+        <div style={{ height: 'calc(100vh + 1000px)', padding: 24 }}>
           Faire défiler pour charger la suite.
         </div>
         <p role="status">{loading ? 'Chargement…' : `${count} titres`}</p>
@@ -46,9 +46,12 @@ type Story = StoryObj<typeof meta>
 
 export const Automatic: Story = {
   play: async ({ canvas, args }) => {
-    window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, behavior: 'instant' })
     await expect(args.onLoadMore).not.toHaveBeenCalled()
-    window.scrollTo(0, document.documentElement.scrollHeight)
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    })
     await waitFor(() =>
       expect(canvas.getByRole('status')).toHaveTextContent('72 titres'),
     )
@@ -58,7 +61,10 @@ export const Automatic: Story = {
 export const ErrorRecovery: Story = {
   args: { error: true },
   play: async ({ canvas, args, userEvent }) => {
-    window.scrollTo(0, document.documentElement.scrollHeight)
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    })
     await userEvent.click(canvas.getByRole('button', { name: 'Reprendre' }))
     await waitFor(() =>
       expect(canvas.getByRole('status')).toHaveTextContent('72 titres'),
@@ -73,7 +79,10 @@ export const Paused: Story = {
 export const End: Story = {
   args: { hasMore: false },
   play: async ({ args }) => {
-    window.scrollTo(0, document.documentElement.scrollHeight)
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    })
     await expect(args.onLoadMore).not.toHaveBeenCalled()
   },
 }

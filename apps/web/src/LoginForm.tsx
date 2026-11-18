@@ -27,6 +27,7 @@ import {
   ShinyText,
 } from './components/reactbits/Effects.tsx'
 import { useMotionPolicy } from './components/reactbits/policy.ts'
+import { duration, ease, scale, spring, staggerDelay } from './motion/tokens.ts'
 import './auth.css'
 
 type LoginFormProps = {
@@ -57,15 +58,15 @@ export function LoginForm({
   const { running } = useMotionPolicy(animationsPaused)
   const still = !running
   const transition = {
-    duration: still ? 0 : 0.3,
-    ease: [0.22, 1, 0.36, 1] as const,
+    duration: still ? 0 : duration.panel,
+    ease: ease.out,
   }
   const enter = {
     hidden: { opacity: still ? 1 : 0, y: still ? 0 : 12 },
     visible: (order: number) => ({
       opacity: 1,
       y: 0,
-      transition: { ...transition, delay: still ? 0 : order * 0.045 },
+      transition: { ...transition, delay: still ? 0 : staggerDelay(order) },
     }),
   }
   const feedback = {
@@ -134,7 +135,10 @@ export function LoginForm({
                 key={String(registering)}
                 initial={{ x: still ? '0%' : '-100%' }}
                 animate={{ x: '100%' }}
-                transition={{ duration: still ? 0 : 1.4, ease: 'easeOut' }}
+                transition={{
+                  duration: still ? 0 : duration.feature,
+                  ease: ease.inOut,
+                }}
               />
             </div>
             <div className="auth-layout">
@@ -147,15 +151,19 @@ export function LoginForm({
                     className="auth-orbit"
                     initial={{ rotate: still ? -12 : -30, opacity: 0 }}
                     animate={{ rotate: -12, opacity: 1 }}
-                    transition={{ duration: still ? 0 : 0.9 }}
+                    transition={{
+                      duration: still ? 0 : duration.feature,
+                      ease: ease.out,
+                    }}
                   />
                   <motion.div
                     className="auth-orbit auth-orbit-inner"
                     initial={{ rotate: still ? 12 : 30, opacity: 0 }}
                     animate={{ rotate: 12, opacity: 1 }}
                     transition={{
-                      duration: still ? 0 : 0.9,
-                      delay: still ? 0 : 0.1,
+                      duration: still ? 0 : duration.feature,
+                      delay: still ? 0 : duration.stagger,
+                      ease: ease.out,
                     }}
                   />
                   <span className="auth-aside-play">
@@ -185,17 +193,7 @@ export function LoginForm({
                   </span>
                 </motion.div>
 
-                <motion.div
-                  initial={false}
-                  animate={{
-                    height: registered ? 0 : 'auto',
-                    opacity: registered ? 0 : 1,
-                  }}
-                  transition={transition}
-                  inert={registered}
-                  aria-hidden={registered || undefined}
-                  className="auth-form-content"
-                >
+                <div hidden={registered} className="auth-form-content">
                   <motion.div
                     className="auth-switch"
                     role="group"
@@ -210,20 +208,14 @@ export function LoginForm({
                         aria-pressed={registering === register}
                         disabled={isSubmitting}
                         onClick={() => changeMode(register)}
-                        whileTap={still ? undefined : { scale: 0.98 }}
+                        whileTap={still ? undefined : { scale: scale.pressed }}
                       >
                         {registering === register && (
                           <motion.span
                             className="auth-switch-active"
                             layoutId="auth-mode"
                             transition={
-                              still
-                                ? { duration: 0 }
-                                : {
-                                    type: 'spring',
-                                    stiffness: 420,
-                                    damping: 36,
-                                  }
+                              still ? { duration: 0 } : spring.control
                             }
                           />
                         )}
@@ -239,30 +231,27 @@ export function LoginForm({
                     variants={enter}
                     custom={2}
                   >
-                    <AnimatePresence mode="wait" initial={false}>
-                      <motion.div
-                        key={String(registering)}
-                        initial={{ opacity: 0, y: still ? 0 : 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: still ? 0 : -6 }}
-                        transition={transition}
-                      >
-                        <h2 id={registered ? undefined : id + '-heading'}>
-                          <BlurText
-                            text={
-                              registering
-                                ? t('Créer votre compte.')
-                                : t('Bon retour.')
-                            }
-                          />
-                        </h2>
-                        <p>
-                          {registering
-                            ? t('Votre accès commence ici.')
-                            : t('Vos films et séries vous attendent.')}
-                        </p>
-                      </motion.div>
-                    </AnimatePresence>
+                    <motion.div
+                      key={String(registering)}
+                      initial={{ opacity: 0, y: still ? 0 : 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={transition}
+                    >
+                      <h2 id={registered ? undefined : id + '-heading'}>
+                        <BlurText
+                          text={
+                            registering
+                              ? t('Créer votre compte.')
+                              : t('Bon retour.')
+                          }
+                        />
+                      </h2>
+                      <p>
+                        {registering
+                          ? t('Votre accès commence ici.')
+                          : t('Vos films et séries vous attendent.')}
+                      </p>
+                    </motion.div>
                   </motion.div>
 
                   {options?.googleStartUrl && (
@@ -280,7 +269,9 @@ export function LoginForm({
                           still || isSubmitting ? undefined : { y: -2 }
                         }
                         whileTap={
-                          still || isSubmitting ? undefined : { scale: 0.985 }
+                          still || isSubmitting
+                            ? undefined
+                            : { scale: scale.pressed }
                         }
                         transition={transition}
                       >
@@ -400,26 +391,28 @@ export function LoginForm({
                               }
                               aria-pressed={showPassword}
                               onClick={() => setShowPassword(!showPassword)}
-                              whileTap={still ? undefined : { scale: 0.9 }}
+                              whileTap={
+                                still ? undefined : { scale: scale.pressed }
+                              }
                             >
-                              <AnimatePresence mode="wait" initial={false}>
-                                <motion.span
-                                  key={String(showPassword)}
-                                  initial={{
-                                    opacity: 0,
-                                    rotate: still ? 0 : -25,
-                                  }}
-                                  animate={{ opacity: 1, rotate: 0 }}
-                                  exit={{ opacity: 0, rotate: still ? 0 : 25 }}
-                                  transition={{ duration: still ? 0 : 0.1 }}
-                                >
-                                  {showPassword ? (
-                                    <EyeOff size={18} />
-                                  ) : (
-                                    <Eye size={18} />
-                                  )}
-                                </motion.span>
-                              </AnimatePresence>
+                              <motion.span
+                                key={String(showPassword)}
+                                initial={{
+                                  opacity: 0,
+                                  rotate: still ? 0 : -25,
+                                }}
+                                animate={{ opacity: 1, rotate: 0 }}
+                                transition={{
+                                  duration: still ? 0 : duration.micro,
+                                  ease: ease.out,
+                                }}
+                              >
+                                {showPassword ? (
+                                  <EyeOff size={18} />
+                                ) : (
+                                  <Eye size={18} />
+                                )}
+                              </motion.span>
                             </motion.button>
                           </Tooltip>
                         </div>
@@ -442,49 +435,49 @@ export function LoginForm({
                         variants={enter}
                         custom={6}
                         whileHover={
-                          still || isSubmitting
-                            ? undefined
-                            : { y: -2, boxShadow: '0 8px 30px #4ade802e' }
+                          still || isSubmitting ? undefined : { y: -2 }
                         }
                         whileTap={
-                          still || isSubmitting ? undefined : { scale: 0.98 }
+                          still || isSubmitting
+                            ? undefined
+                            : { scale: scale.pressed }
                         }
                         transition={transition}
                       >
-                        <AnimatePresence mode="wait" initial={false}>
-                          <motion.span
-                            className="auth-submit-content"
-                            key={isSubmitting ? 'sending' : String(registering)}
-                            initial={{ opacity: 0, y: still ? 0 : 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: still ? 0 : -5 }}
-                            transition={{ duration: still ? 0 : 0.12 }}
-                          >
-                            {isSubmitting ? (
-                              <>
-                                <motion.span
-                                  aria-hidden="true"
-                                  className="auth-busy-dot"
-                                  animate={{
-                                    opacity: still ? 1 : [0.35, 1, 0.35],
-                                  }}
-                                  transition={{
-                                    duration: 1,
-                                    repeat: still ? 0 : Infinity,
-                                  }}
-                                />
-                                {t('Envoi…')}
-                              </>
-                            ) : (
-                              <>
-                                {registering
-                                  ? t('Envoyer la demande')
-                                  : t('Se connecter')}
-                                <ArrowRight size={18} aria-hidden="true" />
-                              </>
-                            )}
-                          </motion.span>
-                        </AnimatePresence>
+                        <motion.span
+                          className="auth-submit-content"
+                          key={isSubmitting ? 'sending' : String(registering)}
+                          initial={{ opacity: 0, y: still ? 0 : 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: still ? 0 : duration.press,
+                            ease: ease.out,
+                          }}
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <motion.span
+                                aria-hidden="true"
+                                className="auth-busy-dot"
+                                animate={{
+                                  opacity: still ? 1 : [0.35, 1, 0.35],
+                                }}
+                                transition={{
+                                  duration: 1,
+                                  repeat: still ? 0 : Infinity,
+                                }}
+                              />
+                              {t('Envoi…')}
+                            </>
+                          ) : (
+                            <>
+                              {registering
+                                ? t('Envoyer la demande')
+                                : t('Se connecter')}
+                              <ArrowRight size={18} aria-hidden="true" />
+                            </>
+                          )}
+                        </motion.span>
                       </motion.button>
                     </fieldset>
                     <span role="status" className="sr-only">
@@ -512,82 +505,79 @@ export function LoginForm({
                       )}
                     </span>
                   </motion.p>
-                </motion.div>
+                </div>
 
-                <AnimatePresence>
-                  {registered && (
-                    <motion.div {...feedback} className="auth-feedback">
-                      <div className="auth-success">
-                        <motion.div
-                          className="auth-success-icon"
-                          initial={{ scale: still ? 1 : 0.7 }}
-                          animate={{ scale: 1 }}
-                          transition={
-                            still
-                              ? { duration: 0 }
-                              : { type: 'spring', stiffness: 220, damping: 18 }
-                          }
+                {registered && (
+                  <motion.div
+                    className="auth-feedback"
+                    initial={{ opacity: still ? 1 : 0.65, y: still ? 0 : 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={transition}
+                  >
+                    <div className="auth-success">
+                      <motion.div
+                        className="auth-success-icon"
+                        initial={{ scale: still ? 1 : 0.7 }}
+                        animate={{ scale: 1 }}
+                        transition={still ? { duration: 0 } : spring.control}
+                      >
+                        <svg
+                          viewBox="0 0 40 40"
+                          width={40}
+                          height={40}
+                          fill="none"
+                          aria-hidden="true"
                         >
-                          <svg
-                            viewBox="0 0 40 40"
-                            width={40}
-                            height={40}
-                            fill="none"
-                            aria-hidden="true"
-                          >
-                            <motion.path
-                              d="m10 20 7 7 14-14"
-                              stroke="currentColor"
-                              strokeWidth={2.5}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              initial={{ pathLength: still ? 1 : 0 }}
-                              animate={{ pathLength: 1 }}
-                              transition={{
-                                duration: still ? 0 : 0.5,
-                                delay: still ? 0 : 0.15,
-                              }}
-                            />
-                          </svg>
-                        </motion.div>
-                        <h2
-                          id={id + '-success-heading'}
-                          ref={successHeading}
-                          tabIndex={-1}
-                        >
-                          {t('Demande envoyée.')}
-                        </h2>
-                        <p>
-                          {t(
-                            'Votre compte est en attente d’approbation. Vous pourrez ensuite vous connecter avec vos identifiants.',
-                          )}
-                        </p>
-                        <div className="auth-success-status">
-                          <Check size={14} aria-hidden="true" />
-                          {t('Inscription enregistrée')}
-                        </div>
-                        <motion.button
-                          type="button"
-                          className="auth-google glass-control"
-                          whileHover={still ? undefined : { y: -2 }}
-                          whileTap={still ? undefined : { scale: 0.98 }}
-                          onClick={() => {
-                            setRegistered(false)
-                            changeMode(false)
-                            requestAnimationFrame(() =>
-                              document
-                                .getElementById(id + '-username')
-                                ?.focus(),
-                            )
-                          }}
-                        >
-                          {t('Revenir à la connexion')}
-                          <ArrowRight size={16} aria-hidden="true" />
-                        </motion.button>
+                          <motion.path
+                            d="m10 20 7 7 14-14"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            initial={{ pathLength: still ? 1 : 0 }}
+                            animate={{ pathLength: 1 }}
+                            transition={{
+                              duration: still ? 0 : 0.5,
+                              delay: still ? 0 : 0.15,
+                            }}
+                          />
+                        </svg>
+                      </motion.div>
+                      <h2
+                        id={id + '-success-heading'}
+                        ref={successHeading}
+                        tabIndex={-1}
+                      >
+                        {t('Demande envoyée.')}
+                      </h2>
+                      <p>
+                        {t(
+                          'Votre compte est en attente d’approbation. Vous pourrez ensuite vous connecter avec vos identifiants.',
+                        )}
+                      </p>
+                      <div className="auth-success-status">
+                        <Check size={14} aria-hidden="true" />
+                        {t('Inscription enregistrée')}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <motion.button
+                        type="button"
+                        className="auth-google glass-control"
+                        whileHover={still ? undefined : { y: -2 }}
+                        whileTap={still ? undefined : { scale: scale.pressed }}
+                        onClick={() => {
+                          setRegistered(false)
+                          changeMode(false)
+                          requestAnimationFrame(() =>
+                            document.getElementById(id + '-username')?.focus(),
+                          )
+                        }}
+                      >
+                        {t('Revenir à la connexion')}
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </div>
           </motion.section>

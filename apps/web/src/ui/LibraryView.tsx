@@ -24,6 +24,7 @@ import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
 import { MediaTile } from './MediaTile.tsx'
 import { VirtualMediaGrid, CatalogueLoadTrigger } from './VirtualMediaGrid.tsx'
+import { distance, duration, ease, staggerDelay } from '../motion/tokens.ts'
 import './library-pages.css'
 
 export type LibraryViewProps = {
@@ -36,6 +37,7 @@ export type LibraryViewProps = {
   state: 'loading' | 'error' | 'ready'
   total: number
   sort?: LibrarySort
+  updatingOrder?: boolean
   search?: string
   session?: JellyfinSession
   hasMore?: boolean
@@ -63,6 +65,7 @@ export function LibraryView({
   state,
   total,
   sort = 'recent',
+  updatingOrder = false,
   search = '',
   session,
   hasMore,
@@ -89,12 +92,12 @@ export function LibraryView({
     .filter((item) => item.kind === 'Épisode')
     .slice(0, 6)
   const reveal = (delay = 0) => ({
-    initial: { opacity: 0, y: reduced ? 0 : 18 },
+    initial: { opacity: 0, y: reduced ? 0 : distance.panel },
     animate: { opacity: 1, y: 0 },
     transition: {
-      duration: reduced ? 0.1 : 0.48,
-      delay: reduced ? 0 : delay,
-      ease: [0.22, 1, 0.36, 1] as const,
+      duration: reduced ? 0.08 : duration.scene,
+      delay: reduced ? 0 : Math.min(delay, staggerDelay(4)),
+      ease: ease.out,
     },
   })
   const gridTitle = collectionId
@@ -189,6 +192,7 @@ export function LibraryView({
                   {onPlay && (
                     <button
                       className="home-primary"
+                      data-artwork-open="player"
                       onClick={() => onPlay(featured, featured.progress > 0)}
                     >
                       <Play size={16} fill="currentColor" />
@@ -197,6 +201,7 @@ export function LibraryView({
                   )}
                   <button
                     className="library-outline-button"
+                    data-artwork-open="details"
                     onClick={() => onSelect(featured)}
                   >
                     {t('Voir la fiche')} <ArrowUpRight size={17} />
@@ -234,6 +239,7 @@ export function LibraryView({
             {featured && (
               <motion.button
                 className="library-series-feature"
+                data-artwork-open="details"
                 onClick={() => onSelect(featured)}
                 {...reveal(0.12)}
               >
@@ -352,7 +358,7 @@ export function LibraryView({
       <section
         className="library-browse"
         aria-labelledby="library-grid-title"
-        aria-busy={state === 'loading'}
+        aria-busy={state === 'loading' || updatingOrder}
       >
         <motion.div className="library-section-heading" {...reveal(0.14)}>
           <div>
@@ -366,7 +372,12 @@ export function LibraryView({
             <h2 id="library-grid-title">{gridTitle}</h2>
           </div>
           {!collectionIndex && onSort ? (
-            <label className="library-sort">
+            <label className="library-sort" data-updating={updatingOrder}>
+              {updatingOrder && (
+                <span className="sr-only" role="status">
+                  {t('Chargement des titres…')}
+                </span>
+              )}
               <ListFilter size={16} />
               <span className="sr-only">{t('Trier les titres')}</span>
               <Select
@@ -474,7 +485,17 @@ export function LibraryView({
                     key={item.id}
                     className="collection-card"
                     onClick={() => onCollection?.(item.id)}
-                    {...reveal(Math.min(index, 5) * 0.045)}
+                    data-collection-id={item.id}
+                    initial={
+                      reduced ? false : { opacity: 0, y: distance.panel }
+                    }
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '80px' }}
+                    transition={{
+                      duration: reduced ? 0 : duration.scene,
+                      delay: reduced ? 0 : staggerDelay(index % 4),
+                      ease: ease.out,
+                    }}
                     whileHover={reduced ? undefined : { y: -5 }}
                     whileTap={reduced ? undefined : { scale: 0.99 }}
                   >

@@ -3,6 +3,7 @@ import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
 import { useEffect, useRef } from 'react'
 import { animate } from 'motion/react'
 import { Film } from 'lucide-react'
+import { duration, distance, staggerDelay } from '../motion/tokens.ts'
 import {
   cinemaMotion,
   useEffectActivity,
@@ -47,13 +48,13 @@ export function CatalogueGallery({
         {
           opacity: [0, 1],
           transform: [
-            `translate(${index % 2 ? 24 : -24}px, 36px) scale(.91)`,
+            `translate(${index ? (index % 2 ? -distance.panel : distance.panel) : 0}px, ${index ? distance.panel : distance.scene}px) scale(.965)`,
             'translate(0px, 0px) scale(1)',
           ],
         },
         {
-          duration: reduced ? 0 : 0.75,
-          delay: reduced ? 0 : index * 0.055,
+          duration: reduced ? 0 : duration.feature,
+          delay: reduced ? 0 : staggerDelay(index),
           ease: cinemaMotion.ease,
         },
       )
@@ -130,6 +131,9 @@ export function CatalogueGallery({
                       alt=""
                       draggable={false}
                       decoding="async"
+                      onLoad={(event) => {
+                        event.currentTarget.dataset.ready = 'true'
+                      }}
                       onError={(event) => {
                         event.currentTarget.style.display = 'none'
                       }}
@@ -149,7 +153,7 @@ export function CatalogueGallery({
         ))}
       </div>
       {!items.length && (
-        <div className="gallery-status glass-panel">
+        <div className="gallery-status" data-state={state}>
           <p role="status">
             {state === 'loading'
               ? t('Chargement du catalogue…')

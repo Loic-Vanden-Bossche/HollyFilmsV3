@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, X, RotateCcw, Download, Clock3 } from 'lucide-react'
@@ -17,6 +17,8 @@ import { useI18n } from './i18n/I18nProvider.tsx'
 import { localizeError } from './i18n/api-messages.ts'
 import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
+import { duration, ease, spring } from './motion/tokens.ts'
+import { RequestRow } from './ui/RequestRow.tsx'
 import { Select } from './ui/Select.tsx'
 import './requests.css'
 import { SubtitleRequests } from './SubtitleRequests.tsx'
@@ -62,6 +64,7 @@ export function RequestsPage({
 }) {
   const { t, locale } = useI18n()
   const reduced = usePerformanceReducedMotion()
+  const indicator = useId()
   const cache = useQueryClient()
   const [section, setSection] = useState(() =>
     new URLSearchParams(location.search).get('section') === 'subtitles'
@@ -157,6 +160,14 @@ export function RequestsPage({
             history.replaceState(history.state, '', url.pathname + url.search)
           }}
         >
+          {section === value && (
+            <motion.span
+              className="selection-light"
+              aria-hidden="true"
+              layoutId={reduced ? undefined : indicator}
+              transition={spring.control}
+            />
+          )}
           {t(value === 'media' ? 'Médias' : 'Sous-titres')}
         </button>
       ))}
@@ -173,7 +184,7 @@ export function RequestsPage({
           <motion.div
             initial={reduced ? false : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: duration.scene, ease: ease.out }}
           >
             <p className="home-section-kicker">
               {administrator
@@ -310,7 +321,9 @@ export function RequestsPage({
             </p>
           )}
           {data.isPending ? (
-            <p role="status">{t('Chargement des demandes…')}</p>
+            <p role="status" className="surface-placeholder">
+              {t('Chargement des demandes…')}
+            </p>
           ) : data.isError ? (
             <div role="alert" className="request-empty">
               <p>
@@ -342,44 +355,40 @@ export function RequestsPage({
                 administrator ? t('Demandes de médias') : t('Mes demandes')
               }
             >
-              {data.data.items.map((item, index) => (
-                <motion.article
-                  layout={!reduced}
-                  key={item.id}
-                  className="request-row glass-panel"
-                  initial={reduced ? false : { opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: Math.min(index * 0.03, 0.15),
-                  }}
-                >
-                  {item.title.poster && (
-                    <img
-                      className="request-poster"
-                      src={item.title.poster}
-                      alt=""
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="request-body">
-                    <div className="request-heading">
-                      <div>
-                        <p>
-                          {t(item.title.type === 'movie' ? 'Film' : 'Série')} ·{' '}
-                          {item.title.year}
-                          {item.is4k ? ' · 4K' : ''}
-                        </p>
-                        <h2>{item.title.title}</h2>
-                      </div>
-                      <AnimatePresence mode="wait" initial={false}>
+              <AnimatePresence mode="popLayout" initial={false}>
+                {data.data.items.map((item, index) => (
+                  <RequestRow
+                    key={item.id}
+                    className="request-row glass-panel"
+                    order={index}
+                  >
+                    {item.title.poster && (
+                      <img
+                        className="request-poster"
+                        src={item.title.poster}
+                        alt=""
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="request-body">
+                      <div className="request-heading">
+                        <div>
+                          <p>
+                            {t(item.title.type === 'movie' ? 'Film' : 'Série')}{' '}
+                            · {item.title.year}
+                            {item.is4k ? ' · 4K' : ''}
+                          </p>
+                          <h2>{item.title.title}</h2>
+                        </div>
                         <motion.span
                           key={status(item)}
                           className={`request-status request-status-${item.status}`}
                           initial={{ opacity: 0, y: reduced ? 0 : 5 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: reduced ? 0 : -5 }}
-                          transition={{ duration: reduced ? 0.08 : 0.18 }}
+                          transition={{
+                            duration: reduced ? duration.press : duration.micro,
+                            ease: ease.out,
+                          }}
                         >
                           {item.downloads.length ? (
                             <Download size={14} />
@@ -392,165 +401,170 @@ export function RequestsPage({
                           )}
                           {t(status(item))}
                         </motion.span>
-                      </AnimatePresence>
-                    </div>
-                    <p className="request-date">
-                      {administrator && item.admin && (
-                        <>
-                          {t('Demandé par')} {item.admin.requestedBy} ·{' '}
-                        </>
-                      )}
-                      {t('Demandé le {date}', { date: date(item.createdAt) })}
-                    </p>
-                    {item.seasons.length > 0 && (
-                      <p>
-                        {t('Saisons : {seasons}', {
-                          seasons: item.seasons.join(', '),
-                        })}
+                      </div>
+                      <p className="request-date">
+                        {administrator && item.admin && (
+                          <>
+                            {t('Demandé par')} {item.admin.requestedBy} ·{' '}
+                          </>
+                        )}
+                        {t('Demandé le {date}', { date: date(item.createdAt) })}
                       </p>
-                    )}
-                    {item.downloads.map((download, i) => (
-                      <div className="request-download" key={i}>
-                        {download.title && <p>{download.title}</p>}
-                        <div
-                          role="progressbar"
-                          aria-label={t('Progression du téléchargement')}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={download.progress ?? undefined}
-                        >
-                          <motion.div
-                            className="bg-brand-gradient"
-                            initial={false}
-                            style={{ width: '100%', transformOrigin: 'left' }}
-                            animate={{
-                              scaleX:
-                                Math.max(
-                                  0,
-                                  Math.min(100, download.progress ?? 0),
-                                ) / 100,
-                            }}
-                            transition={{ duration: reduced ? 0 : 0.4 }}
-                          />
-                        </div>
+                      {item.seasons.length > 0 && (
                         <p>
-                          {download.progress == null
-                            ? t('Progression indisponible')
-                            : `${Math.round(download.progress)}%`}
-                          {download.remaining ? ` · ${download.remaining}` : ''}{' '}
-                          ·{' '}
-                          {t(
-                            downloadStatuses[
-                              download.status.toLowerCase() as keyof typeof downloadStatuses
-                            ] ?? 'État inconnu',
-                          )}
-                          {administrator ? ` (${download.status})` : ''}
+                          {t('Saisons : {seasons}', {
+                            seasons: item.seasons.join(', '),
+                          })}
                         </p>
-                      </div>
-                    ))}
-                    {administrator && item.admin && (
-                      <details className="request-technical">
-                        <summary>{t('Informations administrateur')}</summary>
-                        <dl>
-                          {Object.entries({
-                            [t('Demandé par')]: item.admin.requestedBy,
-                            [t('Traité par')]: item.admin.modifiedBy,
-                            [t('Mis à jour')]: date(item.updatedAt),
-                            TMDB: item.title.id,
-                            [t('Serveur')]: item.admin.serverId,
-                            [t('Profil de qualité')]:
-                              item.admin.profileName ?? item.admin.profileId,
-                            [t('Dossier')]: item.admin.rootFolder,
-                            [t('Identifiant externe')]: item.admin.externalId,
-                          })
-                            .filter(
-                              ([, value]) => value != null && value !== '',
-                            )
-                            .map(([key, value]) => (
-                              <div key={key}>
-                                <dt>{key}</dt>
-                                <dd>{value}</dd>
-                              </div>
+                      )}
+                      {item.downloads.map((download, i) => (
+                        <div className="request-download" key={i}>
+                          {download.title && <p>{download.title}</p>}
+                          <div
+                            role="progressbar"
+                            aria-label={t('Progression du téléchargement')}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={download.progress ?? undefined}
+                          >
+                            <motion.div
+                              className="bg-brand-gradient"
+                              initial={false}
+                              style={{ width: '100%', transformOrigin: 'left' }}
+                              animate={{
+                                scaleX:
+                                  Math.max(
+                                    0,
+                                    Math.min(100, download.progress ?? 0),
+                                  ) / 100,
+                              }}
+                              transition={{ duration: reduced ? 0 : 0.4 }}
+                            />
+                          </div>
+                          <p>
+                            {download.progress == null
+                              ? t('Progression indisponible')
+                              : `${Math.round(download.progress)}%`}
+                            {download.remaining
+                              ? ` · ${download.remaining}`
+                              : ''}{' '}
+                            ·{' '}
+                            {t(
+                              downloadStatuses[
+                                download.status.toLowerCase() as keyof typeof downloadStatuses
+                              ] ?? 'État inconnu',
+                            )}
+                            {administrator ? ` (${download.status})` : ''}
+                          </p>
+                        </div>
+                      ))}
+                      {administrator && item.admin && (
+                        <details className="request-technical">
+                          <summary>{t('Informations administrateur')}</summary>
+                          <dl>
+                            {Object.entries({
+                              [t('Demandé par')]: item.admin.requestedBy,
+                              [t('Traité par')]: item.admin.modifiedBy,
+                              [t('Mis à jour')]: date(item.updatedAt),
+                              TMDB: item.title.id,
+                              [t('Serveur')]: item.admin.serverId,
+                              [t('Profil de qualité')]:
+                                item.admin.profileName ?? item.admin.profileId,
+                              [t('Dossier')]: item.admin.rootFolder,
+                              [t('Identifiant externe')]: item.admin.externalId,
+                            })
+                              .filter(
+                                ([, value]) => value != null && value !== '',
+                              )
+                              .map(([key, value]) => (
+                                <div key={key}>
+                                  <dt>{key}</dt>
+                                  <dd>{value}</dd>
+                                </div>
+                              ))}
+                          </dl>
+                          {item.admin.serviceUrl && (
+                            <a
+                              href={item.admin.serviceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t('Ouvrir le service')}
+                            </a>
+                          )}
+                        </details>
+                      )}
+                      {administrator && (
+                        <div className="request-actions">
+                          {item.status === 1 &&
+                            (rejecting === item.id ? (
+                              <>
+                                <span>{t('Refuser cette demande ?')}</span>
+                                <button
+                                  className="glass-control request-reject"
+                                  disabled={decision.isPending}
+                                  onClick={() =>
+                                    decision.mutate({
+                                      id: item.id,
+                                      action: 'decline',
+                                    })
+                                  }
+                                >
+                                  {t('Confirmer le refus')}
+                                </button>
+                                <button
+                                  className="glass-control"
+                                  onClick={() => setRejecting(undefined)}
+                                >
+                                  {t('Annuler')}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="home-primary bg-brand-gradient text-primary-foreground"
+                                  disabled={decision.isPending}
+                                  onClick={() =>
+                                    decision.mutate({
+                                      id: item.id,
+                                      action: 'approve',
+                                    })
+                                  }
+                                >
+                                  <Check size={16} />
+                                  {t('Approuver')}
+                                </button>
+                                <button
+                                  className="glass-control request-reject"
+                                  disabled={decision.isPending}
+                                  onClick={() => setRejecting(item.id)}
+                                >
+                                  <X size={16} />
+                                  {t('Refuser')}
+                                </button>
+                              </>
                             ))}
-                        </dl>
-                        {item.admin.serviceUrl && (
-                          <a
-                            href={item.admin.serviceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {t('Ouvrir le service')}
-                          </a>
-                        )}
-                      </details>
-                    )}
-                    {administrator && (
-                      <div className="request-actions">
-                        {item.status === 1 &&
-                          (rejecting === item.id ? (
-                            <>
-                              <span>{t('Refuser cette demande ?')}</span>
-                              <button
-                                className="glass-control request-reject"
-                                disabled={decision.isPending}
-                                onClick={() =>
-                                  decision.mutate({
-                                    id: item.id,
-                                    action: 'decline',
-                                  })
-                                }
-                              >
-                                {t('Confirmer le refus')}
-                              </button>
-                              <button
-                                className="glass-control"
-                                onClick={() => setRejecting(undefined)}
-                              >
-                                {t('Annuler')}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                className="home-primary bg-brand-gradient text-primary-foreground"
-                                disabled={decision.isPending}
-                                onClick={() =>
-                                  decision.mutate({
-                                    id: item.id,
-                                    action: 'approve',
-                                  })
-                                }
-                              >
-                                <Check size={16} />
-                                {t('Approuver')}
-                              </button>
-                              <button
-                                className="glass-control request-reject"
-                                disabled={decision.isPending}
-                                onClick={() => setRejecting(item.id)}
-                              >
-                                <X size={16} />
-                                {t('Refuser')}
-                              </button>
-                            </>
-                          ))}
-                        {item.status === 4 && (
-                          <button
-                            className="glass-control"
-                            disabled={decision.isPending}
-                            onClick={() =>
-                              decision.mutate({ id: item.id, action: 'retry' })
-                            }
-                          >
-                            <RotateCcw size={16} />
-                            {t('Réessayer')}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </motion.article>
-              ))}
+                          {item.status === 4 && (
+                            <button
+                              className="glass-control"
+                              disabled={decision.isPending}
+                              onClick={() =>
+                                decision.mutate({
+                                  id: item.id,
+                                  action: 'retry',
+                                })
+                              }
+                            >
+                              <RotateCcw size={16} />
+                              {t('Réessayer')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </RequestRow>
+                ))}
+              </AnimatePresence>
             </section>
           )}
           {data.data && data.data.pages > 1 && (

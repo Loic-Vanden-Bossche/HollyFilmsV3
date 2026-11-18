@@ -20,6 +20,7 @@ import {
   useInView,
   useAnimate,
   useMotionValue,
+  useIsPresent,
 } from 'motion/react'
 import {
   ChevronLeft,
@@ -47,7 +48,12 @@ import {
 } from '../components/reactbits/Effects.tsx'
 import '../home-carousel.css'
 
-const ease = [0.22, 1, 0.36, 1] as const
+import {
+  duration as timing,
+  ease as curves,
+  staggerDelay,
+} from '../motion/tokens.ts'
+const ease = curves.out
 
 function subscribeViewport(notify: () => void) {
   window.addEventListener('resize', notify)
@@ -100,6 +106,7 @@ export function HomeCarousel({
     () => 1920,
   )
   const root = useRef<HTMLElement>(null)
+  const restoreControl = useRef<string | null>(null)
   const inView = useInView(root, { amount: 0.3 })
   const [selectedId, setSelectedId] = useState<string>()
   const [paused, setPaused] = useState(false)
@@ -120,6 +127,16 @@ export function HomeCarousel({
   const found = slides.findIndex((item) => item.id === selectedId)
   const index = found < 0 ? 0 : found
   const item = slides[index]
+  useLayoutEffect(() => {
+    const selector = restoreControl.current
+    if (!selector) return
+    restoreControl.current = null
+    root.current
+      ?.querySelector<HTMLElement>(
+        '.hero-slide-copy[data-present="true"] ' + selector,
+      )
+      ?.focus({ preventScroll: true })
+  }, [item?.id])
   const assetKey = JSON.stringify([
     item?.id,
     item?.backdrop ?? item?.poster,
@@ -226,6 +243,15 @@ export function HomeCarousel({
       onKeyDown={(event) => {
         if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
           event.preventDefault()
+          const button =
+            event.target instanceof Element
+              ? event.target.closest('button')
+              : null
+          if (button?.closest('.hero-slide-copy')) {
+            restoreControl.current = button.dataset.artworkOpen
+              ? '[data-artwork-open="' + button.dataset.artworkOpen + '"]'
+              : '.hero-favorite'
+          }
           navigate(event.key === 'ArrowRight' ? 1 : -1)
         }
       }}
@@ -238,15 +264,15 @@ export function HomeCarousel({
             initial={
               reduced && reveal
                 ? false
-                : { opacity: 0, transform: 'scale(1.08)' }
+                : { opacity: 0, transform: reduced ? 'none' : 'scale(1.035)' }
             }
             animate={
               reveal
                 ? { opacity: 1, transform: 'scale(1)' }
-                : { opacity: 0, transform: 'scale(1.08)' }
+                : { opacity: 0, transform: reduced ? 'none' : 'scale(1.035)' }
             }
             exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 1.1, ease }}
+            transition={{ duration: reduced ? 0 : timing.feature, ease }}
           >
             <MediaArtwork
               source={item.backdrop ?? item.poster}
@@ -271,7 +297,7 @@ export function HomeCarousel({
       </div>
       <div className="home-hero-shade" />
       <div className="home-hero-copy">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           <HeroSlide
             key={`${item.id}:${entranceKey}`}
             reduced={Boolean(reduced)}
@@ -342,7 +368,8 @@ export function HomeCarousel({
                     type="button"
                     className="home-primary"
                     whileHover={reduced ? undefined : { y: -3 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={reduced ? undefined : { scale: 0.97 }}
+                    data-artwork-open="player"
                     onClick={() => onPlay(item, true)}
                   >
                     <Play size={20} fill="currentColor" />
@@ -356,7 +383,8 @@ export function HomeCarousel({
                 type="button"
                 className="hero-glass hero-details"
                 whileHover={reduced ? undefined : { y: -3 }}
-                whileTap={{ scale: 0.97 }}
+                whileTap={reduced ? undefined : { scale: 0.97 }}
+                data-artwork-open="details"
                 onClick={() => onSelect(item)}
               >
                 <Info size={20} />
@@ -520,6 +548,7 @@ function HeroSlide({
   skipEntrance: boolean
   reveal: boolean
 }) {
+  const present = useIsPresent()
   const [skipAtMount] = useState(skipEntrance)
   const instant = reduced || (skipEntrance && !skipAtMount)
   const [scope, animateSlide] = useAnimate<HTMLDivElement>()
@@ -532,16 +561,22 @@ function HeroSlide({
       animateSlide(
         node,
         {
-          opacity: [0, 1],
+          opacity: [node.classList.contains('home-hero-actions') ? 0.65 : 0, 1],
           transform: [
-            node.tagName === 'H1' ? 'translateY(30px)' : 'translateY(16px)',
+            node.tagName === 'H1' ? 'translateY(18px)' : 'translateY(8px)',
             'translateY(0px)',
           ],
-          filter: ['blur(7px)', 'blur(0px)'],
         },
         {
-          duration: instant ? 0 : node.tagName === 'H1' ? 0.72 : 0.48,
-          delay: instant ? 0 : index * 0.075,
+          duration: instant
+            ? 0
+            : node.tagName === 'H1'
+              ? timing.scene
+              : timing.panel,
+          delay:
+            instant || node.classList.contains('home-hero-actions')
+              ? 0
+              : staggerDelay(index),
           ease,
         },
       ),
@@ -558,7 +593,7 @@ function HeroSlide({
           },
           {
             duration: instant ? 0 : 0.3,
-            delay: (i) => (instant ? 0 : 0.2 + i * 0.035),
+            delay: (i) => (instant ? 0 : staggerDelay(i + 1)),
             ease,
           },
         )
@@ -575,6 +610,10 @@ function HeroSlide({
   return (
     <motion.div
       ref={scope}
+      className="hero-slide-copy"
+      data-present={present}
+      inert={!present}
+      aria-hidden={!present}
       initial={false}
       exit={{ opacity: 0, y: instant ? 0 : -8 }}
       transition={{ duration: instant ? 0 : 0.14 }}

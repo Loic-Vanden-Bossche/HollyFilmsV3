@@ -3,8 +3,11 @@ import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import { Select } from './Select.tsx'
-import { useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useRef, useState, type FormEventHandler, type ReactNode } from 'react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
+import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { duration, ease, distance } from '../motion/tokens.ts'
+import './community-motion.css'
 import {
   ChevronDown,
   ExternalLink,
@@ -55,7 +58,8 @@ export function MediaCommunity({
   onDelete,
 }: MediaCommunityProps) {
   const { t, locale } = useI18n()
-  const reduced = useReducedMotion()
+  const reduced = usePerformanceReducedMotion()
+  const writeButton = useRef<HTMLButtonElement>(null)
   const [settings, setSettings] = useState(false),
     [searching, setSearching] = useState(false),
     [search, setSearch] = useState('')
@@ -76,14 +80,18 @@ export function MediaCommunity({
     setSaved('')
     setError(undefined)
   }
+  function closeEditor() {
+    setEditing(false)
+    setConfirmDelete(false)
+    writeButton.current?.focus({ preventScroll: true })
+  }
   async function save(remove = false) {
     setSaving(true)
     setError(undefined)
     try {
       if (remove) await onDelete?.()
       else await onSave?.(content, rating === '' ? null : Number(rating))
-      setEditing(false)
-      setConfirmDelete(false)
+      closeEditor()
       setSaved(
         remove ? 'Ton avis a été supprimé.' : 'Ton avis a été enregistré.',
       )
@@ -205,9 +213,12 @@ export function MediaCommunity({
                       .includes(search.toLocaleLowerCase()),
                 )
                 .map((p) => (
-                  <a
+                  <motion.a
                     key={p.id}
                     className="detail-provider"
+                    layout={reduced ? false : 'position'}
+                    layoutDependency={searching ? search : region}
+                    transition={{ duration: duration.micro, ease: ease.out }}
                     href={safeExternalUrl(providers.url)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -227,7 +238,7 @@ export function MediaCommunity({
                       <small>{p.offers.join(' · ')}</small>
                     </span>
                     <ExternalLink size={13} />
-                  </a>
+                  </motion.a>
                 ))}
             </div>
             {!providers?.providers.length && (
@@ -299,6 +310,7 @@ export function MediaCommunity({
           <>
             {onSave && (
               <button
+                ref={writeButton}
                 className="detail-write glass-control"
                 onClick={openEditor}
               >
@@ -310,11 +322,8 @@ export function MediaCommunity({
             )}
             <AnimatePresence initial={false}>
               {editing && (
-                <motion.form
-                  className="detail-review-editor"
-                  initial={{ opacity: 0, y: reduced ? 0 : 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
+                <ReviewEditor
+                  reduced={reduced}
                   onSubmit={(e) => {
                     e.preventDefault()
                     void save()
@@ -365,7 +374,7 @@ export function MediaCommunity({
                       type="button"
                       className="glass-control"
                       disabled={saving}
-                      onClick={() => setEditing(false)}
+                      onClick={closeEditor}
                     >
                       {t('Annuler')}
                     </button>
@@ -400,7 +409,7 @@ export function MediaCommunity({
                       </button>
                     </div>
                   )}
-                </motion.form>
+                </ReviewEditor>
               )}
             </AnimatePresence>
             {error && (
@@ -480,6 +489,33 @@ export function MediaCommunity({
     </>
   )
 }
+function ReviewEditor({
+  children,
+  onSubmit,
+  reduced,
+}: {
+  children: ReactNode
+  onSubmit: FormEventHandler<HTMLFormElement>
+  reduced: boolean
+}) {
+  const present = useIsPresent()
+  return (
+    <motion.form
+      className="detail-review-editor"
+      inert={!present}
+      initial={{ opacity: 0.6, y: reduced ? 0 : distance.panel }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: reduced ? 0 : -distance.control }}
+      transition={{
+        duration: reduced ? duration.press : duration.micro,
+        ease: ease.out,
+      }}
+      onSubmit={onSubmit}
+    >
+      {children}
+    </motion.form>
+  )
+}
 function ReviewCard({ review }: { review: MediaReview }) {
   const { t, locale } = useI18n()
   const [expanded, setExpanded] = useState(false)
@@ -517,7 +553,12 @@ function ReviewCard({ review }: { review: MediaReview }) {
         )}
       </p>
       <p className="detail-review-content">
-        {expanded ? review.content : review.content.slice(0, 440)}
+        {review.content.slice(0, 440)}
+        {expanded && (
+          <span className="review-continuation">
+            {review.content.slice(440)}
+          </span>
+        )}
         {!expanded && review.content.length > 440 ? '…' : ''}
       </p>
       {review.content.length > 440 && (

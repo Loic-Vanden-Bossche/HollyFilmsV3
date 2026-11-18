@@ -42,6 +42,7 @@ run "private_images_and_runtime" {
     tmdb_api_token           = "fake-tmdb"
     seerr                    = { url = "https://seerr.example.com", api_key = "fake-seerr-key" }
     google                   = null
+    web_push                 = { subject = "mailto:push@example.org", public_key = "fake-public", private_key = "fake-private" }
     ghcr_credentials         = { username = "test", token = "fake-registry" }
   }
   assert {
@@ -63,5 +64,9 @@ run "private_images_and_runtime" {
   assert {
     condition     = length([for c in kubernetes_deployment_v1.application.spec[0].template[0].spec[0].container : c.name if c.name == "web" && length(c.env_from) == 0 && length(c.env) == 1]) == 1
     error_message = "Le web ne doit recevoir aucun Secret ; seulement l’origine publique de Jellyfin."
+  }
+  assert {
+    condition     = kubernetes_secret_v1.runtime.data["VAPID_PRIVATE_KEY"] == "fake-private" && kubernetes_secret_v1.runtime.data["VAPID_SUBJECT"] == "mailto:push@example.org"
+    error_message = "Les paramètres VAPID doivent être injectés dans le Secret de l’API."
   }
 }

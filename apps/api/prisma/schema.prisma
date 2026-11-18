@@ -134,3 +134,41 @@ model SubtitleRequest {
   @@index([status, createdAt])
   @@index([sourceId, status])
 }
+
+model Notification {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String
+  title      String
+  body       String
+  url        String
+  createdAt  DateTime       @default(now())
+  readAt     DateTime?
+  deliveries PushDelivery[]
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model PushSubscription {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String
+  endpoint   String         @unique
+  p256dh     String
+  auth       String
+  expiresAt  DateTime?
+  deliveries PushDelivery[]
+
+  @@index([userId])
+}
+
+model PushDelivery {
+  notificationId String           @db.Uuid
+  subscriptionId String           @db.Uuid
+  notification   Notification     @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  nextAttemptAt  DateTime         @default(now())
+  attempts       Int              @default(0)
+
+  @@id([notificationId, subscriptionId])
+  @@index([nextAttemptAt])
+}

@@ -1,14 +1,22 @@
-import { useEffect, useId, useRef } from 'react'
+import { useId, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Captions, Download, Send, X } from 'lucide-react'
 import type { SubtitleRequestStatus } from '@hollyfilms/shared/subtitles'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { subtitleStatuses } from '../subtitle-status.ts'
-import { lockBodyScroll } from './body-scroll-lock.ts'
+import { useModalPresence } from './use-modal-presence.ts'
+import { duration, ease } from '../motion/tokens.ts'
 import { languageFlag } from './language-flags.ts'
 import { SubtitleFeedback } from './SubtitleFeedback.tsx'
 import '../requests.css'
+
+const fallbackFocus = (opener: HTMLElement) =>
+  opener
+    .closest('.subtitle-panel, .subtitle-requests')
+    ?.querySelector<HTMLElement>(
+      '.subtitle-history, .subtitle-action:not(:disabled), .request-link',
+    ) ?? null
 
 export function SubtitleActionDialog({
   action,
@@ -38,29 +46,9 @@ export function SubtitleActionDialog({
   const { t } = useI18n()
   const reduced = usePerformanceReducedMotion()
   const id = useId()
-  const dialog = useRef<HTMLDialogElement>(null)
-  const previous = useRef(document.activeElement as HTMLElement | null)
+  const { dialog, surface, present } = useModalPresence(fallbackFocus)
   const outside = useRef(false)
   const busy = pending && !result
-  useEffect(() => {
-    const element = dialog.current!
-    const target = previous.current
-    const fallback = target?.closest('.subtitle-panel, .subtitle-requests')
-    const unlock = lockBodyScroll()
-    element.showModal()
-    return () => {
-      element.close()
-      unlock()
-      if (target?.isConnected && !target.matches(':disabled'))
-        target.focus({ preventScroll: true })
-      else
-        fallback
-          ?.querySelector<HTMLElement>(
-            '.subtitle-history, .subtitle-action:not(:disabled), .request-link',
-          )
-          ?.focus({ preventScroll: true })
-    }
-  }, [])
   const flag = languageFlag(language)
   const confirmLabel =
     action === 'request'
@@ -74,12 +62,14 @@ export function SubtitleActionDialog({
     <motion.dialog
       ref={dialog}
       className="media-request-dialog subtitle-action-dialog"
+      inert={!present}
+      data-exiting={!present || undefined}
       aria-labelledby={`${id}-action ${id}`}
       aria-describedby={`${id}-version ${id}-phase`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: reduced ? 0.1 : 0.2 }}
+      transition={{ duration: reduced ? duration.press : duration.micro }}
       onCancel={(event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -106,12 +96,16 @@ export function SubtitleActionDialog({
       }}
     >
       <motion.section
+        ref={surface}
         className="media-request-surface subtitle-action-surface"
         layout={reduced ? false : 'size'}
         initial={reduced ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: reduced ? 0 : 10 }}
-        transition={{ duration: reduced ? 0.1 : 0.3, ease: [0.22, 1, 0.36, 1] }}
+        transition={{
+          duration: reduced ? duration.press : duration.panel,
+          ease: ease.out,
+        }}
       >
         <button
           type="button"

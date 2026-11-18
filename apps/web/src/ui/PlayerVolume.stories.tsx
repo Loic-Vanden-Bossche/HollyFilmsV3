@@ -31,14 +31,20 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 export const Interactive: Story = {
-  play: async ({ canvas, userEvent, args }) => {
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Couper le son' }))
     await expect(args.onMute).toHaveBeenCalledOnce()
     const slider = canvas.getByRole('slider', { name: 'Volume' })
     await expect(slider).toHaveValue('0')
+    await expect(
+      canvasElement.querySelectorAll('[data-lit="true"]'),
+    ).toHaveLength(0)
     fireEvent.change(slider, { target: { value: '0.42' } })
     await expect(args.onChange).toHaveBeenLastCalledWith(0.42)
     await expect(slider).toHaveAttribute('aria-valuetext', '42 %')
+    await expect(
+      canvasElement.querySelectorAll('[data-lit="true"]'),
+    ).toHaveLength(9)
     await expect(
       canvas.getByRole('button', { name: 'Couper le son' }),
     ).toHaveAttribute('aria-pressed', 'false')

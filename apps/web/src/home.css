@@ -629,13 +629,15 @@
 }
 .home-intro-frame {
   position: absolute;
-  inset: 105px var(--spacing-stage) 30px;
-  border: 1px solid #7dded8;
-  border-radius: 32px;
+  inset: 0;
   opacity: 0;
-  box-shadow:
-    0 0 30px #4ade8033,
-    inset 0 0 30px #3b82f622;
+  background: linear-gradient(
+    180deg,
+    #020610a8,
+    transparent 18%,
+    transparent 77%,
+    #020610a8
+  );
 }
 .home-aperture {
   position: absolute;
@@ -662,33 +664,7 @@
     radial-gradient(ellipse at 80% 30%, #3b82f633, transparent 50%),
     radial-gradient(ellipse at 20% 60%, #4ade8026, transparent 45%);
 }
-.home-ident {
-  position: absolute;
-  right: calc(var(--spacing-stage) + 30px);
-  top: 110px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  opacity: 0;
-  padding: 12px 18px;
-  border: 1px solid #7dded829;
-  border-radius: 100px;
-  background: #080f1b80;
-  backdrop-filter: blur(12px);
-}
-.home-ident > span:nth-child(2) {
-  color: #b0f5e8;
-  font-size: 13px;
-}
-@media (max-width: 680px) {
-  .home-ident {
-    top: 140px;
-    right: 28px;
-  }
-  .home-intro-frame {
-    inset-block: 135px 24px;
-  }
-}
+
 .home-skip {
   position: absolute;
   top: 12px;
@@ -930,16 +906,7 @@
   .home-footer > span:nth-child(2) {
     display: none;
   }
-  .home-ident {
-    gap: 10px;
-  }
-  .home-ident > span:first-child {
-    font-size: 34px;
-  }
-  .home-ident > span:nth-child(2) {
-    font-size: 19px;
-    padding: 5px 7px;
-  }
+
   .media-detail-art {
     height: 220px;
   }
@@ -1131,4 +1098,38 @@
 }
 .home-carousel[data-revealed='false'] [data-hero-stage] {
   opacity: 0;
+}
+
+@media (min-width: 1241px) and (min-height: 640px) {
+  .home-topbar[data-search='false'] {
+    position: sticky;
+    isolation: isolate;
+  }
+  .home-topbar[data-search='false']::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, #080f1b, #0c1825f5);
+    border-bottom: 1px solid #283a4e;
+    pointer-events: none;
+  }
+  @supports (animation-timeline: scroll()) {
+    .home-topbar[data-search='false']::before {
+      animation: catalogue-header-shade linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 80px;
+    }
+  }
+  .home-page-content :is(.home-resume, [data-grid-item], .collection-card) {
+    scroll-margin-top: 108px;
+  }
+}
+@keyframes catalogue-header-shade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

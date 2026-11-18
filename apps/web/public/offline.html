@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#080f1b" />
+    <title>HollyFilms · Hors connexion</title>
+    <style media="(prefers-reduced-motion: no-preference)">
+      @view-transition {
+        navigation: auto;
+      }
+    </style>
+    <link rel="icon" href="/pwa/icon-192.png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font:
+          100%/1.55 system-ui,
+          sans-serif;
+        color: #ecf4fb;
+        background: #080f1b;
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: grid;
+        align-items: center;
+        justify-items: center;
+        background: radial-gradient(
+          ellipse at 30% 42%,
+          #12273b,
+          transparent 60%
+        );
+      }
+      main {
+        width: min(30rem, calc(100% - 3rem));
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-weight: 700;
+      }
+      img {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.6rem;
+      }
+      h1 {
+        margin: 2rem 0 0.5rem;
+        font-size: clamp(2rem, 8vw, 3.25rem);
+        line-height: 1.1;
+      }
+      p {
+        margin: 0 0 1.75rem;
+        color: #bccad8;
+      }
+      a {
+        display: inline-block;
+        border-radius: 0.75rem;
+        padding: 0.65rem 1.1rem;
+        background: #ecf4fb;
+        color: #080f1b;
+        font-weight: 650;
+        text-decoration: none;
+      }
+      a:focus-visible {
+        outline: 3px solid #4ade80;
+        outline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/pwa/icon-192.png" width="40" height="40" alt="" />HollyFilms
+      </header>
+      <h1 id="heading">Vous êtes hors connexion</h1>
+      <p id="detail">
+        Reconnectez-vous pour retrouver votre bibliothèque et reprendre la
+        lecture.
+      </p>
+      <a id="retry" href="">Réessayer</a>
+    </main>
+    <script src="/pwa/offline.js"></script>
+  </body>
+</html>

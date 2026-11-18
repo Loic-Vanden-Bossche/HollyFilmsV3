@@ -1,5 +1,7 @@
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { duration, distance, ease } from '../motion/tokens.ts'
 import { Search, RotateCcw } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { VirtualMediaGrid, CatalogueLoadTrigger } from './VirtualMediaGrid.tsx'
@@ -49,9 +51,9 @@ export function SearchResults({
     >
       <motion.div
         className="home-section-header"
-        initial={{ opacity: 0, y: reduced ? 0 : 12 }}
+        initial={reduced ? false : { opacity: 0.65, y: distance.panel }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduced ? 0 : 0.3 }}
+        transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
       >
         <div>
           <p className="home-section-kicker">
@@ -75,12 +77,12 @@ export function SearchResults({
         </p>
       </motion.div>
       <motion.div
-        key={query.trim() + ':' + state}
-        initial={{ opacity: reduced ? 1 : 0 }}
+        key={state === 'loading' && items.length ? 'ready' : state}
+        initial={reduced ? false : { opacity: 0.7 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: reduced ? 0 : 0.22 }}
+        transition={{ duration: reduced ? 0 : duration.micro }}
       >
-        {state === 'loading' ? (
+        {state === 'loading' && !items.length ? (
           <div className="home-grid" aria-hidden="true">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="home-skeleton" />
@@ -105,7 +107,7 @@ export function SearchResults({
                 hasMore={hasMore}
                 loading={loadingMore}
                 error={loadMoreError}
-                paused={paused}
+                paused={paused || state !== 'ready'}
                 onLoadMore={onLoadMore}
               />
             )}
@@ -118,7 +120,7 @@ export function SearchResults({
               <button
                 className="home-more glass-control"
                 onClick={onLoadMore}
-                disabled={loadingMore}
+                disabled={loadingMore || state !== 'ready'}
               >
                 {loadingMore
                   ? t('Chargement…')

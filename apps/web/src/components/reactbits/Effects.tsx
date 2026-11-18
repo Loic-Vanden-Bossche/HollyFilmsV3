@@ -10,6 +10,12 @@ import {
   useTransform,
 } from 'motion/react'
 import { cinemaMotion, useEffectActivity, useMotionPolicy } from './policy.ts'
+import {
+  duration,
+  distance,
+  staggerDelay,
+  spring,
+} from '../../motion/tokens.ts'
 import './effects.css'
 
 export function GradualBlur({
@@ -62,11 +68,11 @@ export function BlurText({
         <motion.span
           aria-hidden="true"
           key={`${word}-${i}`}
-          initial={running ? { opacity: 0, y: 12, filter: 'blur(8px)' } : false}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          initial={running ? { opacity: 0.35, y: distance.panel } : false}
+          animate={{ opacity: 1, y: 0 }}
           transition={{
             duration: running ? cinemaMotion.reveal : 0,
-            delay: running ? delay + Math.min(i * 0.08, 0.4) : 0,
+            delay: running ? delay + staggerDelay(i) : 0,
             ease: cinemaMotion.ease,
           }}
         >
@@ -102,13 +108,14 @@ export function RotatingText({
           key={index}
           initial={{
             opacity: 0,
-            y: running ? 22 : 0,
-            rotateX: running ? -35 : 0,
-            filter: running ? 'blur(5px)' : 'none',
+            y: running ? distance.panel : 0,
           }}
-          animate={{ opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, y: running ? -22 : 0, rotateX: running ? 30 : 0 }}
-          transition={{ duration: running ? 0.4 : 0, ease: cinemaMotion.ease }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: running ? -distance.panel : 0 }}
+          transition={{
+            duration: running ? duration.panel : 0,
+            ease: cinemaMotion.ease,
+          }}
         >
           {items[index % items.length]}
         </motion.div>
@@ -130,11 +137,11 @@ export function AnimatedContent({
     <motion.div
       ref={ref}
       className={className}
-      initial={reduced ? false : { opacity: 0, y: 22 }}
+      initial={reduced ? false : { opacity: 0.5, y: distance.panel }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '40px' }}
       transition={{
-        duration: running ? 0.45 : 0.1,
+        duration: running ? duration.scene : duration.press,
         delay: running ? delay : 0,
         ease: cinemaMotion.ease,
       }}
@@ -271,7 +278,7 @@ export function AnimatedList({
       { opacity: [0, 1], x: [12, 0] },
       {
         duration: 0.3,
-        delay: (i) => Math.min(i * 0.035, 0.18),
+        delay: staggerDelay,
         ease: cinemaMotion.ease,
       },
     )
@@ -388,15 +395,8 @@ export function GooeyNav<T extends string>({
             <motion.span
               className="rb-gooey-pill"
               layoutId={`${id}-pill`}
-              transition={
-                running
-                  ? { type: 'spring', stiffness: 370, damping: 30 }
-                  : { duration: 0 }
-              }
-            >
-              <i />
-              <i />
-            </motion.span>
+              transition={running ? spring.control : { duration: 0 }}
+            />
           )}
           <span className="rb-nav-label">{item.label}</span>
         </button>
@@ -434,7 +434,13 @@ export function ElasticSlider({
         className="rb-elastic-track"
         style={{ scaleX: running ? stretch : 1 }}
       >
-        <i style={{ width: `${Math.min(1, Math.max(0, value)) * 100}%` }} />
+        <i
+          style={{
+            width: '100%',
+            transformOrigin: 'left',
+            transform: `scaleX(${Math.min(1, Math.max(0, value))})`,
+          }}
+        />
       </motion.span>
       <input
         type="range"

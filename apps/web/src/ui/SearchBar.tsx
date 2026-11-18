@@ -1,9 +1,11 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import { useRef } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpLeft, Search, X } from 'lucide-react'
-import { cinemaMotion } from '../components/reactbits/policy.ts'
+import { duration, ease } from '../motion/tokens.ts'
+import { useMotionPolicy } from '../components/reactbits/policy.ts'
 import './search-bar.css'
 
 export function SearchBar({
@@ -27,6 +29,7 @@ export function SearchBar({
   const input = useRef<HTMLInputElement>(null)
   const restoring = useRef(false)
   const reduced = useReducedMotion()
+  const { pageVisible } = useMotionPolicy()
   const close = () => {
     onClose()
     restoring.current = true
@@ -39,7 +42,7 @@ export function SearchBar({
       data-expanded={expanded}
       layout
       transition={{
-        layout: { duration: reduced ? 0 : 0.46, ease: cinemaMotion.ease },
+        layout: { duration: reduced ? 0 : duration.panel, ease: ease.out },
       }}
     >
       <div className="cinema-search-glow" aria-hidden="true" />
@@ -169,11 +172,16 @@ export function SearchBar({
           aria-hidden="true"
           initial={{ scaleX: reduced ? 1 : 0 }}
           animate={{ scaleX: 1 }}
-          transition={{ duration: reduced ? 0 : 0.55, ease: cinemaMotion.ease }}
+          transition={{
+            duration: reduced ? 0 : duration.scene,
+            ease: ease.out,
+          }}
         >
           {loading && (
             <motion.i
-              animate={reduced ? {} : { x: ['-100%', '400%'] }}
+              animate={
+                reduced || !pageVisible ? { x: '0%' } : { x: ['-100%', '400%'] }
+              }
               transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
             />
           )}

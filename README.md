@@ -39,6 +39,20 @@ Si tu avais déjà lancé l’API avec Compose, remplace `postgres` par `127.0.0
 
 Pour ajouter des films, les placer dans le dossier `media` à la racine du projet et sélectionner `/media` dans Jellyfin. Docker conserve la configuration et le cache dans des volumes nommés.
 
+## Installer HollyFilms et recevoir les notifications
+
+Ouvre HollyFilms en HTTPS ou sur `localhost`. Dans le profil, installe l’application sur cet appareil. Sur iPhone ou iPad, passe par le menu Partager de Safari puis « Sur l’écran d’accueil ». Ouvre ensuite HollyFilms depuis son icône pour activer les notifications. [Fonctionnement sur iOS et iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
+
+Le menu du compte donne accès aux notifications et au nombre de mises à jour non lues. Les décisions sur les demandes de médias et de sous-titres y restent consultables même si les notifications système sont désactivées. Dans les réglages du profil, chaque appareil peut activer les alertes, recevoir un test ou se désabonner. Une page de secours permet de réessayer après une coupure réseau. Le catalogue privé et les films nécessitent une connexion.
+
+Pour activer les envois push sur une installation, génère une seule paire de clés sur la machine d’administration.
+
+```sh
+corepack yarn workspace @hollyfilms/api exec web-push generate-vapid-keys --json
+```
+
+Renseigne `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` et un contact `VAPID_SUBJECT` (par exemple `mailto:contact@example.org`) dans le `.env` de l’API. Redémarre l’API après modification. Conserve la même paire lors des mises à jour pour garder les abonnements existants. En production, utilise la variable Terraform `web_push`. La clé privée reste côté serveur.
+
 ## Accueil connecté
 
 `/app` affiche les bibliothèques accessibles à l’utilisateur après vérification de sa session. L’accueil propose un carrousel de vingt titres maximum, les lectures en cours, les ajouts récents, les filtres films/séries et une recherche paginée côté serveur. Les cartes ouvrent une fiche avec le synopsis, les genres et la progression ; les actions Lire, Reprendre et Depuis le début ouvrent le lecteur intégré.
@@ -141,6 +155,8 @@ yarn build
 `yarn test` appelle `/System/Info/Public` sur le serveur Jellyfin actif et vérifie qu’il s’agit de Jellyfin 12. Le test fonctionne dès que le serveur répond, avant même la fin de l’assistant. Il utilise `JELLYFIN_URL` si cette variable est définie. `yarn build` vérifie et compile le web, son lecteur et l’API.
 
 Pour tester les inscriptions, créer un PostgreSQL 17 de test et un Jellyfin 12.4 neuf dans des conteneurs isolés. Appliquer les migrations avec `yarn db:deploy` en pointant `DATABASE_URL` vers la base de test. Renseigner `HOLLYFILMS_TEST_DATABASE_URL` et `HOLLYFILMS_TEST_JELLYFIN_URL`, puis lancer `yarn test:accounts`. Le test initialise l’assistant Jellyfin de cette instance et simule le fournisseur Google.
+
+`corepack yarn test:pwa` vérifie l’application installable et la reprise hors connexion dans Chrome. `corepack yarn test:notifications` vérifie la boîte de réception, les abonnements et les tentatives de livraison avec un PostgreSQL isolé lancé par Docker.
 
 `yarn format` applique Prettier. `docker compose down` arrête les services et conserve leurs volumes.
 

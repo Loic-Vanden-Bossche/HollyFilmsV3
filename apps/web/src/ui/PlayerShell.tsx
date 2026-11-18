@@ -1,4 +1,5 @@
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { duration, ease } from '../motion/tokens.ts'
 import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
@@ -32,7 +33,7 @@ export function PlayerShell({
   onClose: () => void
   onRetry: () => void
   showHeading?: boolean
-  onInteraction?: () => void
+  onInteraction?: (intent: 'pointer' | 'keyboard' | 'focus') => void
   onBackHover?: (hovered: boolean) => void
   problem?: string
   interrupted?: boolean
@@ -54,13 +55,11 @@ export function PlayerShell({
     }
   }, [])
   return (
-    <motion.dialog
+    <dialog
       ref={dialog}
       className="player-shell"
       aria-label={t('Lecteur · {title}', { title: title })}
-      initial={continueOpening ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: reduced ? 0.12 : 0.45, ease: [0.16, 1, 0.3, 1] }}
+      data-motion={reduced ? 'reduced' : 'full'}
       onCancel={(event) => {
         event.preventDefault()
         onClose()
@@ -69,8 +68,11 @@ export function PlayerShell({
       <div
         className="player-viewport"
         data-state={state}
-        onPointerMove={onInteraction}
-        onFocus={onInteraction}
+        data-has-frame={interrupted}
+        onPointerMove={() => onInteraction?.('pointer')}
+        onPointerDown={() => onInteraction?.('pointer')}
+        onKeyDownCapture={() => onInteraction?.('keyboard')}
+        onFocus={() => onInteraction?.('focus')}
       >
         <motion.div
           className="player-heading"
@@ -80,10 +82,8 @@ export function PlayerShell({
             y: reduced || showHeading ? 0 : -14,
           }}
           transition={{
-            type: 'spring',
-            stiffness: 420,
-            damping: 36,
-            opacity: { duration: reduced ? 0 : 0.16 },
+            duration: reduced ? 0 : duration.micro,
+            ease: ease.out,
           }}
           data-visible={showHeading}
           aria-hidden={!showHeading}
@@ -96,14 +96,12 @@ export function PlayerShell({
           >
             <Tooltip>
               <motion.button
-                initial={{ opacity: 0, y: reduced ? 0 : -10 }}
+                initial={reduced ? false : { opacity: 0.7, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
-                  duration: reduced ? 0 : 0.45,
-                  delay: reduced ? 0 : 0.08,
+                  duration: reduced ? 0 : duration.micro,
+                  ease: ease.out,
                 }}
-                whileHover={reduced ? undefined : { x: -2 }}
-                whileTap={reduced ? undefined : { scale: 0.94 }}
                 type="button"
                 className="player-back"
                 aria-label={t('Retour au catalogue')}
@@ -120,13 +118,12 @@ export function PlayerShell({
           <motion.div
             className="player-title-block"
             initial={
-              continueOpening ? false : { opacity: 0, y: reduced ? 0 : 18 }
+              continueOpening ? false : { opacity: 0, y: reduced ? 0 : 10 }
             }
             animate={{ opacity: 1, y: 0 }}
             transition={{
-              duration: reduced ? 0 : 0.65,
-              delay: reduced ? 0 : 0.16,
-              ease: [0.16, 1, 0.3, 1],
+              duration: reduced ? 0 : duration.scene,
+              ease: ease.out,
             }}
           >
             <AnimatePresence initial={false} mode="wait">
@@ -145,11 +142,11 @@ export function PlayerShell({
           </motion.div>
           <motion.div
             className="player-brand"
-            initial={{ opacity: 0, y: reduced ? 0 : -10 }}
+            initial={reduced ? false : { opacity: 0.7, y: -4 }}
             animate={{ opacity: 0.85, y: 0 }}
             transition={{
-              duration: reduced ? 0 : 0.55,
-              delay: reduced ? 0 : 0.12,
+              duration: reduced ? 0 : duration.panel,
+              ease: ease.out,
             }}
           >
             <Wordmark compact />
@@ -190,6 +187,6 @@ export function PlayerShell({
           </motion.div>
         )}
       </div>
-    </motion.dialog>
+    </dialog>
   )
 }

@@ -1,15 +1,16 @@
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
-import { useLayoutEffect, useRef } from 'react'
-import { useAnimate } from 'motion/react'
+import { useContext, useLayoutEffect, useRef } from 'react'
+import { useAnimate, useIsPresent } from 'motion/react'
 import { cinemaMotion } from '../components/reactbits/policy.ts'
+import { ArtworkHeroContext } from './artwork-hero-context.ts'
+import { duration, distance, staggerDelay } from '../motion/tokens.ts'
 import { lockBodyScroll } from './body-scroll-lock.ts'
 
 const revealSelector = [
-  '.media-detail-body > :not([role])',
+  '.media-detail-body > :not([role], .media-detail-poster)',
   '.detail-provider-panel > *',
   '.detail-reviews > .detail-section-heading',
   '.detail-credits > *',
-  '.detail-browser > .detail-section-heading',
   '.detail-attribution',
 ].join(', ')
 
@@ -17,27 +18,37 @@ const revealSelector = [
 export function useMediaDetailsMotion() {
   const [scope, animate] = useAnimate<HTMLDialogElement>()
   const reduced = useReducedMotion()
+  const artworkHero = useContext(ArtworkHeroContext)
+  const present = useIsPresent()
+  const releaseLayer = useRef(() => {})
   const closing = useRef(false)
   const stopEntrance = useRef(() => {})
 
   useLayoutEffect(() => {
+    if (!present) return
     const dialog = scope.current
     const trigger = document.activeElement as HTMLElement | null
     const unlockScroll = lockBodyScroll()
     closing.current = false
     dialog.showModal()
-    return () => {
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
       dialog.close()
       unlockScroll()
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true })
+      if (trigger?.isConnected && !trigger.closest('[inert]'))
+        trigger.focus({ preventScroll: true })
     }
-  }, [scope])
+    releaseLayer.current = release
+    return release
+  }, [scope, present])
 
   useLayoutEffect(() => {
+    if (!present) return
     const dialog = scope.current
     const subtle = reduced || document.hidden
     const started = performance.now()
-    let disposed = false
     const controls = new Set<ReturnType<typeof animate>>()
     const seen = new Set<HTMLElement>()
     const pending = new Set<HTMLElement>()
@@ -45,13 +56,13 @@ export function useMediaDetailsMotion() {
       node: HTMLElement,
       from: string,
       delay = 0,
-      duration = 0.46,
+      seconds = duration.scene,
     ) => {
       const control = animate(
         node,
         { opacity: [0, 1], translate: [from, '0px 0px'] },
         {
-          duration: subtle ? 0 : duration,
+          duration: subtle ? 0 : seconds,
           delay: subtle ? 0 : delay,
           ease: cinemaMotion.ease,
         },
@@ -59,31 +70,13 @@ export function useMediaDetailsMotion() {
       controls.add(control)
       void control.then(() => controls.delete(control))
     }
-    dialog.setAttribute('data-phase', 'opening')
-    const entrance = animate(
-      dialog,
-      {
-        opacity: [0, 1],
-        transform: subtle
-          ? ['none', 'none']
-          : ['translateY(28px) scale(0.965)', 'translateY(0px) scale(1)'],
-      },
-      { duration: subtle ? 0 : 0.48, ease: cinemaMotion.ease },
-    )
-    controls.add(entrance)
-    void entrance.then(() => {
-      controls.delete(entrance)
-      if (!disposed && !closing.current)
-        dialog.setAttribute('data-phase', 'open')
-    })
     const artwork = dialog.querySelector<HTMLElement>('.detail-art-reveal')!
     const art = animate(
       artwork,
       {
         opacity: [0, 1],
-        transform: subtle ? ['none', 'none'] : ['scale(1.055)', 'scale(1)'],
       },
-      { duration: subtle ? 0 : 0.82, ease: cinemaMotion.ease },
+      { duration: subtle ? 0 : duration.scene, ease: cinemaMotion.ease },
     )
     controls.add(art)
     void art.then(() => controls.delete(art))
@@ -94,7 +87,7 @@ export function useMediaDetailsMotion() {
       node.dataset.detailReveal = 'visible'
       const openingDelay = Math.max(
         0,
-        0.14 - (performance.now() - started) / 1000,
+        0.04 - (performance.now() - started) / 1000,
       )
       if (immediate || document.hidden) {
         node.style.opacity = '1'
@@ -102,10 +95,8 @@ export function useMediaDetailsMotion() {
       } else {
         play(
           node,
-          node.classList.contains('media-detail-poster')
-            ? '0px 26px'
-            : '0px 16px',
-          openingDelay + Math.min(index, 5) * 0.055,
+          '0px ' + distance.panel + 'px',
+          openingDelay + staggerDelay(index),
         )
       }
     }
@@ -153,7 +144,6 @@ export function useMediaDetailsMotion() {
       controls.clear()
     }
     return () => {
-      disposed = true
       stopEntrance.current()
       dialog.removeEventListener('focusin', focus)
       for (const node of seen) {
@@ -162,24 +152,17 @@ export function useMediaDetailsMotion() {
         delete node.dataset.detailReveal
       }
     }
-  }, [scope, animate, reduced])
+  }, [scope, animate, reduced, present])
 
-  async function dismiss(onClose: () => void) {
+  function dismiss(onClose: () => void) {
     if (closing.current) return
     closing.current = true
     stopEntrance.current()
     const dialog = scope.current
+    artworkHero?.returnToOrigin(dialog)
     dialog.setAttribute('data-phase', 'closing')
-    await animate(
-      dialog,
-      {
-        opacity: 0,
-        transform: reduced ? 'none' : 'translateY(18px) scale(0.98)',
-      },
-      { duration: reduced ? 0 : 0.24, ease: [0.4, 0, 1, 1] },
-    )
-    dialog.close()
+    releaseLayer.current()
     onClose()
   }
-  return { scope, reduced, dismiss }
+  return { scope, reduced, present, dismiss }
 }

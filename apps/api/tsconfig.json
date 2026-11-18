@@ -18,6 +18,7 @@
     "prisma.config.ts",
     "tests/accounts.test.ts",
     "tests/requests.test.ts",
-    "tests/subtitles.test.ts"
+    "tests/subtitles.test.ts",
+    "tests/notifications.test.ts"
   ]
 }

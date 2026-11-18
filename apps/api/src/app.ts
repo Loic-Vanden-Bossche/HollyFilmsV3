@@ -14,6 +14,7 @@ import { addMediaRoutes } from './media.ts'
 import { addProfileRoutes } from './profile.ts'
 import { addRequestRoutes } from './requests.ts'
 import { addSubtitleRoutes } from './subtitles.ts'
+import { addNotificationRoutes, type PushSender } from './notifications.ts'
 
 type Credentials = { username: string; password: string }
 type RegistrationParams = { id: string }
@@ -33,7 +34,11 @@ const idSchema = {
   properties: { id: { type: 'string', format: 'uuid' } },
 }
 
-export async function createApp(config: ServerConfig, google?: GoogleProvider) {
+export async function createApp(
+  config: ServerConfig,
+  google?: GoogleProvider,
+  pushSender?: PushSender,
+) {
   const app = Fastify({
     logger: true,
     logController: new LogController({ disableRequestLogging: true }),
@@ -127,6 +132,7 @@ export async function createApp(config: ServerConfig, google?: GoogleProvider) {
   addProfileRoutes(app, db, config)
   addRequestRoutes(app, config, db)
   addSubtitleRoutes(app, db, config)
+  addNotificationRoutes(app, db, config, pushSender)
 
   app.get('/api/auth/options', async () => ({
     googleStartUrl: config.google

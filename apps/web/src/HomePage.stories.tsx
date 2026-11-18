@@ -137,17 +137,9 @@ export const Opening: Story = {
         'true',
       ),
     )
-    await expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
-      'data-opening',
-      'true',
-    )
     await expect(
-      Number(
-        getComputedStyle(canvasElement.querySelector('.home-aperture')!)
-          .opacity,
-      ),
-    ).toBeGreaterThan(0)
-
+      canvas.getByRole('button', { name: /^Voir la fiche$/ }),
+    ).toBeEnabled()
     await waitFor(
       () =>
         expect(canvasElement.querySelector('.home-page')).toHaveAttribute(
@@ -156,10 +148,6 @@ export const Opening: Story = {
         ),
       { timeout: 3000 },
     )
-    // The cascade is still running as the overlapping intro finishes.
-    await expect(
-      canvasElement.querySelector('.home-hero-actions'),
-    ).not.toHaveStyle({ opacity: '1' })
     await waitFor(() =>
       expect(canvasElement.querySelector('.home-hero-actions')).toHaveStyle({
         opacity: '1',
@@ -231,7 +219,7 @@ export const SlowReload: Story = {
 }
 
 export const PreloadedHero: Story = {
-  name: 'À l’affiche — images décodées avant la révélation',
+  name: 'À l’affiche — commandes disponibles pendant le décodage',
   args: {
     session: { deviceId: 'preload-story', accessToken: 'story-token' },
     items: [
@@ -268,39 +256,18 @@ export const PreloadedHero: Story = {
     const page = canvasElement.querySelector('.home-page')!
     const hero = canvasElement.querySelector('.home-carousel')!
     await waitFor(() => expect(getLibraryImage).toHaveBeenCalledTimes(2))
-    await expect(page).toHaveAttribute('data-opening', 'true')
-    await expect(hero).toHaveAttribute('data-revealed', 'false')
-    await expect(getComputedStyle(document.body).overflow).not.toBe('hidden')
-    await waitFor(() =>
-      expect(
-        Number(
-          getComputedStyle(canvasElement.querySelector('.home-aperture')!)
-            .opacity,
-        ),
-      ).toBeGreaterThan(0.84),
-    )
-    await expect(hero).toHaveAttribute('data-revealed', 'false')
-    await waitFor(() => expect(hero).toHaveAttribute('data-revealed', 'true'), {
-      timeout: 4000,
-    })
-    await expect(page).toHaveAttribute('data-opening', 'true')
-    await waitFor(() =>
-      expect(
-        Number(getComputedStyle(hero.querySelector('.home-eyebrow')!).opacity),
-      ).toBeGreaterThan(0.1),
-    )
-    await expect(
-      Number(
-        getComputedStyle(canvasElement.querySelector('.home-aperture')!)
-          .opacity,
-      ),
-    ).toBeGreaterThan(0)
-
+    await expect(hero).toHaveAttribute('data-revealed', 'true')
+    await expect(hero).not.toHaveAttribute('inert')
+    await expect(hero.querySelector('.hero-details')).toBeEnabled()
     await waitFor(() => expect(page).toHaveAttribute('data-opening', 'false'), {
-      timeout: 4000,
+      timeout: 3000,
     })
-    await expect(hero.querySelectorAll('.media-artwork-fallback')).toHaveLength(
-      0,
+    await waitFor(
+      () =>
+        expect(hero.querySelectorAll('.media-artwork-fallback')).toHaveLength(
+          0,
+        ),
+      { timeout: 4000 },
     )
     const images = Array.from(
       hero.querySelectorAll<HTMLImageElement>('.media-artwork img'),
@@ -309,9 +276,6 @@ export const PreloadedHero: Story = {
     await expect(
       images.every((image) => image.complete && image.naturalWidth > 0),
     ).toBe(true)
-    await expect(hero.querySelector('.home-hero-actions')).not.toHaveStyle({
-      opacity: '1',
-    })
     await waitFor(() =>
       expect(hero.querySelector('.home-hero-actions')).toHaveStyle({
         opacity: '1',
@@ -359,13 +323,19 @@ export const Background: Story = {
       await expect(background).toHaveAttribute('data-motion', 'paused')
       return
     }
-    await expect(background).toHaveAttribute('data-motion', 'running')
+    window.scrollTo({ top: 0, behavior: 'instant' })
+    await waitFor(() =>
+      expect(background).toHaveAttribute('data-motion', 'running'),
+    )
     await userEvent.click(pause)
     await expect(background).toHaveAttribute('data-motion', 'paused')
     const resume = canvas.getByRole('button', { name: 'Animer le fond' })
     await expect(resume).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(resume)
-    await expect(background).toHaveAttribute('data-motion', 'running')
+    window.scrollTo({ top: 0, behavior: 'instant' })
+    await waitFor(() =>
+      expect(background).toHaveAttribute('data-motion', 'running'),
+    )
   },
 }
 export const StartPlayback: Story = {
@@ -379,9 +349,10 @@ export const CardPlayback: Story = {
   name: 'Lecture depuis les affiches',
   args: { onPlay: fn() },
   play: async ({ canvas, userEvent, args }) => {
-    canvas
-      .getByRole('button', { name: 'Voir la fiche de ' + args.items[0].title })
-      .scrollIntoView()
+    const trigger = await canvas.findByRole('button', {
+      name: 'Voir la fiche de ' + args.items[0].title,
+    })
+    trigger.scrollIntoView({ behavior: 'instant', block: 'center' })
     const card = await canvas.findByRole('article', {
       name: args.items[0].title,
     })
@@ -481,11 +452,10 @@ export const Administrator: Story = {
   },
 }
 export const MoreTitles: Story = {
-  args: { hasMore: true },
+  name: 'Pagination — reprise manuelle',
+  args: { hasMore: true, loadMoreError: true },
   play: async ({ canvas, userEvent, args }) => {
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Afficher plus de titres' }),
-    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
     await expect(args.onLoadMore).toHaveBeenCalledOnce()
   },
 }

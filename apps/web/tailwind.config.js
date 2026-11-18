@@ -1,4 +1,6 @@
 import colors from 'tailwindcss/colors'
+import plugin from 'tailwindcss/plugin'
+import { motionVariables } from './src/motion/tokens.ts'
 
 const background = '#080f1b'
 const foreground = '#f4f7fc'
@@ -11,6 +13,7 @@ const primary = { DEFAULT: brandStart, foreground: background }
 const accent = { DEFAULT: '#142e3d', foreground: '#b0f5e8' }
 
 export default {
+  plugins: [plugin(({ addBase }) => addBase({ ':root': motionVariables }))],
   theme: {
     extend: {
       fontFamily: {

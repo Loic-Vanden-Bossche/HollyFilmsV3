@@ -86,6 +86,27 @@ export const Paused: Story = {
   },
 }
 
+export const NativeModes: Story = {
+  args: { fullscreen: true, pip: true, openPanel: 'subtitles', onPip: fn() },
+  play: async ({ canvas, args, userEvent }) => {
+    const pip = canvas.queryByRole('button', { name: 'Quitter l’incrustation' })
+    const fullscreen = canvas.getByRole('button', {
+      name: 'Quitter le plein écran',
+    })
+    await expect(
+      canvas.getByRole('button', { name: 'Sous-titres' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    await expect(fullscreen).toHaveAttribute('aria-pressed', 'true')
+    if (pip) {
+      await expect(pip).toHaveAttribute('aria-pressed', 'true')
+      await userEvent.click(pip)
+      await expect(args.onPip).toHaveBeenCalledOnce()
+    }
+    await userEvent.click(fullscreen)
+    await expect(args.onFullscreen).toHaveBeenCalledOnce()
+  },
+}
+
 export const Seeking: Story = {
   args: {
     media: {
@@ -154,7 +175,7 @@ export const PointerPreview: Story = {
     ] as const) {
       fireEvent.pointerMove(slider, {
         pointerType: 'mouse',
-        clientX: bounds.left + bounds.width * fraction,
+        clientX: Math.ceil(bounds.left + bounds.width * fraction),
       })
       await waitFor(() =>
         expect(

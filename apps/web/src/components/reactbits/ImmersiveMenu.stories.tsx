@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, waitFor, within } from 'storybook/test'
 import type { LibraryFilter } from '@hollyfilms/shared/library'
@@ -30,15 +31,17 @@ const meta = {
           Explorer
         </button>
         <output className="m-8">{selected}</output>
-        {open && (
-          <StaggeredMenu onClose={() => setOpen(false)}>
-            <FlowingMenu
-              items={homeItems}
-              selected={selected}
-              onSelect={setSelected}
-            />
-          </StaggeredMenu>
-        )}
+        <AnimatePresence>
+          {open && (
+            <StaggeredMenu onClose={() => setOpen(false)}>
+              <FlowingMenu
+                items={homeItems}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            </StaggeredMenu>
+          )}
+        </AnimatePresence>
       </div>
     )
   },

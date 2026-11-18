@@ -1,9 +1,10 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useRef, useSyncExternalStore } from 'react'
 import { motion } from 'motion/react'
 import { X, Activity } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Select } from '../ui/Select.tsx'
-import { lockBodyScroll } from '../ui/body-scroll-lock.ts'
+import { useModalPresence } from '../ui/use-modal-presence.ts'
+import { duration, ease } from '../motion/tokens.ts'
 import {
   usePerformanceController,
   usePerformanceReducedMotion,
@@ -151,21 +152,9 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
     controller.getTrace,
   )
   const reduced = usePerformanceReducedMotion()
-  const dialog = useRef<HTMLDialogElement>(null)
+  const { dialog, surface, present } = useModalPresence()
   const backdropPointer = useRef(false)
   const current = trace.samples.at(-1)
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    const element = dialog.current!
-    if (!element) return
-    const unlock = lockBodyScroll()
-    element.showModal()
-    return () => {
-      element.close()
-      unlock()
-      previous?.focus({ preventScroll: true })
-    }
-  }, [])
   if (!settings.admin) return null
   const number = (value: number | null | undefined, suffix = '') =>
     value == null ? '—' : `${Math.round(value)}${suffix}`
@@ -173,6 +162,8 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
     <motion.dialog
       ref={dialog}
       className="performance-dialog"
+      inert={!present}
+      data-exiting={!present || undefined}
       aria-label={t('Débogage des performances')}
       onKeyDownCapture={(event) => {
         if (
@@ -186,7 +177,8 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: reduced ? 0 : 0.18 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reduced ? duration.press : duration.micro }}
       onCancel={(event) => {
         event.preventDefault()
         onClose()
@@ -200,7 +192,14 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
         backdropPointer.current = false
       }}
     >
-      <section className="performance-panel">
+      <motion.section
+        ref={surface}
+        className="performance-panel"
+        initial={{ y: reduced ? 0 : 12, scale: reduced ? 1 : 0.975 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: reduced ? 0 : 8, scale: reduced ? 1 : 0.985 }}
+        transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
+      >
         <header>
           <div>
             <p className="performance-eyebrow">
@@ -244,7 +243,14 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
           </label>
           <div className="performance-current" role="status">
             <span>{t('Profil actif')}</span>
-            <strong>{t(settings.profile.label)}</strong>
+            <motion.strong
+              key={settings.profile.id}
+              initial={{ opacity: 0.55, y: reduced ? 0 : 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: duration.micro, ease: ease.out }}
+            >
+              {t(settings.profile.label)}
+            </motion.strong>
             <small>
               {settings.selection === 'auto'
                 ? t('Automatique')
@@ -308,7 +314,7 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
         ) : (
           <p>{t('Aucun changement pour le moment.')}</p>
         )}
-      </section>
+      </motion.section>
     </motion.dialog>
   )
 }

@@ -1,13 +1,15 @@
 import { createContext, useContext, useRef, useSyncExternalStore } from 'react'
-import { useInView, useReducedMotion } from 'motion/react'
+import { useInView } from 'motion/react'
 import { usePerformanceProfile } from '../../performance/PerformanceProvider.tsx'
+import { useSystemReducedMotion } from '../../motion/use-system-reduced-motion.ts'
+import { duration, ease, scale, spring } from '../../motion/tokens.ts'
 
 export const cinemaMotion = {
-  ease: [0.22, 1, 0.36, 1] as const,
-  interaction: 0.18,
-  depth: { tiltX: 6, tiltY: 7, lift: 5, scale: 1.025 },
-  reveal: 0.45,
-  spring: { stiffness: 190, damping: 25, mass: 0.65 },
+  ease: ease.out,
+  interaction: duration.micro,
+  depth: { tiltX: 4, tiltY: 5, lift: 4, scale: scale.card },
+  reveal: duration.scene,
+  spring: spring.card,
   colors: ['#4ade80', '#7dded8', '#3b82f6'],
   atmosphereColors: ['#176b50', '#12516b', '#254c91'],
 }
@@ -47,7 +49,7 @@ const finePointer = () => fineQuery().matches
 export function useMotionPolicy(localPaused = false) {
   const parentPaused = useContext(Paused)
   const profile = usePerformanceProfile()
-  const reduced = Boolean(useReducedMotion()) || profile.id === 'essential'
+  const reduced = useSystemReducedMotion() || !profile.ambient
   const pageVisible = useSyncExternalStore(subscribe, visible, () => false)
   const fine = useSyncExternalStore(fineSubscribe, finePointer, () => false)
   return {

@@ -82,6 +82,7 @@ export function MediaTile({
     <motion.article
       ref={root}
       className={'media-tile ' + (wide ? 'media-tile-wide' : '')}
+      data-media-id={item.id}
       data-active={active}
       data-touch={touch}
       aria-label={item.title}
@@ -100,12 +101,13 @@ export function MediaTile({
         active={active && !touch}
         disabled={subtle}
         hoverScale={1}
-        hoverLift={0}
+        hoverLift={2}
         tiltStrength={0.75}
       >
         <button
           type="button"
           className="media-tile-select"
+          data-artwork-open="details"
           onClick={() => onSelect(item)}
           aria-label={
             t('Voir la fiche de {title}', { title: item.title }) +
@@ -137,9 +139,9 @@ export function MediaTile({
                 <motion.span
                   key="watched"
                   initial={{
-                    opacity: 0,
-                    scale: subtle ? 1 : 0.8,
-                    y: subtle ? 0 : -8,
+                    opacity: subtle ? 1 : 0.72,
+                    scale: subtle ? 1 : 0.94,
+                    y: subtle ? 0 : -3,
                   }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{
@@ -183,6 +185,7 @@ export function MediaTile({
                   <motion.button
                     type="button"
                     className="media-card-play"
+                    data-artwork-open="player"
                     variants={actionVariants}
                     transition={{
                       duration: subtle ? 0.12 : 0.22,

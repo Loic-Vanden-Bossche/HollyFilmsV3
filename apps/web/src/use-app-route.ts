@@ -7,11 +7,14 @@ const authReturnKey = 'hollyfilms-auth-return'
 export function rememberAppReturn() {
   try {
     if (
-      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|requests|admin\/requests)\/?$/.test(
+      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|notifications|requests|admin\/requests)\/?$/.test(
         window.location.pathname,
       )
     )
-      sessionStorage.setItem(authReturnKey, location.pathname + location.search)
+      sessionStorage.setItem(
+        authReturnKey,
+        location.pathname + location.search + location.hash,
+      )
     else sessionStorage.removeItem(authReturnKey)
   } catch {
     /* The URL still survives password authentication without storage. */
@@ -25,11 +28,11 @@ export function takeAppReturn() {
     const url = new URL(saved ?? '/app', window.location.origin)
     if (
       url.origin === location.origin &&
-      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|requests|admin\/requests)\/?$/.test(
+      /^\/(app(?:\/(favorites|movies|series|collections))?|profile|notifications|requests|admin\/requests)\/?$/.test(
         url.pathname,
       )
     )
-      return url.pathname + url.search
+      return url.pathname + url.search + url.hash
   } catch {
     /* Fall back to the signed-in home when storage is unavailable. */
   }

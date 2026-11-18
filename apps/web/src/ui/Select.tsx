@@ -9,9 +9,9 @@ import {
 } from 'react'
 import { Select as Primitive } from '@base-ui/react/select'
 import { Combobox } from '@base-ui/react/combobox'
-import { motion, useReducedMotion } from 'motion/react'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider.tsx'
+import './anchored-popup.css'
 import './select.css'
 
 // HollyFilms adaptation of the shadcn/Base UI Select composition.
@@ -55,7 +55,6 @@ export function Select({
   const { t, locale } = useI18n()
   const { contains } = Combobox.useFilter({ locale })
   const [mobileQueryText, setMobileQueryText] = useState('')
-  const reduced = useReducedMotion()
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [container, setContainer] = useState<HTMLElement | undefined>()
@@ -186,24 +185,9 @@ export function Select({
     className: 'holly-select-trigger ' + className,
   }
   const chevron = (
-    <motion.span
-      aria-hidden="true"
-      animate={{ rotate: open ? 180 : 0 }}
-      transition={{ duration: reduced ? 0 : 0.18 }}
-    >
+    <span className="holly-select-chevron" aria-hidden="true">
       <ChevronDown size={15} />
-    </motion.span>
-  )
-  const popup = (
-    <motion.div
-      initial={{ opacity: 0, y: reduced ? 0 : -5, scale: reduced ? 1 : 0.98 }}
-      animate={{
-        opacity: open ? 1 : 0,
-        y: open || reduced ? 0 : -5,
-        scale: open || reduced ? 1 : 0.98,
-      }}
-      transition={{ duration: reduced ? 0.1 : 0.18, ease: [0.22, 1, 0.36, 1] }}
-    />
+    </span>
   )
   if (searchable) {
     const current = options.find((option) => option.value === selected) ?? null
@@ -222,11 +206,14 @@ export function Select({
       >
         <Combobox.Trigger {...triggerProps}>
           {optionIcon?.(selected)}
-          <span className="holly-select-value">{current?.label}</span>
+          <span key={selected} className="holly-select-value">
+            {current?.label}
+          </span>
           {chevron}
         </Combobox.Trigger>
         <Combobox.Portal container={container}>
           <Combobox.Positioner
+            disableAnchorTracking={!open}
             align="start"
             sideOffset={6}
             className="holly-select-positioner"
@@ -234,7 +221,6 @@ export function Select({
             <Combobox.Popup
               aria-label={label['aria-label']}
               className="holly-select-popup holly-select-searchable"
-              render={popup}
             >
               <div className="holly-select-search">
                 <Search size={15} aria-hidden="true" />
@@ -290,11 +276,12 @@ export function Select({
         }}
       >
         {optionIcon?.(selected)}
-        <Primitive.Value className="holly-select-value" />
+        <Primitive.Value key={selected} className="holly-select-value" />
         {chevron}
       </Primitive.Trigger>
       <Primitive.Portal container={container}>
         <Primitive.Positioner
+          disableAnchorTracking={!open}
           align="start"
           alignItemWithTrigger={false}
           sideOffset={6}
@@ -310,7 +297,6 @@ export function Select({
                 trigger.current?.focus()
               }
             }}
-            render={popup}
           >
             <Primitive.List className="holly-select-list">
               {options.map((option) => (

@@ -170,6 +170,20 @@ variable "seerr" {
     error_message = "Seerr requiert une origine HTTP(S) valide et sa clé API."
   }
 }
+variable "web_push" {
+  description = "Identité VAPID pour les notifications des appareils abonnés"
+  type        = object({ subject = string, public_key = string, private_key = string })
+  sensitive   = true
+  default     = null
+  validation {
+    condition = var.web_push == null ? true : (
+      can(regex("^(mailto:|https://).+", var.web_push.subject)) &&
+      can(regex("^[A-Za-z0-9_-]{87}$", var.web_push.public_key)) &&
+      can(regex("^[A-Za-z0-9_-]{43}$", var.web_push.private_key))
+    )
+    error_message = "Fournir un contact mailto ou HTTPS et une paire de clés VAPID en base64url."
+  }
+}
 variable "google" {
   description = "Configuration Google complète ou null pour désactiver le SSO"
   type = object({

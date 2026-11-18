@@ -123,48 +123,42 @@ const waitForDialogReveal = async (dialog: HTMLElement) => {
 }
 
 export const SharedArtwork: Story = {
-  name: 'Fiches sans transition partagée',
+  name: 'De la carte à la fiche et retour',
   args: { children: <Demo /> },
   play: async ({ canvas, canvasElement, userEvent }) => {
-    let flights = 0
-    const observer = new MutationObserver((records) => {
-      for (const record of records)
-        for (const node of record.addedNodes) {
-          if (
-            node instanceof Element &&
-            (node.matches('[data-artwork-flight]') ||
-              node.querySelector('[data-artwork-flight]'))
-          )
-            flights++
-        }
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-    try {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('img')?.naturalWidth).toBeGreaterThan(
+        0,
+      ),
+    )
+    for (const card of canvas.getAllByRole('button', {
+      name: /Voir la fiche de/,
+    })) {
+      await userEvent.click(card)
+      const dialog = await canvas.findByRole('dialog')
+      if (!reducedMotion())
+        await waitFor(() =>
+          expect(
+            document.querySelector('[data-artwork-destination="details"]'),
+          ).toBeInTheDocument(),
+        )
+      await expect(dialog).toHaveAttribute('open')
+      await userEvent.keyboard('{Escape}')
+      if (!reducedMotion())
+        await waitFor(() =>
+          expect(
+            document.querySelector('[data-artwork-destination="catalogue"]'),
+          ).toBeInTheDocument(),
+        )
+      await waitFor(() =>
+        expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
+      )
+      await expect(card).toHaveFocus()
       await waitFor(() =>
         expect(
-          canvasElement.querySelector('img')?.naturalWidth,
-        ).toBeGreaterThan(0),
-      )
-      for (const card of canvas.getAllByRole('button', {
-        name: /Voir la fiche de/,
-      })) {
-        await userEvent.click(card)
-        await waitForDialogReveal(await canvas.findByRole('dialog'))
-        await afterPaint()
-        await expect(
           document.querySelector('[data-artwork-flight]'),
-        ).not.toBeInTheDocument()
-        await userEvent.click(
-          canvas.getByRole('button', { name: 'Fermer la fiche' }),
-        )
-        await waitFor(() =>
-          expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
-        )
-        await afterPaint()
-      }
-      await expect(flights).toBe(0)
-    } finally {
-      observer.disconnect()
+        ).not.toBeInTheDocument(),
+      )
     }
   },
 }
@@ -181,10 +175,6 @@ export const FastPlayback: Story = {
       canvas.getAllByRole('button', { name: /Voir la fiche de/ })[1],
     )
     await waitForDialogReveal(await canvas.findByRole('dialog'))
-    await afterPaint()
-    await expect(
-      document.querySelector('[data-artwork-flight]'),
-    ).not.toBeInTheDocument()
     await userEvent.click(canvas.getByRole('button', { name: 'Lire la série' }))
     await waitFor(() =>
       expect(canvasElement.querySelector('.player-viewport')).toHaveAttribute(
@@ -192,10 +182,8 @@ export const FastPlayback: Story = {
         'playing',
       ),
     )
-    if (!reducedMotion())
-      await expect(
-        document.querySelector('[data-artwork-destination="player"]'),
-      ).toBeInTheDocument()
+    const flight = document.querySelector('[data-artwork-destination="player"]')
+    if (flight) await expect(flight).not.toBeVisible()
     await waitFor(
       () =>
         expect(
@@ -210,7 +198,7 @@ export const FastPlayback: Story = {
   },
 }
 export const PlayerRoundTrip: Story = {
-  name: 'Fiche vers lecteur, retour sans transition partagée',
+  name: 'De la fiche au lecteur',
   args: { children: <Demo /> },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await waitFor(() =>

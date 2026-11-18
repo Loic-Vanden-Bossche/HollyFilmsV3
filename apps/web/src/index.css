@@ -1,9 +1,23 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import './ui/surfaces-motion.css';
 
 @config '../tailwind.config.js';
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Document links (profile, requests, admin) keep native history and focus. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition {
+    pointer-events: none;
+  }
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--hf-micro);
+    animation-timing-function: var(--hf-ease-in-out);
+  }
+}
 
 /* Native scrollbars retain wheel, touch, keyboard and thumb dragging. */
 * {
@@ -98,9 +112,9 @@
   .glass-control {
     @apply border border-glass-edge bg-glass-control bg-glass-sheen shadow-glass-control backdrop-blur-md backdrop-saturate-125;
     transition:
-      background-color 0.2s,
-      border-color 0.2s,
-      box-shadow 0.2s;
+      background-color var(--hf-micro),
+      border-color var(--hf-micro),
+      box-shadow var(--hf-micro);
   }
   .glass-control:where(:enabled, a):hover {
     @apply border-link/50 bg-accent/80;
@@ -110,13 +124,34 @@
     box-shadow:
       inset 0 2px 6px #03081030,
       0 1px 0 #ecf4fb0a;
-    transition: background-color 0.2s;
+    transition: background-color var(--hf-micro);
   }
   .glass-input:focus-visible {
     @apply bg-background/85;
   }
   .member-shell {
     isolation: isolate;
+  }
+  .member-opening [role='status']::before {
+    content: '';
+    display: block;
+    margin: 0 auto 16px;
+    width: 40px;
+    height: 2px;
+    border-radius: 2px;
+    @apply bg-brand-gradient;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .member-opening [role='status']::before {
+      animation: member-opening-light 1.1s var(--hf-ease-in-out) infinite
+        alternate;
+    }
+  }
+  @keyframes member-opening-light {
+    from {
+      opacity: 0.5;
+      transform: scaleX(0.35);
+    }
   }
   .member-shell::before {
     content: '';

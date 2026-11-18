@@ -504,6 +504,21 @@ test('requests use Jellyfin identities, Seerr approval and measured downloads', 
         calls.slice(before).filter((call) => call.method === 'POST').length,
         1,
       )
+      const inbox = (
+        await app.inject({ url: '/api/notifications', headers: headers() })
+      ).json()
+      assert.equal(inbox.unread, 1)
+      assert.equal(inbox.items[0].url, '/requests')
+      assert.match(inbox.items[0].title, /Demande de média (approuvée|refusée)/)
+      assert.equal(
+        (
+          await app.inject({
+            url: '/api/notifications',
+            headers: headers('admin'),
+          })
+        ).json().unread,
+        0,
+      )
       rows[0].status = 4
       assert.equal(
         (

@@ -102,6 +102,9 @@ export const PersonAndRelated: Story = {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Fermer cette sélection' }),
     )
+    await expect(
+      canvas.getByRole('button', { name: /Maya Laurent/ }),
+    ).toHaveFocus()
     await userEvent.click(
       canvas.getAllByRole('button', { name: 'Ajouter aux favoris' })[0],
     )
@@ -324,7 +327,7 @@ export const RichMetadata: Story = {
     await expect(canvas.getByText('Version longue')).toBeVisible()
     await expect(canvas.getByText('Déjà vu')).toBeVisible()
     await expect(
-      canvas.getByLabelText('Langues audio : français, anglais'),
+      canvas.getByLabelText('Langues audio : français et anglais'),
     ).toBeVisible()
   },
 }

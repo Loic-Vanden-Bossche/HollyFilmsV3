@@ -47,6 +47,12 @@
   @apply text-link;
   flex-shrink: 0;
 }
+.holly-select-chevron {
+  transition: rotate var(--hf-micro) var(--hf-ease-out);
+}
+.holly-select-trigger[aria-expanded='true'] .holly-select-chevron {
+  rotate: 180deg;
+}
 .holly-select-positioner {
   z-index: 100;
   outline: none;
@@ -162,6 +168,18 @@
   position: absolute;
   right: 10px;
   display: grid;
+  transition: opacity var(--hf-press) var(--hf-ease-out);
+}
+.holly-select-check:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+}
+.holly-select-option[data-highlighted]::before {
+  content: '';
+  position: absolute;
+  inset: 24% auto 24% 2px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(#4ade80, #3b82f6);
 }
 .holly-select-native,
 .holly-select-native-control {
@@ -193,6 +211,7 @@
 @media (prefers-reduced-motion: reduce) {
   .holly-select-trigger,
   .holly-select-native select,
+  .holly-select-chevron,
   .holly-select-option {
     transition: none;
   }

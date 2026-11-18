@@ -26,10 +26,16 @@ import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { navigateApp, takeAppReturn, useAppRoute } from './use-app-route.ts'
 import { performanceController } from './performance/profiles.ts'
 import { bindPerformancePreference } from './performance/preferences.ts'
+import { releaseDeviceNotifications } from './pwa/notifications.ts'
+import { setPwaViewer } from './pwa/runtime.ts'
+import { markNotificationsRead } from './notification-api.ts'
 
 const jellyfinUrl = new URL('/jellyfin', window.location.origin).href
 const isAdminPage = /^\/admin\/?$/.test(window.location.pathname)
 const isProfilePage = /^\/profile\/?$/.test(window.location.pathname)
+const isNotificationsPage = /^\/notifications\/?$/.test(
+  window.location.pathname,
+)
 const isRequestsPage = /^\/(?:admin\/)?requests\/?$/.test(
   window.location.pathname,
 )
@@ -41,7 +47,11 @@ const isLibraryPage =
     window.location.pathname,
   )
 const isPrivatePage =
-  isAdminPage || isProfilePage || isRequestsPage || isLibraryPage
+  isAdminPage ||
+  isProfilePage ||
+  isNotificationsPage ||
+  isRequestsPage ||
+  isLibraryPage
 const secondaryButton = 'glass-control rounded-lg px-4 py-2 text-sm font-medium'
 const HomeScreen = lazy(() =>
   import('./HomeScreen.tsx').then((module) => ({ default: module.HomeScreen })),
@@ -54,6 +64,11 @@ const ProfileScreen = lazy(() =>
 const RequestsPage = lazy(() =>
   import('./RequestsPage.tsx').then((module) => ({
     default: module.RequestsPage,
+  })),
+)
+const NotificationsPage = lazy(() =>
+  import('./NotificationsPage.tsx').then((module) => ({
+    default: module.NotificationsPage,
   })),
 )
 
@@ -97,6 +112,45 @@ export default function App({
     refetchOnWindowFocus: false,
   })
   const sessionRejected = isJellyfinAccessDenied(user.error)
+  const viewer =
+    session && user.isSuccess && !isSigningOut ? user.data.id : null
+  useEffect(() => {
+    setPwaViewer(viewer)
+    return () => setPwaViewer(null)
+  }, [viewer])
+  useEffect(() => {
+    const notice = new URLSearchParams(location.search).get('notice')
+    if (
+      !viewer ||
+      !session ||
+      !notice ||
+      !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(notice)
+    )
+      return
+    let active = true
+    const markOpened = () => {
+      if (new URLSearchParams(location.search).get('notice') !== notice) return
+      void markNotificationsRead(session, notice)
+        .then(() => {
+          if (!active) return
+          const url = new URL(location.href)
+          if (url.searchParams.get('notice') === notice) {
+            url.searchParams.delete('notice')
+            history.replaceState(history.state, '', url)
+          }
+          void client.invalidateQueries({
+            queryKey: ['notifications', session.deviceId, viewer],
+          })
+        })
+        .catch(() => {})
+    }
+    markOpened()
+    window.addEventListener('online', markOpened)
+    return () => {
+      active = false
+      window.removeEventListener('online', markOpened)
+    }
+  }, [client, session, viewer])
   useEffect(() => {
     return bindPerformancePreference(
       performanceController,
@@ -138,10 +192,14 @@ export default function App({
     }
   }, [googleReturn])
 
-  if (session && sessionRejected && !isSigningOut) {
+  useEffect(() => {
+    if (!session || !sessionRejected || isSigningOut) return
+    void releaseDeviceNotifications(session, user.data?.id).catch(() => {})
+    // The server has revoked this tab's session.
+    // oxlint-disable-next-line react/set-state-in-effect
     setSession(null)
     setLoginNotice('Ta session a expiré. Reconnecte-toi.')
-  }
+  }, [session, sessionRejected, isSigningOut, user.data?.id])
 
   async function signIn(username: string, password: string) {
     const result = await signInPassword(username, password)
@@ -151,7 +209,9 @@ export default function App({
       setLoginNotice(undefined)
       window.location.assign(
         isPrivatePage
-          ? window.location.pathname + window.location.search
+          ? window.location.pathname +
+              window.location.search +
+              window.location.hash
           : '/app',
       )
     } else {
@@ -165,6 +225,7 @@ export default function App({
     setIsSigningOut(true)
     writeSession(null)
     try {
+      await releaseDeviceNotifications(session, user.data?.id).catch(() => {})
       await endJellyfinSession(jellyfinUrl, session)
     } catch (error) {
       if (!isJellyfinAccessDenied(error)) {
@@ -221,7 +282,7 @@ export default function App({
         }
       />
     ) : (
-      <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
+      <main className="member-shell member-opening flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
         <Wordmark />
         <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
       </main>
@@ -230,7 +291,9 @@ export default function App({
   if (!isAdminPage && user.isSuccess) {
     return (
       <Suspense fallback={opening}>
-        {isRequestsPage ? (
+        {isNotificationsPage ? (
+          <NotificationsPage session={session} userId={user.data.id} />
+        ) : isRequestsPage ? (
           isAdminRequestsPage && !user.data.isAdministrator ? (
             <GlassPanel>
               <p role="alert">{t('Un compte administrateur est requis.')}</p>

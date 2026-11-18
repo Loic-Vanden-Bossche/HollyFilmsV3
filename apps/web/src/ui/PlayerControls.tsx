@@ -5,7 +5,6 @@ import {
   AnimatePresence,
   motion,
   useMotionValue,
-  useReducedMotion,
   useSpring,
   useTransform,
 } from 'motion/react'
@@ -23,6 +22,8 @@ import {
   SkipForward,
 } from 'lucide-react'
 
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { duration, ease, spring } from '../motion/tokens.ts'
 import { formatTime } from '../playback/format-time.ts'
 import { PlayerVolume } from './PlayerVolume.tsx'
 import { PlayerLoadingSpinner } from './PlayerLoading.tsx'
@@ -42,6 +43,7 @@ export function PlayerControls({
   hasPrevious,
   hasNext,
   subtitles,
+  openPanel,
   markers = [],
   onToggle,
   onSeek,
@@ -81,33 +83,16 @@ export function PlayerControls({
   onNext: () => void
   onFullscreen: () => void
   onPip?: () => void
-  onSubtitles?: () => void
-  onSettings: () => void
+  openPanel?: 'settings' | 'subtitles'
+  onSubtitles?: (trigger: HTMLButtonElement) => void
+  onSettings: (trigger: HTMLButtonElement) => void
   onPreview?: (position: number) => TimelinePreview | undefined
   loadPreview?: PreviewImageLoader
 }) {
   const { t } = useI18n()
   const reduced = useReducedMotion()
-  const enter = {
-    hidden: { opacity: 0, y: reduced ? 0 : 10 },
-    visible: { opacity: 1, y: 0 },
-  }
   return (
-    <motion.div
-      className="player-controls"
-      initial="hidden"
-      animate="visible"
-      variants={{
-        hidden: { opacity: 0 },
-        visible: {
-          opacity: 1,
-          transition: {
-            duration: reduced ? 0 : 0.3,
-            staggerChildren: reduced ? 0 : 0.025,
-          },
-        },
-      }}
-    >
+    <div className="player-controls" data-motion={reduced ? 'reduced' : 'full'}>
       <PlayerTimeline
         media={media}
         seekPosition={seekPosition}
@@ -119,58 +104,45 @@ export function PlayerControls({
       <div className="player-controls-row">
         {hasPrevious && (
           <Tooltip>
-            <motion.button
-              variants={enter}
-              whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-              whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            <button
               type="button"
               className="player-icon"
               aria-label={t('Précédent')}
               onClick={onPrevious}
             >
               <SkipBack />
-            </motion.button>
+            </button>
           </Tooltip>
         )}
         <Tooltip>
-          <motion.button
-            variants={enter}
-            whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          <button
             type="button"
             className="player-icon player-seek-step"
             aria-label={t('Reculer de 10 secondes')}
             onClick={() => onSeek(Math.max(0, media.position - 10))}
           >
             <RotateCcw />
-          </motion.button>
+          </button>
         </Tooltip>
         <Tooltip>
-          <motion.button
-            variants={enter}
-            whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          <button
             type="button"
             className="player-icon player-toggle"
             aria-label={media.paused ? t('Lire') : t('Pause')}
             onClick={onToggle}
           >
-            {media.paused ? (
+            <span
+              className="player-transport-glyph"
+              data-paused={media.paused}
+              aria-hidden="true"
+            >
               <Play fill="currentColor" />
-            ) : (
               <Pause fill="currentColor" />
-            )}
-          </motion.button>
+            </span>
+          </button>
         </Tooltip>
         <Tooltip>
-          <motion.button
-            variants={enter}
-            whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          <button
             type="button"
             className="player-icon player-seek-step"
             aria-label={t('Avancer de 30 secondes')}
@@ -179,22 +151,18 @@ export function PlayerControls({
             }
           >
             <RotateCw />
-          </motion.button>
+          </button>
         </Tooltip>
         {hasNext && (
           <Tooltip>
-            <motion.button
-              variants={enter}
-              whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-              whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            <button
               type="button"
               className="player-icon"
               aria-label={t('Suivant')}
               onClick={onNext}
             >
               <SkipForward />
-            </motion.button>
+            </button>
           </Tooltip>
         )}
         <span className="player-clock">
@@ -202,82 +170,72 @@ export function PlayerControls({
           <span>/ {formatTime(media.duration)}</span>
         </span>
         <div className="player-controls-spacer" />
-        <motion.div variants={enter}>
+        <div>
           <PlayerVolume
             value={media.volume}
             muted={media.muted}
             onChange={onVolume}
             onMute={onMute}
           />
-        </motion.div>
+        </div>
         {onSubtitles && (
           <Tooltip>
-            <motion.button
-              variants={enter}
-              whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-              whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            <button
               type="button"
               className="player-icon"
               data-subtitles-trigger
+              data-player-menu-trigger="subtitles"
               aria-label={t('Sous-titres')}
               aria-pressed={subtitles}
-              onClick={onSubtitles}
+              aria-expanded={openPanel === 'subtitles'}
+              onClick={(event) => onSubtitles(event.currentTarget)}
             >
               <Captions />
-            </motion.button>
+            </button>
           </Tooltip>
         )}
         <Tooltip>
-          <motion.button
-            variants={enter}
-            whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          <button
             type="button"
             className="player-icon"
             aria-label={t('Paramètres de lecture')}
-            onClick={onSettings}
+            data-player-menu-trigger="settings"
+            aria-expanded={openPanel === 'settings'}
+            onClick={(event) => onSettings(event.currentTarget)}
           >
             <Settings2 />
-          </motion.button>
+          </button>
         </Tooltip>
         {onPip && (
           <Tooltip>
-            <motion.button
-              variants={enter}
-              whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-              whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            <button
               type="button"
               className="player-icon player-pip"
               aria-label={
                 pip ? t('Quitter l’incrustation') : t('Incrustation vidéo')
               }
+              aria-pressed={pip}
               onClick={onPip}
             >
               <PictureInPicture2 />
-            </motion.button>
+            </button>
           </Tooltip>
         )}
         <Tooltip>
-          <motion.button
-            variants={enter}
-            whileHover={reduced ? undefined : { scale: 1.08, y: -2 }}
-            whileTap={reduced ? undefined : { scale: 0.9, y: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          <button
             type="button"
             className="player-icon"
             aria-label={
               fullscreen ? t('Quitter le plein écran') : t('Plein écran')
             }
+            aria-pressed={fullscreen}
             onClick={onFullscreen}
           >
             {fullscreen ? <Minimize /> : <Maximize />}
-          </motion.button>
+          </button>
         </Tooltip>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -295,10 +253,6 @@ function PlayerTimeline({
 >) {
   const { t } = useI18n()
   const reduced = useReducedMotion()
-  const enter = {
-    hidden: { opacity: 0, y: reduced ? 0 : 10 },
-    visible: { opacity: 1, y: 0 },
-  }
   const [hover, setHover] = useState(false)
   const showPlayhead = hover || media.seeking || seekPosition !== undefined
   const [previewKey, setPreviewKey] = useState('')
@@ -343,9 +297,15 @@ function PlayerTimeline({
   const measure = (node: HTMLInputElement) =>
     (bounds.current ??= node.getBoundingClientRect())
   useLayoutEffect(() => {
-    if (reduced || dragging.current) displayedProgress.jump(progress)
+    if (
+      reduced ||
+      dragging.current ||
+      media.seeking ||
+      seekPosition !== undefined
+    )
+      displayedProgress.jump(progress)
     else displayedProgress.set(progress)
-  }, [progress, reduced, displayedProgress])
+  }, [progress, reduced, displayedProgress, media.seeking, seekPosition])
   const preview = previewKey ? onPreview?.(previewPosition.get()) : undefined
   const image = useTimelineImage(preview?.url, loadPreview)
   const showPreview = (position: number) => {
@@ -359,7 +319,7 @@ function PlayerTimeline({
   }
 
   return (
-    <motion.div className="player-timeline" variants={enter}>
+    <div className="player-timeline">
       <AnimatePresence>
         {hover && seekPosition === undefined && media.duration > 0 && (
           <motion.div
@@ -368,7 +328,10 @@ function PlayerTimeline({
             initial={{ opacity: 0, y: reduced ? 0 : 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reduced ? 0 : 5 }}
-            transition={{ duration: reduced ? 0 : 0.12 }}
+            transition={{
+              duration: reduced ? 0 : duration.press,
+              ease: ease.out,
+            }}
           >
             <div className="player-preview">
               {preview && !image?.error && failedImage !== image?.url ? (
@@ -385,7 +348,10 @@ function PlayerTimeline({
                     animate={{
                       opacity: image?.url && loadedImage === image.url ? 1 : 0,
                     }}
-                    transition={{ duration: reduced ? 0 : 0.12 }}
+                    transition={{
+                      duration: reduced ? 0 : duration.press,
+                      ease: ease.out,
+                    }}
                     style={{
                       width: preview.sheetWidth,
                       height: preview.sheetHeight,
@@ -430,7 +396,7 @@ function PlayerTimeline({
         className="player-timeline-track"
         aria-hidden="true"
         animate={{ scaleY: hover && !reduced ? 1.5 : 1 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        transition={{ ...spring.control }}
       >
         <div
           className="player-buffered"
@@ -478,7 +444,7 @@ function PlayerTimeline({
           opacity: showPlayhead ? 1 : 0,
           scale: reduced || showPlayhead ? 1 : 0.6,
         }}
-        transition={{ duration: reduced ? 0 : 0.15 }}
+        transition={{ duration: reduced ? 0 : duration.micro }}
       />
       <input
         ref={input}
@@ -509,7 +475,9 @@ function PlayerTimeline({
           const fraction = media.duration ? position / media.duration : 0
           const width = measure(event.currentTarget).width
           const half = (onPreview?.(position)?.width ?? 150) / 2 + 6
-          previewX.set(Math.max(half, Math.min(width - half, fraction * width)))
+          previewX.jump(
+            Math.max(half, Math.min(width - half, fraction * width)),
+          )
           showPreview(position)
         }}
         onPointerMove={(event) => {
@@ -529,7 +497,7 @@ function PlayerTimeline({
             half,
             Math.min(bounds.width - half, fraction * bounds.width),
           )
-          if (reduced || !hover) previewX.jump(x)
+          if (reduced || dragging.current || !hover) previewX.jump(x)
           else previewX.set(x)
           showPreview(fraction * media.duration)
         }}
@@ -545,6 +513,6 @@ function PlayerTimeline({
         }}
         onBlur={() => setHover(false)}
       />
-    </motion.div>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { Preview } from '@storybook/react-vite'
 import { sb, mocked } from 'storybook/test'
+import { getInbox } from '../src/notification-api.ts'
 import {
   getRequestOptions,
   requestLanguage,
@@ -18,6 +19,8 @@ import { isLanguagePreference } from '../src/i18n/messages.ts'
 import '../src/index.css'
 
 sb.mock(import('../src/account-api.ts'))
+sb.mock(import('../src/notification-api.ts'))
+sb.mock(import('../src/pwa/use-device-preferences.ts'))
 sb.mock(import('../src/requests-api.ts'))
 sb.mock(import('../src/subtitles-api.ts'))
 sb.mock(import('@hollyfilms/shared/library'), { spy: true })
@@ -59,6 +62,11 @@ const preview: Preview = {
     document.documentElement.classList.add('dark')
   },
   beforeEach: () => {
+    mocked(getInbox).mockResolvedValue({
+      items: [],
+      unread: 0,
+      nextCursor: null,
+    })
     mocked(getSubtitleLibrary).mockImplementation(async (_session, itemId) => ({
       ...subtitleLibraryFixture,
       administrator: false,

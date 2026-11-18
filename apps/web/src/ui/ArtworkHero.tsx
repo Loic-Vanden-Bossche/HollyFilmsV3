@@ -1,13 +1,11 @@
-import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
-import { ArtworkHeroContext as Context } from './artwork-hero-context.ts'
-import type {
-  ArtworkEntry as Entry,
-  ArtworkRegistry as Registry,
-} from './artwork-hero-context.ts'
+import { duration, ease } from '../motion/tokens.ts'
+import { ArtworkHeroContext } from './artwork-hero-context.ts'
+import type { ArtworkEntry, ArtworkRegistry } from './artwork-hero-context.ts'
 import './artwork-hero.css'
 
 type Frame = {
@@ -15,26 +13,24 @@ type Frame = {
   y: number
   width: number
   height: number
-  borderRadius: number
+  radius: number
 }
 type Snapshot = {
-  entry: Entry
+  entry: ArtworkEntry
   frame: Frame
   src: string
-  fit: string
-  position: string
-  at: number
-  score: number
+  aspect: number
+  position: [number, number]
 }
+type Destination = 'details' | 'catalogue' | 'player'
 type Flight = {
   id: number
-  snapshot: Snapshot
-  target: Entry
-  frame: Frame
-  frosted: boolean
-  restore: () => void
-  hide: () => void
+  from: Snapshot
+  to: Frame
+  target: ArtworkEntry
+  destination: Destination
 }
+
 function frame(element: HTMLElement): Frame | undefined {
   if (!element.isConnected || element.closest('dialog:not([open])')) return
   const rect = element.getBoundingClientRect()
@@ -47,160 +43,217 @@ function frame(element: HTMLElement): Frame | undefined {
     rect.left >= innerWidth
   )
     return
+  const edge =
+    element.closest('.media-tile-image, .media-detail-poster') ?? element
   return {
     x: rect.x,
     y: rect.y,
     width: rect.width,
     height: rect.height,
-    borderRadius:
-      parseFloat(
-        getComputedStyle(element.parentElement ?? element).borderRadius,
-      ) || 0,
+    radius: parseFloat(getComputedStyle(edge).borderTopLeftRadius) || 0,
+  }
+}
+
+function snapshot(entry: ArtworkEntry): Snapshot | undefined {
+  const image = entry.element.querySelector('img')
+  if (!image?.complete || !image.naturalWidth) return
+  const bounds = frame(entry.element)
+  if (!bounds) return
+  const coordinates = getComputedStyle(image).objectPosition.split(' ')
+  const fraction = (value: string) =>
+    value?.endsWith('%') ? parseFloat(value) / 100 : 0.5
+  return {
+    entry: { ...entry },
+    frame: bounds,
+    src: image.currentSrc || image.src,
+    aspect: image.naturalWidth / image.naturalHeight,
+    position: [fraction(coordinates[0]), fraction(coordinates[1])],
+  }
+}
+
+// A fixed-size image plane changes scale uniformly. The crop interpolates
+// independently, including between a poster, a panoramic hero and the screen.
+function plane(
+  rect: Frame,
+  aspect: number,
+  position: [number, number],
+  base: number,
+) {
+  const width = Math.max(rect.width, rect.height * aspect)
+  const height = width / aspect
+  const left = (width - rect.width) * position[0]
+  const top = (height - rect.height) * position[1]
+  const scale = width / base
+  const clip = [
+    top / height,
+    (width - rect.width - left) / width,
+    (height - rect.height - top) / height,
+    left / width,
+  ]
+    .map((value) => value * 100 + '%')
+    .join(' ')
+  return {
+    x: rect.x - left,
+    y: rect.y - top,
+    scale,
+    clipPath: 'inset(' + clip + ' round ' + rect.radius / scale + 'px)',
   }
 }
 
 export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
-  const reduced = useReducedMotion()
-  const entries = useRef(new Map<HTMLElement, Entry>())
-  const snapshots = useRef(new Map<string, Snapshot>())
-  const sequence = useRef(0)
-  const scheduled = useRef(new Set<number>())
-  const active = useRef(new Map<number, Flight>())
-  const [flights, setFlights] = useState<Flight[]>([])
+  const reduced = usePerformanceReducedMotion()
+  const [flight, setFlight] = useState<Flight>()
+  const active = useRef<Flight | undefined>(undefined)
+  const serial = useRef(0)
   const popover = useRef<HTMLDivElement>(null)
+  const entries = useRef(new Map<HTMLElement, ArtworkEntry>())
+  const origins = useRef(
+    new WeakMap<
+      HTMLDialogElement,
+      { card: ArtworkEntry; detail: ArtworkEntry }
+    >(),
+  )
+  const expiry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const intent = useRef<
+    { images: Snapshot[]; destination: Destination; at: number } | undefined
+  >(undefined)
 
-  const registry = useMemo<Registry>(() => {
-    const later = (callback: () => void) => {
-      const id = requestAnimationFrame(() => {
-        scheduled.current.delete(id)
-        callback()
-      })
-      scheduled.current.add(id)
-    }
-    const transition = (target: Entry) => {
-      // Only enter the player from homepage/details artwork. Never fly back
-      // into the catalogue, or between cards and details.
-      if (!target.element.closest('.player-artwork-hero')) return
-      const snapshot = snapshots.current.get(target.key)
-      if (!snapshot) return
-      const destination = frame(target.element)
-      if (
-        !destination ||
-        snapshot.entry.element === target.element ||
-        performance.now() - snapshot.at > 1500
-      )
-        return
-      const a = snapshot.frame
-      if (
-        Math.abs(a.x - destination.x) +
-          Math.abs(a.y - destination.y) +
-          Math.abs(a.width - destination.width) +
-          Math.abs(a.height - destination.height) <
-        8
-      )
-        return
-      snapshots.current.delete(target.key)
-      const visibility = target.element.style.visibility
-      target.element.style.visibility = 'hidden'
-      const flight: Flight = {
-        id: ++sequence.current,
-        snapshot,
-        target,
-        frame: destination,
-        frosted: true,
-        restore: () => {
-          target.element.style.visibility = visibility
-        },
-        hide: () => {
-          target.element.style.visibility = 'hidden'
-        },
+  const registry = useMemo<ArtworkRegistry>(() => {
+    const cancel = () => {
+      clearTimeout(expiry.current)
+      intent.current = undefined
+      if (active.current) {
+        active.current = undefined
+        setFlight(undefined)
       }
-      active.current.set(flight.id, flight)
-      setFlights((current) => [...current, flight])
+    }
+    const start = (
+      from: Snapshot,
+      target: ArtworkEntry,
+      destination: Destination,
+    ) => {
+      const to = frame(target.element)
+      if (!to || reduced || document.hidden || !popover.current?.showPopover)
+        return
+      const value = { id: ++serial.current, from, target, to, destination }
+      active.current = value
+      setFlight(value)
     }
     return {
+      capture(button, destination) {
+        cancel()
+        if (reduced || document.hidden || !popover.current?.showPopover) return
+        const scope = button.closest(
+          '.media-tile, .library-film-feature, .library-series-feature, .home-carousel, .media-dialog',
+        )
+        if (!scope) return
+        const selectors = scope.matches('.media-dialog')
+          ? '.detail-art-reveal .media-artwork, .media-detail-poster .media-artwork'
+          : scope.matches('.home-carousel')
+            ? '.hero-backdrop .media-artwork'
+            : '.media-artwork'
+        // Measure only the artwork next to the actual control, even when a
+        // virtualized catalogue contains multiple copies of the same film.
+        const images: Snapshot[] = []
+        for (const node of scope.querySelectorAll<HTMLElement>(selectors)) {
+          const entry = entries.current.get(node)
+          const from = entry && snapshot(entry)
+          if (from) images.push(from)
+        }
+        if (images.length) {
+          intent.current = { images, destination, at: performance.now() }
+          expiry.current = setTimeout(() => {
+            intent.current = undefined
+          }, 1500)
+        }
+      },
       add(entry) {
         entries.current.set(entry.element, entry)
-        // Native dialogs must have entered the top layer before measuring their artwork.
-        later(() => {
-          if (entries.current.has(entry.element)) transition(entry)
-        })
+        let scheduled = 0
+        const pending = intent.current
+        const destination = entry.element.matches('.player-artwork')
+          ? 'player'
+          : entry.element.closest('.media-detail-poster, .detail-art-reveal')
+            ? 'details'
+            : undefined
+        if (pending && destination === pending.destination) {
+          const from = pending.images.find(
+            (value) => value.entry.key === entry.key,
+          )
+          if (from)
+            scheduled = requestAnimationFrame(() => {
+              if (
+                pending !== intent.current ||
+                performance.now() - pending.at > 1500
+              )
+                return
+              const dialog = entry.element.closest('dialog')
+              if (!frame(entry.element)) return
+              if (dialog && destination === 'details')
+                origins.current.set(dialog, { card: from.entry, detail: entry })
+              intent.current = undefined
+              clearTimeout(expiry.current)
+              start(from, entry, destination)
+            })
+        }
         return () => {
+          cancelAnimationFrame(scheduled)
           entries.current.delete(entry.element)
+          if (active.current?.target.element === entry.element) cancel()
         }
       },
       update(element, blob) {
         const entry = entries.current.get(element)
         if (entry) entry.blob = blob
       },
+      returnToOrigin(dialog) {
+        const origin = origins.current.get(dialog)
+        if (!origin) return
+        origins.current.delete(dialog)
+        // An interrupted opening reverses from the current visible crop.
+        const current = active.current
+        let from = snapshot(origin.detail)
+        if (current?.target === origin.detail) {
+          const crop = popover.current?.querySelector<HTMLElement>(
+            '.artwork-hero-bounds',
+          )
+          const bounds = crop && frame(crop)
+          if (bounds) from = { ...current.from, frame: bounds }
+        }
+        cancel()
+        if (from) start(from, origin.card, 'catalogue')
+      },
+      cancel,
     }
-  }, [])
+  }, [reduced])
 
   useEffect(() => {
-    const requests = scheduled.current
-    const pending = snapshots.current
-    const running = active.current
-    let expiry: ReturnType<typeof setTimeout> | undefined
     const clear = () => {
-      clearTimeout(expiry)
-      snapshots.current.clear()
-      running.forEach((flight) => flight.restore())
-      running.clear()
-      setFlights([])
+      intent.current = undefined
+      registry.cancel()
     }
-    const capture = (event: Event) => {
-      clear()
-      if (reduced || !('showPopover' in HTMLElement.prototype)) return
-      const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('.player-shell')) return
-      const sourceScope = target?.closest('.media-dialog, .home-page')
-      if (!sourceScope) return
-      const scope = target?.closest('dialog, .media-tile, section')
-      const modal = document.querySelector('dialog[open]')
-      expiry = setTimeout(() => pending.clear(), 1600)
-      for (const entry of entries.current.values()) {
-        if (
-          !sourceScope.contains(entry.element) ||
-          entry.element.closest('.player-shell')
-        )
-          continue
-        if (scope?.matches('.media-tile') && !scope.contains(entry.element))
-          continue
-        const image = entry.element.querySelector('img')
-        const bounds = frame(entry.element)
-        if (
-          !bounds ||
-          !image?.complete ||
-          !image.naturalWidth ||
-          getComputedStyle(entry.element).visibility === 'hidden'
-        )
-          continue
-        // Background catalogue duplicates must never steal the origin from a dialog.
-        if (modal && !entry.element.closest('dialog[open]')) continue
-        const score =
-          (scope?.contains(entry.element) ? 100 : 0) +
-          (entry.element.contains(target) ? 100 : 0)
-        if ((snapshots.current.get(entry.key)?.score ?? -1) > score) continue
-        const style = getComputedStyle(image)
-        snapshots.current.set(entry.key, {
-          entry: { ...entry },
-          frame: bounds,
-          src: image.currentSrc || image.src,
-          fit: style.objectFit,
-          position: style.objectPosition,
-          at: performance.now(),
-          score,
-        })
-      }
+    clear()
+    const capture = (event: MouseEvent) => {
+      const control =
+        event.target instanceof Element &&
+        event.target.closest<HTMLElement>('[data-artwork-open]')
+      if (!control || !control.closest('.media-dialog, .home-page')) return
+      registry.capture(
+        control,
+        control.dataset.artworkOpen === 'player' ? 'player' : 'details',
+      )
     }
-    const keyboard = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') clear()
+    const back = () => {
+      const route = new URLSearchParams(location.search)
+      const dialog = document.querySelector<HTMLDialogElement>(
+        '.media-dialog[open]',
+      )
+      if (dialog && !route.has('media') && !route.has('play'))
+        registry.returnToOrigin(dialog)
     }
+    window.addEventListener('popstate', back, true)
     document.addEventListener('click', capture, true)
-    document.addEventListener('keydown', keyboard, true)
     window.addEventListener('resize', clear)
-    // Native dialog focus can scroll the page during the handoff. Only user
-    // scrolling cancels it; otherwise fast playback loses its origin snapshot.
     window.addEventListener('wheel', clear, { passive: true, capture: true })
     window.addEventListener('touchmove', clear, {
       passive: true,
@@ -208,36 +261,22 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
     })
     document.addEventListener('visibilitychange', clear)
     return () => {
+      clearTimeout(expiry.current)
+      window.removeEventListener('popstate', back, true)
       document.removeEventListener('click', capture, true)
-      document.removeEventListener('keydown', keyboard, true)
       window.removeEventListener('resize', clear)
       window.removeEventListener('wheel', clear, true)
       window.removeEventListener('touchmove', clear, true)
       document.removeEventListener('visibilitychange', clear)
-      clearTimeout(expiry)
-      requests.forEach(cancelAnimationFrame)
-      requests.clear()
-      pending.clear()
-      running.forEach((flight) => flight.restore())
-      running.clear()
     }
-  }, [reduced])
-
+  }, [registry])
   useLayoutEffect(() => {
-    const element = popover.current
-    if (reduced && flights.length) {
-      flights.forEach((flight) => flight.restore())
-      active.current.clear()
-      // An OS preference change cancels the current external animation permanently.
-      // oxlint-disable-next-line react/set-state-in-effect
-      setFlights([])
-    }
-    if (flights.length && !reduced) element?.showPopover?.()
-    else element?.hidePopover?.()
-  }, [flights, reduced])
+    if (flight && !reduced) popover.current?.showPopover?.()
+    else popover.current?.hidePopover?.()
+  }, [flight, reduced])
 
   return (
-    <Context.Provider value={registry}>
+    <ArtworkHeroContext.Provider value={registry}>
       {children}
       {createPortal(
         <div
@@ -246,24 +285,19 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
           className="artwork-hero-layer"
           aria-hidden="true"
         >
-          {!reduced &&
-            flights.map((flight) => (
-              <ArtworkFlight
-                key={flight.id}
-                flight={flight}
-                onComplete={() => {
-                  flight.restore()
-                  active.current.delete(flight.id)
-                  setFlights((current) =>
-                    current.filter((value) => value.id !== flight.id),
-                  )
-                }}
-              />
-            ))}
+          {flight && !reduced && (
+            <ArtworkFlight
+              key={flight.id}
+              flight={flight}
+              onComplete={() => {
+                if (active.current === flight) registry.cancel()
+              }}
+            />
+          )}
         </div>,
         document.body,
       )}
-    </Context.Provider>
+    </ArtworkHeroContext.Provider>
   )
 }
 
@@ -274,52 +308,59 @@ function ArtworkFlight({
   flight: Flight
   onComplete: () => void
 }) {
-  const [src, setSrc] = useState(flight.snapshot.src)
-  useEffect(() => {
-    flight.hide()
-    const reveal = setTimeout(flight.restore, 540)
-    const url = flight.snapshot.entry.blob
-      ? URL.createObjectURL(flight.snapshot.entry.blob)
-      : undefined
-    // The flight owns its URL, so unmounting the original image cannot revoke it.
+  const { from, to, destination } = flight
+  // Keep authenticated artwork alive if its original card is unmounted.
+  const [src, setSrc] = useState(from.src)
+  useLayoutEffect(() => {
+    if (!from.entry.blob) return
+    const url = URL.createObjectURL(from.entry.blob)
     // oxlint-disable-next-line react/set-state-in-effect
-    if (url) setSrc(url)
-    return () => {
-      clearTimeout(reveal)
-      flight.restore()
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [flight])
+    setSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [from])
+  const time = destination === 'catalogue' ? duration.panel : duration.scene
+  useLayoutEffect(() => {
+    const reveal = flight.target.element.animate(
+      [{ opacity: 0 }, { opacity: 0, offset: 0.6 }, { opacity: 1 }],
+      { duration: time * 1000 },
+    )
+    return () => reveal.cancel()
+  }, [flight, time])
+  const base = Math.max(from.frame.width, to.width)
+  const start = plane(from.frame, from.aspect, from.position, base)
+  const end = plane(to, from.aspect, [0.5, 0.5], base)
   return (
-    <motion.div
-      className="artwork-hero-flight"
-      data-artwork-flight="true"
-      data-artwork-destination={flight.frosted ? 'player' : 'artwork'}
-      initial={{ ...flight.snapshot.frame, opacity: 1 }}
-      animate={{ ...flight.frame, opacity: [1, 1, 0] }}
-      transition={{
-        duration: 0.72,
-        ease: [0.22, 1, 0.36, 1],
-        opacity: { duration: 0.72, times: [0, 0.78, 1] },
-      }}
-      onAnimationComplete={onComplete}
-    >
-      <img
-        src={src}
-        alt=""
+    <div data-artwork-flight="true" data-artwork-destination={destination}>
+      <motion.div
+        className="artwork-hero-flight"
         style={{
-          objectFit: flight.snapshot.fit as 'cover' | 'contain',
-          objectPosition: flight.snapshot.position,
+          width: base,
+          height: base / from.aspect,
+          transformOrigin: '0 0',
         }}
+        initial={{ ...start, opacity: 1 }}
+        animate={{ ...end, opacity: [1, 1, 0] }}
+        transition={{
+          duration: time,
+          ease: ease.inOut,
+          opacity: { duration: time, times: [0, 0.76, 1] },
+        }}
+        onAnimationComplete={onComplete}
+      >
+        <img src={src} alt="" />
+      </motion.div>
+      <motion.div
+        className="artwork-hero-bounds"
+        style={{ width: to.width, height: to.height, transformOrigin: '0 0' }}
+        initial={{
+          x: from.frame.x,
+          y: from.frame.y,
+          scaleX: from.frame.width / to.width,
+          scaleY: from.frame.height / to.height,
+        }}
+        animate={{ x: to.x, y: to.y, scaleX: 1, scaleY: 1 }}
+        transition={{ duration: time, ease: ease.inOut }}
       />
-      {flight.frosted && (
-        <motion.div
-          className="artwork-hero-frost"
-          initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
-          animate={{ opacity: 1, backdropFilter: 'blur(24px)' }}
-          transition={{ duration: 0.65 }}
-        />
-      )}
-    </motion.div>
+    </div>
   )
 }

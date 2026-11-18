@@ -14,6 +14,13 @@ database_password = ""
 jellyfin_api_key = ""
 tmdb_api_token = ""
 
+# Web Push facultatif. Conserver la même paire pour les mises à jour.
+# web_push = {
+#   subject     = "mailto:contact@example.org"
+#   public_key  = "<clé VAPID publique>"
+#   private_key = "<clé VAPID privée>"
+# }
+
 # Services médias existants repris dans ce même état ; ne jamais recréer leurs PVC.
 # Les versions et chemins sont dans media-variables.tf.
 # Conserver la clé existante du sidecar Jellyfin (stockée dans media.auto.tfvars.json sur la machine de migration).

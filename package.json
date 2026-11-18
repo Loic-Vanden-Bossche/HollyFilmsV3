@@ -25,6 +25,8 @@
     "storybook": "yarn workspace @hollyfilms/web storybook",
     "build-storybook": "yarn workspace @hollyfilms/web build-storybook",
     "test": "yarn workspace @hollyfilms/web test",
+    "test:pwa": "yarn workspace @hollyfilms/web test:pwa",
+    "test:notifications": "yarn workspace @hollyfilms/api test:notifications",
     "test:subtitle-sync": "yarn workspace @hollyfilms/api test:subtitle-sync",
     "test:accounts": "yarn workspace @hollyfilms/api test",
     "test:media": "yarn workspace @hollyfilms/api test:media",

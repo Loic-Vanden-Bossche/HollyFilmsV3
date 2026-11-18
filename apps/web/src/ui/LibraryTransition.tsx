@@ -2,7 +2,7 @@ import { usePerformanceReducedMotion as useReducedMotion } from '../performance/
 import { useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 
-const ease = [0.22, 1, 0.36, 1] as const
+import { distance, duration, ease } from '../motion/tokens.ts'
 
 function PageSurface({
   children,
@@ -29,17 +29,20 @@ function PageSurface({
       variants={{
         enter: (direction: number) => ({
           opacity: 0,
-          x: reduced ? 0 : direction * 30,
+          x: reduced ? 0 : direction * distance.scene,
         }),
         visible: {
           opacity: 1,
           x: 0,
-          transition: { duration: reduced ? 0.1 : 0.46, ease },
+          transition: {
+            duration: reduced ? 0.08 : duration.scene,
+            ease: ease.out,
+          },
         },
         exit: (direction: number) => ({
           opacity: 0,
-          x: reduced ? 0 : direction * -18,
-          transition: { duration: reduced ? 0.08 : 0.16, ease: 'easeIn' },
+          x: reduced ? 0 : direction * -distance.panel,
+          transition: { duration: reduced ? 0 : duration.press, ease: ease.in },
         }),
       }}
     >
@@ -70,14 +73,16 @@ export function LibraryTransition({
       direction: order >= previous.order ? 1 : -1,
     })
   return (
-    <AnimatePresence mode="wait" custom={previous.direction}>
-      <PageSurface
-        key={pageKey}
-        pageKey={pageKey}
-        direction={previous.direction}
-      >
-        {children}
-      </PageSurface>
-    </AnimatePresence>
+    <div className="library-transition">
+      <AnimatePresence mode="sync" custom={previous.direction}>
+        <PageSurface
+          key={pageKey}
+          pageKey={pageKey}
+          direction={previous.direction}
+        >
+          {children}
+        </PageSurface>
+      </AnimatePresence>
+    </div>
   )
 }

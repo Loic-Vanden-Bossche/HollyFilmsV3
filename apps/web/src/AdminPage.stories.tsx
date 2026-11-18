@@ -106,7 +106,9 @@ export const ApproveAndFilter: Story = {
     await expect(
       canvas.getByText('Approuvée · Première connexion requise'),
     ).toBeVisible()
-    await expect(canvas.queryByText('jo@example.com')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(canvas.queryByText('jo@example.com')).not.toBeInTheDocument(),
+    )
   },
 }
 

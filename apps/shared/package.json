@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./notifications": "./src/notifications.ts",
     "./subtitle-sync": "./src/subtitle-sync.ts",
     "./subtitles": "./src/subtitles.ts",
     "./requests": "./src/requests.ts",

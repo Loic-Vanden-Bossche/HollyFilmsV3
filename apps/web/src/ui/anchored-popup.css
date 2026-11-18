@@ -1,0 +1,54 @@
+/* Base UI supplies the collision-adjusted side and waits for these
+   transitions before it unmounts a popup. Reopening reverses in place. */
+:is(.holly-select-popup, .holly-tooltip) {
+  --popup-x: 0px;
+  --popup-y: 0px;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--hf-micro) var(--hf-ease-out),
+    transform var(--hf-panel) var(--hf-ease-out);
+}
+:is(.holly-select-popup, .holly-tooltip)[data-side='bottom'] {
+  --popup-y: -5px;
+}
+:is(.holly-select-popup, .holly-tooltip)[data-side='top'] {
+  --popup-y: 5px;
+}
+:is(.holly-select-popup, .holly-tooltip)[data-side='right'] {
+  --popup-x: -5px;
+}
+:is(.holly-select-popup, .holly-tooltip)[data-side='left'] {
+  --popup-x: 5px;
+}
+:is(.holly-select-popup, .holly-tooltip):is(
+  [data-starting-style],
+  [data-ending-style]
+) {
+  opacity: 0;
+  transform: translate(var(--popup-x), var(--popup-y)) scale(0.975);
+}
+:is(.holly-select-popup, .holly-tooltip)[data-ending-style] {
+  transition-duration: var(--hf-press), var(--hf-micro);
+  pointer-events: none;
+}
+:is(.holly-select-positioner, .holly-tooltip-positioner):has(
+  [data-ending-style]
+) {
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.holly-select-popup, .holly-tooltip):is(
+    [data-starting-style],
+    [data-ending-style]
+  ) {
+    transform: none;
+    transition: opacity var(--hf-press) linear;
+  }
+}
+:root:is([data-performance='essential'], [data-performance='light'])
+  :is(.holly-select-popup, .holly-tooltip):is(
+    [data-starting-style],
+    [data-ending-style]
+  ) {
+  transform: none;
+}

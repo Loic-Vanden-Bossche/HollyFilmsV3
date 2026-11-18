@@ -33,7 +33,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Artwork: Story = {
-  name: 'Fond cinéma — verre dépoli',
+  name: 'Découverte du fond du film',
   play: async ({ canvasElement }) => {
     await expect(
       canvasElement.querySelector('.player-artwork-hero img'),

@@ -149,6 +149,21 @@ test(
     assert.match(html, /HollyFilms/)
     assert.ok(!html.includes('server-only-test-value'))
     assert.equal(await (await fetch(base + '/app')).text(), html)
+    assert.equal(await (await fetch(base + '/notifications')).text(), html)
+    const manifest = await fetch(base + '/manifest.webmanifest')
+    assert.match(
+      manifest.headers.get('content-type'),
+      /application\/manifest\+json/,
+    )
+    const { icons, display } = await manifest.json()
+    assert.equal(display, 'standalone')
+    for (const icon of icons) {
+      assert.equal((await fetch(new URL(icon.src, manifest.url))).status, 200)
+    }
+    const worker = await fetch(base + '/sw.js')
+    assert.match(worker.headers.get('content-type'), /javascript/)
+    assert.match(worker.headers.get('cache-control'), /no-cache/)
+    assert.equal((await fetch(base + '/api/notifications')).status, 401)
     assert.match(
       (await fetch(base + '/index.html')).headers.get('cache-control'),
       /no-store/,

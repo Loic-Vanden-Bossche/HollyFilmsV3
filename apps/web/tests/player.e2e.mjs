@@ -361,7 +361,9 @@ test(
     const errors = []
     let stage = 'initial playback'
     const reports = []
-    page.on('pageerror', (error) => errors.push({ stage, stack: error.stack }))
+    page.on('pageerror', (error) =>
+      errors.push({ stage, stack: error.stack || error.message }),
+    )
     page.on('console', (message) => {
       if (message.text().startsWith('ASS subtitle renderer:'))
         errors.push({ stage, stack: message.text() })
@@ -712,6 +714,35 @@ test(
     )
     await leaveFullscreen.click()
     await page.waitForFunction(() => !document.fullscreenElement)
+    if (
+      await video.evaluate(
+        (element) =>
+          document.pictureInPictureEnabled &&
+          typeof element.requestPictureInPicture === 'function',
+      )
+    ) {
+      await playerView
+        .getByRole('button', { name: 'Incrustation vidéo' })
+        .click()
+      await page.waitForFunction(
+        () =>
+          document.pictureInPictureElement ===
+          document.querySelector('.player-shell video'),
+        undefined,
+        { timeout: 5000 },
+      )
+      const leavePip = playerView.getByRole('button', {
+        name: 'Quitter l’incrustation',
+      })
+      assert.equal(await leavePip.getAttribute('aria-pressed'), 'true')
+      await leavePip.click()
+      await page.waitForFunction(() => !document.pictureInPictureElement)
+      t.diagnostic(
+        'Native picture-in-picture entered and exited from the player controls.',
+      )
+    } else {
+      t.diagnostic('Native picture-in-picture was unavailable in this browser.')
+    }
     assert.deepEqual(
       await mediaCommands(['pause', 'pause', 'play', 'play']),
       [true, true, false, false],
@@ -861,6 +892,7 @@ test(
       'the fullscreen dialog has no focus outline',
     )
     await page.keyboard.press('l')
+    await playerView.locator('.player-stage[data-response="seek"]').waitFor()
     await until(
       () =>
         playerView.locator('video').evaluate((video) => video.currentTime > 20),
@@ -888,9 +920,16 @@ test(
     await playerView
       .getByRole('button', { name: 'Paramètres de lecture' })
       .click()
+    await options().evaluate((panel) => {
+      window.testSettingsPanel = panel
+    })
     await options()
       .getByRole('button', { name: 'Chapitres', exact: true })
       .click()
+    assert(
+      await options().evaluate((panel) => panel === window.testSettingsPanel),
+      'the anchored panel retains its surface when changing to chapters',
+    )
     await options()
       .getByRole('button', { name: /Deuxième acte/ })
       .click()
@@ -1815,7 +1854,7 @@ test(
       locale: 'fr-FR',
     })
     receiver.on('pageerror', (error) =>
-      errors.push({ stage, stack: error.stack }),
+      errors.push({ stage, stack: error.stack || error.message }),
     )
     await receiver.goto(origin)
     await receiver.evaluate(
@@ -1922,10 +1961,16 @@ test(
       'synchronized seek on both devices',
       15000,
     )
-    await receiver.getByRole('button', { name: 'Retour au catalogue' }).click()
-    await receiver.locator('.player-shell').waitFor({ state: 'detached' })
-    await page.getByRole('button', { name: 'Retour au catalogue' }).click()
-    await page.locator('.player-shell').waitFor({ state: 'detached' })
+    // The dialog closes immediately, but Jellyfin may still be writing user
+    // data from these two sessions. Seed the favorite after both writes finish.
+    for (const client of [receiver, page]) {
+      const [stopped] = await Promise.all([
+        client.waitForResponse('**/jellyfin/Sessions/Playing/Stopped'),
+        client.getByRole('button', { name: 'Retour au catalogue' }).click(),
+      ])
+      assert.ok(stopped.ok())
+      await client.locator('.player-shell').waitFor({ state: 'detached' })
+    }
     stage = 'library destinations'
     await api(`/UserFavoriteItems/${item.Id}?userId=${auth.User.Id}`, {
       method: 'POST',

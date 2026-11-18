@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { fn, expect } from 'storybook/test'
+import { fn, expect, waitFor } from 'storybook/test'
 import PerformancePanel, { PerformanceGraph } from './PerformancePanel.tsx'
 import { PerformanceProvider } from './PerformanceProvider.tsx'
 import { PerformanceController } from './profiles.ts'
@@ -29,7 +29,9 @@ export default meta
 type Story = StoryObj<typeof meta>
 export const Collecting: Story = {
   play: async ({ canvas, args, userEvent }) => {
-    await expect(canvas.getByText('Mesure en cours…')).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.getByText('Mesure en cours…')).toBeVisible(),
+    )
     await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
     await expect(args.onClose).toHaveBeenCalledOnce()
   },

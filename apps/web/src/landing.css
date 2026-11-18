@@ -99,6 +99,7 @@
   height: 1px;
   width: 24px;
   background: var(--stage-green);
+  transform-origin: left;
 }
 .hero-copy h1 {
   margin-block: clamp(20px, 3.5vh, 38px) clamp(24px, 4vh, 42px);
@@ -111,17 +112,17 @@
   padding-right: 0.06em;
 }
 /* Paint on each animated glyph layer, not its transformed ancestor. */
-.title-accent .rb-blur-text > span {
+.title-accent .rb-blur-text > [aria-hidden='true'] {
   @apply bg-brand-gradient;
   background-size: 300% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
 }
-.title-accent .rb-blur-text > span:nth-child(2) {
+.title-accent .rb-blur-text > span:nth-child(3) {
   background-position: 50% 0;
 }
-.title-accent .rb-blur-text > span:nth-child(3) {
+.title-accent .rb-blur-text > span:nth-child(4) {
   background-position: 100% 0;
 }
 .feature-reel {
@@ -198,9 +199,43 @@
   @apply bg-brand-gradient text-primary-foreground;
   box-shadow: 0 5px 28px #4ade8015;
 }
-.cinema-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 35px #4ade8030;
+@media (hover: hover) and (pointer: fine) {
+  .cinema-cta:hover {
+    box-shadow: 0 8px 30px #4ade8030;
+  }
+  .nav-signin:hover > svg,
+  .cinema-cta:hover > svg {
+    translate: 2px -2px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .showcase
+    :is(
+      .nav-signin,
+      .cinema-cta,
+      .google-entry,
+      .animation-toggle,
+      .close-dialog
+    ) {
+    transition:
+      scale var(--hf-micro) var(--hf-ease-out),
+      background-color var(--hf-micro),
+      border-color var(--hf-micro);
+  }
+  .showcase :is(.nav-signin, .cinema-cta) > svg {
+    transition: translate var(--hf-micro) var(--hf-ease-out);
+  }
+  .showcase
+    :is(
+      .nav-signin,
+      .cinema-cta,
+      .google-entry,
+      .animation-toggle,
+      .close-dialog
+    ):active {
+    scale: var(--hf-pressed);
+    transition-duration: var(--hf-press);
+  }
 }
 .access-note {
   display: flex;
@@ -284,8 +319,32 @@
   background: #142e3d;
 }
 .auth-dialog {
-  margin: auto;
+  position: fixed;
+  inset: 0;
+  margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  background: #03081097;
+  color: inherit;
+  border: 0;
+}
+.auth-dialog[open],
+.auth-dialog[data-exiting] {
+  display: grid;
+  place-items: center;
+}
+.auth-dialog[data-exiting] {
+  pointer-events: none;
+  z-index: 10;
+}
+.auth-surface {
+  position: relative;
+  transform-origin: var(--dialog-origin, center);
   border-radius: 24px;
   width: min(840px, calc(100vw - 32px));
   max-height: calc(100dvh - 24px);
@@ -298,21 +357,13 @@
     inset 0 1px 0 #ecf4fb26,
     0 30px 150px #0009;
 }
-.auth-dialog::-webkit-scrollbar {
+.auth-surface::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
 }
 .auth-dialog::backdrop {
   background: transparent;
-}
-.auth-dimmer {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  pointer-events: none;
-  background: #03081070;
-  backdrop-filter: blur(6px);
 }
 .auth-dialog section {
   padding-top: 0;
@@ -344,8 +395,8 @@
   clip-path: none;
   transform: none;
 }
-.showcase[data-still='true'] *,
-.showcase[data-still='true'] *::after {
+.showcase[data-still='true'] :is(.hero-copy, .catalogue-stage) *,
+.showcase[data-still='true'] :is(.hero-copy, .catalogue-stage) *::after {
   animation-play-state: paused !important;
 }
 @media (min-width: 1800px) {
@@ -591,14 +642,13 @@
 }
 .title-line {
   display: block;
-  will-change: transform;
 }
 .title-brand {
   font-weight: 400;
   letter-spacing: 0;
 }
 
-.auth-dialog > .glass-panel {
+.auth-surface > .glass-panel {
   background: none;
   border: 0;
   box-shadow: none;

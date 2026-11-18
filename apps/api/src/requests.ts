@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { getUserApi } from '@jellyfin/sdk/lib/utils/api/user-api.js'
-import { createJellyfinApi } from '@hollyfilms/shared/jellyfin'
+import { authorizeRequest } from './authorize-request.ts'
+import { recordNotification } from './notifications.ts'
 import type {
   DiscoveryPage,
   RequestFilter,
@@ -46,45 +46,6 @@ export function addRequestRoutes(
 ) {
   const seerr = seerrClient(config)
   const operations = new Map<string, Promise<unknown>>()
-  async function authorize(request: FastifyRequest, admin = false) {
-    const token = /^Bearer ([^\s]+)$/i.exec(
-      request.headers.authorization ?? '',
-    )?.[1]
-    if (!token)
-      throw new ApiError(401, 'AUTH_REQUIRED', 'Reconnecte-toi pour continuer.')
-    const device = request.headers['x-hollyfilms-device']
-    const api = createJellyfinApi(
-      config.jellyfinUrl,
-      typeof device === 'string' && /^[a-z\d-]{1,128}$/i.test(device)
-        ? device
-        : undefined,
-      token,
-    )
-    try {
-      const { data } = await getUserApi(api).getCurrentUser({ timeout: 5000 })
-      if (!data.Id || data.Policy?.IsDisabled)
-        throw new ApiError(403, 'ACCESS_DENIED', 'Ce compte est désactivé.')
-      const isAdmin = data.Policy?.IsAdministrator === true
-      if (admin && !isAdmin)
-        throw new ApiError(
-          403,
-          'ADMIN_REQUIRED',
-          'Un compte administrateur est requis.',
-        )
-      return { id: data.Id, admin: isAdmin }
-    } catch (error) {
-      if (error instanceof ApiError) throw error
-      const status = (error as { response?: { status?: number } }).response
-        ?.status
-      throw new ApiError(
-        status === 401 || status === 403 ? status : 503,
-        status === 401 || status === 403
-          ? 'ACCESS_DENIED'
-          : 'JELLYFIN_UNAVAILABLE',
-        'Impossible de vérifier la session.',
-      )
-    }
-  }
   async function services(admin: boolean): Promise<RequestServices> {
     if (!config.seerr) return { enabled: false, movies: false, series: false }
     const [radarr, sonarr] = await Promise.all([
@@ -124,7 +85,7 @@ export function addRequestRoutes(
     }
   }
   app.get('/api/requests/options', { config: limited }, async (request) => {
-    const user = await authorize(request)
+    const user = await authorizeRequest(config, request)
     return services(user.admin)
   })
   app.get<{
@@ -153,7 +114,7 @@ export function addRequestRoutes(
       },
     },
     async (request): Promise<DiscoveryPage> => {
-      const identity = await authorize(request)
+      const identity = await authorizeRequest(config, request)
       const user = await seerr.user(identity.id)
       const query = new URLSearchParams({
         query: request.query.q,
@@ -188,7 +149,7 @@ export function addRequestRoutes(
     }>,
     admin: boolean,
   ): Promise<RequestsPageData> {
-    const identity = await authorize(request, admin)
+    const identity = await authorizeRequest(config, request, admin)
     const user = admin ? undefined : await seerr.user(identity.id)
     const page = Number(request.query.page ?? 1)
     if (!admin && !user)
@@ -268,7 +229,7 @@ export function addRequestRoutes(
       },
     },
     async (request) => {
-      const identity = await authorize(request)
+      const identity = await authorizeRequest(config, request)
       const key = `${identity.id}:${request.body.type}:${request.body.id}`
       const pending = operations.get(key)
       if (pending) return pending
@@ -377,7 +338,7 @@ export function addRequestRoutes(
       },
     },
     async (request) => {
-      await authorize(request, true)
+      await authorizeRequest(config, request, true)
       return db.$transaction(
         async (transaction) => {
           // Shared across API replicas; re-read after the lock so competing decisions cannot both win.
@@ -401,6 +362,19 @@ export function addRequestRoutes(
               'REQUEST_CHANGED',
               'Seules les demandes en échec peuvent être relancées.',
             )
+          if (current.requestedBy.jellyfinUserId) {
+            const titles = {
+              approve: 'Demande de média approuvée',
+              decline: 'Demande de média refusée',
+              retry: 'Demande de média relancée',
+            }
+            await recordNotification(transaction, {
+              userId: current.requestedBy.jellyfinUserId,
+              title: titles[request.params.action],
+              body: seerr.cachedRequestTitle(current),
+              url: '/requests',
+            })
+          }
           await seerr.call(
             `request/${request.params.id}/${request.params.action}`,
             { method: 'POST' },

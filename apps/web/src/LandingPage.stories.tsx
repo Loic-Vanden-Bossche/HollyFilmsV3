@@ -25,7 +25,7 @@ export const Opening: Story = {
   args: { items },
   play: async ({ canvasElement }) => {
     const words = canvasElement.querySelectorAll(
-      '.title-accent .rb-blur-text > span',
+      '.title-accent .rb-blur-text > [aria-hidden="true"]',
     )
     await expect(words).toHaveLength(3)
     await waitFor(
@@ -34,7 +34,7 @@ export const Opening: Story = {
           const style = getComputedStyle(word)
           expect(style.opacity).toBe('1')
           expect(style.transform).toBe('none')
-          expect(style.filter).toBe('blur(0px)')
+          expect(style.filter).toBe('none')
           expect(style.backgroundClip).toBe('text')
           expect(style.backgroundImage).not.toBe('none')
         }
@@ -157,6 +157,25 @@ export const Registration: Story = {
     ).toBe('none')
     await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
     await waitFor(() => expect(trigger).toHaveFocus())
+  },
+}
+
+export const SwitchDuringDismissal: Story = {
+  name: 'Passer de la connexion à l’inscription pendant la fermeture',
+  args: { items },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'Se connecter' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
+    const register = canvas.getByRole('button', { name: 'Créer un compte' })
+    await userEvent.click(register)
+    await expect(canvas.getAllByRole('dialog')).toHaveLength(1)
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('heading', { name: 'Créer votre compte.' }),
+      ).toBeVisible(),
+    )
+    await userEvent.click(canvas.getByRole('button', { name: 'Fermer' }))
+    await waitFor(() => expect(register).toHaveFocus())
   },
 }
 

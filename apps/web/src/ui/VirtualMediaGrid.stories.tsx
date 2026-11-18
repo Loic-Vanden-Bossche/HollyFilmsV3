@@ -131,3 +131,69 @@ export const ContentArrivesAbove: Story = {
     )
   },
 }
+
+export const SortingAndRemoval: Story = {
+  name: 'Tri et retrait dans une grille visible',
+  render: function Demo(args) {
+    const [selection, setSelection] = useState(items.slice(0, 8))
+    return (
+      <>
+        <button
+          disabled={selection.length < 2}
+          onClick={() =>
+            setSelection((current) => [
+              current[1],
+              current[0],
+              ...current.slice(2),
+            ])
+          }
+        >
+          Inverser les premiers titres
+        </button>
+        <button
+          disabled={!selection.length}
+          onClick={() => setSelection((current) => current.slice(1))}
+        >
+          Retirer le premier titre
+        </button>
+        <VirtualMediaGrid
+          {...args}
+          items={selection}
+          total={selection.length}
+        />
+      </>
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Voir la fiche de Film 1' }),
+      ).toHaveClass('media-tile-select'),
+    )
+    const first = canvas.getByRole('button', {
+      name: 'Voir la fiche de Film 1',
+    })
+    const swap = canvas.getByRole('button', {
+      name: 'Inverser les premiers titres',
+    })
+    await userEvent.click(swap)
+    await expect(canvas.getAllByRole('listitem')[0]).toHaveAttribute(
+      'data-grid-item',
+      'virtual-1',
+    )
+    await userEvent.click(swap)
+    await expect(
+      canvas.getByRole('button', { name: 'Voir la fiche de Film 1' }),
+    ).toBe(first)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Retirer le premier titre' }),
+    )
+    await expect(
+      canvas.queryByRole('button', { name: 'Voir la fiche de Film 1' }),
+    ).not.toBeInTheDocument()
+    await expect(canvas.getAllByRole('listitem')[0]).toHaveAttribute(
+      'aria-posinset',
+      '1',
+    )
+  },
+}

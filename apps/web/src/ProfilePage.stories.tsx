@@ -126,6 +126,14 @@ export const ResetGooglePhoto: Story = {
     },
   },
   play: async ({ canvas, args }) => {
+    const trigger = canvas.getByRole('button', {
+      name: 'Revenir à la photo Google',
+    })
+    await userEvent.click(trigger)
+    await expect(canvas.getByRole('button', { name: 'Annuler' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect(trigger).toHaveFocus()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(
       canvas.getByRole('button', { name: 'Revenir à la photo Google' }),
     )

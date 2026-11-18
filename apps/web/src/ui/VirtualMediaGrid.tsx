@@ -1,5 +1,9 @@
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import { usePerformanceProfile } from '../performance/PerformanceProvider.tsx'
+import { duration, ease } from '../motion/tokens.ts'
+import {
+  usePerformanceReducedMotion,
+  usePerformanceProfile,
+} from '../performance/PerformanceProvider.tsx'
 import {
   memo,
   useCallback,
@@ -34,6 +38,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
 }: Props) {
   const { t } = useI18n()
   const profile = usePerformanceProfile()
+  const reduced = usePerformanceReducedMotion()
   const root = useRef<HTMLDivElement>(null)
   const probe = useRef<HTMLDivElement>(null)
   const [layout, setLayout] = useState({
@@ -113,25 +118,84 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
     },
     [focusedRow],
   )
-  const getItemKey = useCallback(
-    (index: number) => items[index * layout.columns].id,
-    [items, layout.columns],
-  )
   // TanStack owns mutable measurements; React Compiler must not memoize this hook.
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useWindowVirtualizer<HTMLDivElement>({
     enabled: layout.width > 0,
+    useAnimationFrameWithResizeObserver: true,
     count: Math.ceil(items.length / layout.columns),
     estimateSize: () => (layout.cardWidth - 2) * 1.5 + 76,
     gap: layout.gap,
     overscan: profile.overscan,
     scrollMargin: layout.top,
-    getItemKey,
     rangeExtractor,
   })
   useLayoutEffect(() => {
     virtualizer.measure()
   }, [virtualizer, layout.width, layout.columns])
+
+  // Animate only mounted cells, on their own layer below the virtualizer's row
+  // offsets. Adjacent cards advance when a favorite leaves or a sort changes.
+  const lastOrder = useRef<{ ids: Map<string, number>; width: number } | null>(
+    null,
+  )
+  useLayoutEffect(() => {
+    const ids = new Map(items.map((item, index) => [item.id, index]))
+    const previous = lastOrder.current
+    lastOrder.current = { ids, width: layout.width }
+    if (reduced) {
+      root.current
+        ?.querySelectorAll('[data-grid-item]')
+        .forEach((cell) =>
+          cell.getAnimations().forEach((animation) => animation.cancel()),
+        )
+      return
+    }
+    if (
+      !previous ||
+      previous.width !== layout.width ||
+      !layout.width ||
+      document.hidden
+    )
+      return
+    const strideX =
+      layout.columns > 1
+        ? (layout.width - layout.cardWidth) / (layout.columns - 1)
+        : 0
+    const offsets: { cell: HTMLElement; x: number; y: number }[] = []
+    for (const cell of root.current!.querySelectorAll<HTMLElement>(
+      '[data-grid-item]',
+    )) {
+      const id = cell.dataset.gridItem!
+      const from = previous.ids.get(id)
+      const to = ids.get(id)
+      if (from === undefined || to === undefined || from === to) continue
+      const rows =
+        Math.floor(from / layout.columns) - Math.floor(to / layout.columns)
+      if (Math.abs(rows) > 1) continue
+      const current = new DOMMatrixReadOnly(getComputedStyle(cell).transform)
+      offsets.push({
+        cell,
+        x:
+          ((from % layout.columns) - (to % layout.columns)) * strideX +
+          current.m41,
+        y: rows * (cell.offsetHeight + layout.gap) + current.m42,
+      })
+    }
+    for (const { cell, x, y } of offsets) {
+      cell.getAnimations().forEach((animation) => animation.cancel())
+      cell.animate(
+        [
+          { transform: 'translate(' + x + 'px,' + y + 'px)' },
+          { transform: 'translate(0, 0)' },
+        ],
+        {
+          duration: duration.panel * 1000,
+          easing: 'cubic-bezier(' + ease.out.join(',') + ')',
+        },
+      )
+    }
+  }, [items, layout, reduced])
 
   return (
     <div
@@ -161,6 +225,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
               <div
                 key={item.id}
                 role="listitem"
+                data-grid-item={item.id}
                 aria-setsize={total}
                 aria-posinset={row.index * layout.columns + column + 1}
                 onFocusCapture={() => setFocusedId(item.id)}
@@ -206,10 +271,23 @@ export function CatalogueLoadTrigger({
       },
       { rootMargin: '800px 0px' },
     )
-    observer.observe(ref.current!)
+    const sentinel = ref.current!
+    const grid = sentinel.previousElementSibling
+    // A newly mounted virtual grid has no height until its first measurement.
+    // Observing the sentinel first can request a second page above the fold.
+    const measurements = new ResizeObserver(() => {
+      if (grid?.clientHeight) {
+        measurements.disconnect()
+        observer.observe(sentinel)
+      }
+    })
+    if (count && grid?.matches('.virtual-media-grid') && !grid.clientHeight)
+      measurements.observe(grid)
+    else observer.observe(sentinel)
     document.addEventListener('visibilitychange', load)
     return () => {
       observer.disconnect()
+      measurements.disconnect()
       document.removeEventListener('visibilitychange', load)
     }
   }, [count, hasMore, loading, error, paused, onLoadMore])

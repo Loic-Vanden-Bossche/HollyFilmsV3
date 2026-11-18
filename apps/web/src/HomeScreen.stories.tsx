@@ -177,23 +177,28 @@ export const InfiniteCatalogue: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await waitFor(() =>
       expect(
-        canvasElement.querySelector('.virtual-media-grid'),
-      ).toBeInTheDocument(),
+        canvasElement.querySelector<HTMLElement>('.virtual-media-grid')
+          ?.offsetHeight,
+      ).toBeGreaterThan(100),
     )
-    const next = () => window.scrollTo(0, document.documentElement.scrollHeight)
-    next()
-    await waitFor(() =>
+    const next = () =>
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'instant',
+      })
+    await waitFor(() => {
+      next()
       expect(
         mocked(getLibraryPage).mock.calls.some((call) => call[5] === 36),
-      ).toBe(true),
+      ).toBe(true)
+    })
+    await waitFor(
+      () => {
+        next()
+        expect(canvas.getByRole('alert')).toBeVisible()
+      },
+      { timeout: 3000 },
     )
-    await waitFor(() =>
-      expect(
-        canvasElement.querySelector('[aria-posinset="37"]'),
-      ).toBeInTheDocument(),
-    )
-    next()
-    await waitFor(() => expect(canvas.getByRole('alert')).toBeVisible())
     await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
     await waitFor(() =>
       expect(canvasElement.querySelector('.home-more')).not.toBeInTheDocument(),

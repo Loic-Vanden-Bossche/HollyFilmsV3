@@ -104,7 +104,9 @@ export const Keyboard: Story = {
     await expect(trigger).toHaveFocus()
     await userEvent.keyboard('{ArrowDown}')
     const body = within(canvasElement.ownerDocument.body)
-    await body.findByRole('listbox')
+    await waitFor(() =>
+      expect(body.getByRole('option', { name: 'Automatique' })).toHaveFocus(),
+    )
     await userEvent.keyboard('{End}{Enter}')
     await expect(args.onValueChange).not.toHaveBeenCalled()
     await userEvent.keyboard('{ArrowUp}{Enter}')

@@ -114,6 +114,56 @@
   gap: 24px;
   min-width: 0;
 }
+.profile-device {
+  scroll-margin-top: 20px;
+}
+.profile-device .profile-section-title {
+  margin-bottom: 6px;
+}
+.device-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 18px 0;
+}
+.device-setting + .device-setting {
+  @apply border-t border-glass-edge;
+}
+.device-setting:last-child {
+  padding-bottom: 0;
+}
+.device-setting > div:first-child {
+  flex: 1 1 240px;
+}
+.device-setting h3,
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-actions button[aria-disabled='true'] {
+  opacity: 0.65;
+  cursor: wait;
+}
+.device-setting h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.device-setting h3 svg {
+  @apply text-accent-foreground;
+}
+.device-setting p {
+  @apply text-muted-foreground;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.device-actions {
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
 .profile-section-title {
   display: flex;
   gap: 15px;
@@ -236,26 +286,42 @@
   align-items: center;
   justify-content: space-between;
 }
-.profile-confirm {
+.profile-confirm:not([data-disclosure]),
+.profile-confirm-body {
   @apply border border-glass-edge bg-background text-muted-foreground;
   padding: 15px;
   border-radius: 12px;
   font-size: 12px;
   line-height: 1.7;
 }
-.profile-confirm > div {
+.profile-confirm[data-disclosure] {
+  align-self: stretch;
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--hf-panel) var(--hf-ease-in-out),
+    opacity var(--hf-micro);
+}
+.profile-confirm[data-disclosure='closed'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.profile-confirm[data-disclosure] > div {
+  overflow: clip;
+  min-height: 0;
+}
+.profile-confirm-body > div {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-top: 10px;
 }
-.profile-feedback {
-  margin-top: 24px;
-}
 .profile-notice {
   @apply border border-glass-edge bg-secondary text-accent-foreground;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px 14px;
+  margin-top: 12px;
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -267,14 +333,13 @@
 .profile-notice svg {
   flex-shrink: 0;
 }
-.profile-notice.is-error svg {
-  display: none;
-}
-.profile-loading {
+.profile-pending {
   @apply text-muted-foreground;
   min-height: 300px;
-  display: grid;
-  place-items: center;
+}
+.profile-pending .profile-portrait {
+  background: linear-gradient(130deg, #7dded822, #3b82f60c);
+  box-shadow: inset 0 0 0 1px #7dded81f;
 }
 @media (max-width: 760px) {
   .profile-page {
@@ -295,6 +360,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .profile-confirm[data-disclosure],
   .profile-button {
     transition: none;
   }

@@ -25,14 +25,21 @@
   overflow: auto;
   outline: none;
 }
-.performance-dialog[open] {
+.performance-dialog[open],
+.performance-dialog[data-exiting] {
   display: grid;
   place-items: center;
-}
-.performance-dialog::backdrop {
   background: #030810cc;
 }
+.performance-dialog[data-exiting] {
+  pointer-events: none;
+  z-index: 100;
+}
+.performance-dialog::backdrop {
+  background: transparent;
+}
 .performance-panel {
+  transform-origin: var(--dialog-origin, bottom left);
   width: min(860px, 100%);
   min-width: 0;
   padding: clamp(16px, 3vw, 28px);

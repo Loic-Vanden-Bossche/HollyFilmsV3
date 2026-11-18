@@ -59,7 +59,12 @@ export const RapidNavigation: Story = {
         canvas.getByRole('heading', { name: 'Collections' }),
       ).toBeVisible(),
     )
-    await expect(canvasElement.querySelectorAll('[data-page]')).toHaveLength(1)
+    await expect(
+      canvasElement.querySelector('[data-page="Collections"]'),
+    ).not.toHaveAttribute('inert')
+    await waitFor(() =>
+      expect(canvasElement.querySelectorAll('[data-page]')).toHaveLength(1),
+    )
     await expect(
       canvasElement.querySelector('[data-page]'),
     ).not.toHaveAttribute('inert')

@@ -22,6 +22,7 @@ import { PlaybackPlayer } from './PlaybackPlayer.tsx'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { HomePage } from './HomePage.tsx'
 import { useProfile } from './use-profile.ts'
+import { useNotificationInbox } from './notification-inbox.ts'
 import { useRemoteCommands } from './playback/remote-commands.ts'
 import type { RemoteControlMessage } from './playback/remote-commands.ts'
 import type { PlaybackTarget, StreamOptions } from './playback/playback-api.ts'
@@ -65,6 +66,11 @@ export function HomeScreen({
   const [libraryMounted, setLibraryMounted] = useState(!route.play)
   if (!route.play && !libraryMounted) setLibraryMounted(true)
   const profile = useProfile(session, libraryMounted)
+  const inbox = useNotificationInbox(
+    session,
+    user.id,
+    !route.play && !signingOut,
+  )
   const baseUrl = new URL('/jellyfin', window.location.origin).href
   const [playbackSeed, setPlayback] = useState<{
     item: MediaItem
@@ -223,6 +229,13 @@ export function HomeScreen({
         sort,
         collectionId: route.collection,
       }),
+    placeholderData: (previous, query) =>
+      query?.queryKey[1] === session.deviceId &&
+      query.queryKey[2] === user.id &&
+      query.queryKey[3] === filter &&
+      query.queryKey[6] === route.collection
+        ? previous
+        : undefined,
     getNextPageParam: (page, pages) =>
       pages.length * 36 < page.total ? pages.length * 36 : undefined,
     retry: false,
@@ -256,6 +269,14 @@ export function HomeScreen({
         signal,
         { sort, collectionId: route.collection },
       ),
+    placeholderData: (previous, query) =>
+      Boolean(query?.queryKey[4]) &&
+      query?.queryKey[1] === session.deviceId &&
+      query.queryKey[2] === user.id &&
+      query.queryKey[3] === filter &&
+      query.queryKey[6] === route.collection
+        ? previous
+        : undefined,
     getNextPageParam: (page, pages) =>
       pages.length * 36 < page.total ? pages.length * 36 : undefined,
     enabled:
@@ -405,6 +426,7 @@ export function HomeScreen({
           collections.data?.pages.flatMap((page) => page.items) ?? []
         }
         sort={sort}
+        updatingOrder={!collectionsIndex && library.isPlaceholderData}
         onSort={(sort) => navigateApp({ sort }, 'replace')}
         onCollection={(id) =>
           navigateApp({
@@ -432,6 +454,7 @@ export function HomeScreen({
           })
         }}
         username={user.name}
+        unreadNotifications={inbox.data?.pages[0]?.unread}
         isAdmin={user.isAdministrator}
         session={session}
         userId={user.id}
@@ -480,7 +503,7 @@ export function HomeScreen({
         }}
         items={items}
         searchResults={{
-          items: searching
+          items: !debouncedSearch
             ? []
             : [
                 ...new Map(
@@ -489,18 +512,25 @@ export function HomeScreen({
                     .map((item) => [item.id, item]),
                 ).values(),
               ].filter((item) => filter !== 'favorites' || item.favorite),
-          total: searching ? 0 : (searchLibrary.data?.pages[0].total ?? 0),
+          total: debouncedSearch
+            ? (searchLibrary.data?.pages[0].total ?? 0)
+            : 0,
           state:
-            searching || searchLibrary.isPending
+            searching ||
+            searchLibrary.isPending ||
+            searchLibrary.isPlaceholderData
               ? 'loading'
               : searchLibrary.isError && !searchLibrary.data
                 ? 'error'
                 : 'ready',
-          hasMore: searchLibrary.hasNextPage,
+          hasMore:
+            !searching &&
+            !searchLibrary.isPlaceholderData &&
+            searchLibrary.hasNextPage,
           loadingMore: searchLibrary.isFetchingNextPage,
           loadMoreError: searchLibrary.isFetchNextPageError,
           onLoadMore: () => {
-            if (!searching)
+            if (!searching && !searchLibrary.isPlaceholderData)
               void searchLibrary.fetchNextPage({ cancelRefetch: false })
           },
           onRetry: () => void searchLibrary.refetch(),
@@ -526,7 +556,7 @@ export function HomeScreen({
         total={pageData.data?.pages[0].total ?? 0}
         filter={filter}
         search={search}
-        hasMore={pageData.hasNextPage}
+        hasMore={!pageData.isPlaceholderData && pageData.hasNextPage}
         loadingMore={pageData.isFetchingNextPage}
         loadMoreError={pageData.isFetchNextPageError}
         onFilter={(filter) =>

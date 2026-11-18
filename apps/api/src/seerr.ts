@@ -288,5 +288,14 @@ export function seerrClient(config: ServerConfig) {
         : {}),
     }
   }
-  return { call, user, detail, discovery, requestView }
+  function cachedRequestTitle(request: SeerrRequest) {
+    for (const language of ['fr', 'en', 'zh-CN']) {
+      const entry = titles.get(
+        `${request.type}:${request.media.tmdbId}:${language}`,
+      )
+      if (entry && entry.expires > Date.now())
+        return entry.title.title || entry.title.name
+    }
+  }
+  return { call, user, detail, discovery, requestView, cachedRequestTitle }
 }

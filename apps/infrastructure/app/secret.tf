@@ -13,5 +13,8 @@ resource "kubernetes_secret_v1" "runtime" {
     TMDB_API_TOKEN       = var.tmdb_api_token
     SEERR_URL            = var.seerr == null ? "" : var.seerr.url
     SEERR_API_KEY        = var.seerr == null ? "" : var.seerr.api_key
+    VAPID_SUBJECT        = var.web_push == null ? "" : var.web_push.subject
+    VAPID_PUBLIC_KEY     = var.web_push == null ? "" : var.web_push.public_key
+    VAPID_PRIVATE_KEY    = var.web_push == null ? "" : var.web_push.private_key
   }
 }

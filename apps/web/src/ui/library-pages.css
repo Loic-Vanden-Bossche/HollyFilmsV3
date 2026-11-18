@@ -1,9 +1,16 @@
 @reference '../index.css';
+.library-transition {
+  position: relative;
+  isolation: isolate;
+}
 .library-page-surface {
   min-width: 0;
 }
 .library-page-surface[data-present='false'] {
   pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
 }
 .library-view {
   padding: 24px var(--spacing-stage) 0;
@@ -514,4 +521,11 @@
   .collection-card:focus-visible .collection-card-poster {
     transform: none;
   }
+}
+
+.library-sort > svg {
+  transition: color var(--hf-micro) var(--hf-ease-out);
+}
+.library-sort[data-updating='true'] > svg {
+  color: #7dded8;
 }

@@ -7,6 +7,7 @@ import {
   useSpring,
   useTransform,
 } from 'motion/react'
+import { duration, spring as springs } from '../motion/tokens.ts'
 import { GlareHover } from './reactbits/Effects.tsx'
 import { cinemaMotion, useMotionPolicy } from './reactbits/policy.ts'
 import './TiltedCard.css'
@@ -158,7 +159,7 @@ export default function TiltedCard({
           opacity: active ? 0.7 : 0,
           scale: active && !disabled ? 1.04 : 0.96,
         }}
-        transition={{ duration: disabled ? 0.15 : 0.4 }}
+        transition={{ duration: disabled ? duration.press : duration.panel }}
       />
       <motion.div
         className="tilted-card__body"
@@ -171,7 +172,7 @@ export default function TiltedCard({
           y: active && !disabled ? -hoverLift : 0,
           scale: active && !disabled ? hoverScale : 1,
         }}
-        transition={{ type: 'spring', stiffness: 240, damping: 26 }}
+        transition={springs.card}
       >
         {children}
         <GlareHover active={active && !disabled} />
@@ -180,7 +181,7 @@ export default function TiltedCard({
           aria-hidden="true"
           initial={false}
           animate={{ opacity: active ? 1 : 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: duration.micro }}
         >
           <motion.span
             className="tilted-card__light"
@@ -192,7 +193,7 @@ export default function TiltedCard({
           aria-hidden="true"
           initial={false}
           animate={{ opacity: active ? 0.85 : 0 }}
-          transition={{ duration: 0.35 }}
+          transition={{ duration: duration.micro }}
         />
       </motion.div>
     </div>

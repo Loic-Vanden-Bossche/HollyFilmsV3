@@ -1,8 +1,11 @@
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { localizeText } from './i18n/messages.ts'
-import { useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useId, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { spring } from './motion/tokens.ts'
+import { RequestRow } from './ui/RequestRow.tsx'
+import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
 import { ArrowLeft, Check, Clock3, ShieldCheck, Users } from 'lucide-react'
 import type {
   JellyfinSession,
@@ -11,7 +14,6 @@ import type {
 import { decideRegistration, listRegistrations } from './account-api.ts'
 import { Button } from './ui/Button.tsx'
 import {
-  AnimatedList,
   BlurText,
   ClickSpark,
   CountUp,
@@ -36,7 +38,8 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
   const [filter, setFilter] = useState<
     'all' | 'pending' | 'approved' | 'rejected'
   >('all')
-  const reduced = useReducedMotion()
+  const reduced = usePerformanceReducedMotion()
+  const indicator = useId()
   const [success, setSuccess] = useState({ id: '', burst: 0 })
   const cache = useQueryClient()
   const queryKey = ['registrations', session.deviceId]
@@ -146,12 +149,20 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
               aria-pressed={filter === value}
               onClick={() => setFilter(value)}
             >
+              {filter === value && (
+                <motion.span
+                  className="selection-light"
+                  aria-hidden="true"
+                  layoutId={reduced ? undefined : indicator}
+                  transition={spring.control}
+                />
+              )}
               {label}
             </button>
           ))}
         </div>
         {registrations.isPending && (
-          <p role="status" className="mt-4">
+          <p role="status" className="surface-placeholder mt-4">
             {t('Chargement…')}
           </p>
         )}
@@ -181,25 +192,17 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
           </p>
         )}
         {registrations.isSuccess && (
-          <AnimatedList
-            as="ul"
+          <ul
             className="admin-requests"
-            label={t('Demandes d’inscription')}
+            aria-label={t('Demandes d’inscription')}
           >
-            <AnimatePresence initial={false}>
-              {visible.map((registration) => (
-                <motion.li
-                  key={registration.id}
-                  layout={!reduced}
-                  initial={{ opacity: 0, y: reduced ? 0 : 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: reduced ? 0.1 : 0.25 }}
-                >
+            <AnimatePresence initial={false} mode="popLayout">
+              {visible.map((registration, index) => (
+                <RequestRow key={registration.id} as="li" order={index}>
                   <div className="admin-request-avatar" aria-hidden="true">
-                    <ClickSpark
-                      burst={success.id === registration.id ? success.burst : 0}
-                    />
+                    {success.id === registration.id && (
+                      <ClickSpark burst={success.burst} />
+                    )}
                     {(registration.googleEmail ?? registration.username)
                       .slice(0, 1)
                       .toUpperCase()}
@@ -233,6 +236,7 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                     )}
                   </div>
                   <span
+                    key={registration.status}
                     className="admin-status"
                     data-status={registration.status}
                   >
@@ -271,10 +275,10 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                       )}
                     </div>
                   )}
-                </motion.li>
+                </RequestRow>
               ))}
             </AnimatePresence>
-          </AnimatedList>
+          </ul>
         )}
       </div>
     </section>

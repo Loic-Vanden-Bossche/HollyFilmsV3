@@ -102,6 +102,7 @@
   padding-block: 24px;
 }
 .admin-request-avatar {
+  position: relative;
   @apply bg-accent text-link;
   display: grid;
   place-items: center;

@@ -1,0 +1,108 @@
+.holly-button,
+.profile-button,
+.profile-text-button,
+.admin-filters button,
+.requests-toolbar button,
+.subtitle-tabs button,
+.request-actions button,
+.request-pagination button {
+  transition:
+    scale var(--hf-micro) var(--hf-ease-out),
+    background-color var(--hf-micro),
+    border-color var(--hf-micro),
+    color var(--hf-micro);
+}
+:is(
+    .holly-button,
+    .profile-button,
+    .profile-text-button,
+    .admin-filters button,
+    .requests-toolbar button,
+    .subtitle-tabs button,
+    .request-actions button,
+    .request-pagination button
+  ):enabled:active {
+  scale: var(--hf-pressed);
+  transition-duration: var(--hf-press);
+}
+.admin-filters button,
+.subtitle-tabs button {
+  position: relative;
+}
+.selection-light {
+  position: absolute;
+  inset: auto 17% 3px;
+  height: 2px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #4ade80, #7dded8 55%, #3b82f6);
+  pointer-events: none;
+}
+.admin-requests,
+.requests-list {
+  position: relative;
+}
+.surface-placeholder {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-height: 132px;
+  color: #a4b6cb;
+}
+.surface-placeholder::before,
+.surface-placeholder::after {
+  content: '';
+  display: block;
+  width: min(16rem, 54%);
+  height: 8px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #7dded824, #3b82f616);
+  animation: surface-acknowledge var(--hf-scene) var(--hf-ease-out);
+}
+.surface-placeholder::after {
+  width: min(10rem, 35%);
+}
+.profile-fields input,
+.glass-input,
+.holly-select-search {
+  transition:
+    border-color var(--hf-micro),
+    background-color var(--hf-micro);
+}
+.profile-fields input:focus-visible,
+.glass-input:focus-visible {
+  border-color: #7dded8;
+}
+.glass-input[aria-invalid='true']:focus-visible {
+  border-color: var(--color-destructive, #fb7185);
+}
+.request-technical[open] > dl,
+.profile-password-pair,
+.profile-fields > .profile-confirm,
+.request-empty,
+.admin-empty,
+.admin-status,
+.holly-select-trigger:focus .holly-select-value {
+  animation: surface-acknowledge var(--hf-micro) var(--hf-ease-out);
+}
+@keyframes surface-acknowledge {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(
+      .holly-button,
+      .profile-button,
+      .profile-text-button,
+      .admin-filters button,
+      .requests-toolbar button,
+      .subtitle-tabs button,
+      .request-actions button,
+      .request-pagination button
+    ):enabled:active {
+    scale: none;
+  }
+}

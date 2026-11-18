@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, mocked, waitFor } from 'storybook/test'
+import { expect, mocked, waitFor, within } from 'storybook/test'
 import { RequestsPage } from './RequestsPage.tsx'
 import { getSubtitleRequests } from './subtitles-api.ts'
 import { subtitleRequestFixture } from './subtitle-fixtures.ts'
@@ -233,8 +233,16 @@ export const PaginationAndFilters: Story = {
       ),
     )
     const filter = canvas.getByRole('combobox', { name: 'État des demandes' })
-    await userEvent.click(filter)
-    await userEvent.keyboard('{ArrowDown}{Enter}')
+    if (filter.tagName === 'SELECT') {
+      await userEvent.selectOptions(filter, 'pending')
+    } else {
+      await userEvent.click(filter)
+      const body = within(filter.ownerDocument.body)
+      await waitFor(() =>
+        expect(body.getByRole('option', { name: 'Toutes' })).toHaveFocus(),
+      )
+      await userEvent.keyboard('{ArrowDown}{Enter}')
+    }
     await waitFor(() =>
       expect(getMediaRequests).toHaveBeenLastCalledWith(
         requestSession,

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Tooltip as Primitive } from '@base-ui/react/tooltip'
-import { motion, useReducedMotion } from 'motion/react'
+import './anchored-popup.css'
 import './tooltip.css'
 
 // HollyFilms adaptation of the shadcn/Base UI tooltip composition.
@@ -35,7 +35,6 @@ export function Tooltip({
   side?: 'top' | 'bottom' | 'left' | 'right'
   disabled?: boolean
 }) {
-  const reduced = useReducedMotion()
   const id = useId()
   const label = content ?? children.props.title ?? children.props['aria-label']
   const [open, setOpen] = useState(false)
@@ -85,7 +84,7 @@ export function Tooltip({
               element?.closest('dialog[open], [role="dialog"]') ??
               document.body) as HTMLElement,
           )
-        } else details.preventUnmountOnClose()
+        }
         setOpen(next)
       }}
     >
@@ -106,6 +105,7 @@ export function Tooltip({
       />
       <Primitive.Portal container={container}>
         <Primitive.Positioner
+          disableAnchorTracking={!open}
           side={side}
           sideOffset={9}
           collisionPadding={10}
@@ -116,27 +116,6 @@ export function Tooltip({
             role="tooltip"
             aria-hidden={!open}
             className="holly-tooltip"
-            render={
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: reduced ? 1 : 0.96,
-                  y: reduced ? 0 : 3,
-                }}
-                animate={{
-                  opacity: open ? 1 : 0,
-                  scale: reduced || open ? 1 : 0.96,
-                  y: reduced || open ? 0 : 3,
-                }}
-                transition={{
-                  duration: reduced ? 0.08 : 0.16,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                onAnimationComplete={() => {
-                  if (!open) actions.current?.unmount()
-                }}
-              />
-            }
           >
             {label}
           </Primitive.Popup>

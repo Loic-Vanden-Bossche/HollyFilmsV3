@@ -25,6 +25,8 @@ import type {
 } from './generated/prisma/client.ts'
 import type { ServerConfig } from './config.ts'
 import { ApiError } from './errors.ts'
+import { recordNotification } from './notifications.ts'
+import { backgroundTask } from './background-task.ts'
 
 const normalize = (id: string) => id.replaceAll('-', '').toLowerCase()
 const id = { type: 'string', pattern: '^[a-fA-F0-9-]{32,36}$' }
@@ -325,29 +327,45 @@ export function addSubtitleRoutes(
             !baseline.has(fingerprint(track)),
         )
       if (found) {
-        await db.subtitleRequest.updateMany({
-          where: {
-            id: row.id,
-            status: 'DOWNLOADING',
-            startedAt: row.startedAt,
-          },
-          data: { status: 'DOWNLOADED', activeKey: null, lastError: null },
-        })
-        // The same installed track also fulfils other pending requests for this version/language.
-        await db.subtitleRequest.updateMany({
-          where: {
-            sourceId: row.sourceId,
-            language: row.language,
-            status: 'PENDING',
-          },
-          data: {
-            status: 'DOWNLOADED',
-            activeKey: null,
-            decidedAt: row.decidedAt,
-            decidedBy: row.decidedBy,
-            decidedByName: row.decidedByName,
-            lastError: null,
-          },
+        await db.$transaction(async (tx) => {
+          const installed = await tx.subtitleRequest.updateMany({
+            where: {
+              id: row.id,
+              status: 'DOWNLOADING',
+              startedAt: row.startedAt,
+            },
+            data: { status: 'DOWNLOADED', activeKey: null, lastError: null },
+          })
+          if (!installed.count) return
+          // A confirmed track can satisfy requests from several viewers. Only the
+          // transaction that changed the state publishes their notifications.
+          const related = await tx.subtitleRequest.updateManyAndReturn({
+            where: {
+              sourceId: row.sourceId,
+              language: row.language,
+              status: 'PENDING',
+            },
+            data: {
+              status: 'DOWNLOADED',
+              activeKey: null,
+              lastError: null,
+              decidedAt: row.decidedAt,
+              decidedBy: row.decidedBy,
+              decidedByName: row.decidedByName,
+            },
+            select: { requesterId: true },
+          })
+          for (const userId of new Set([
+            row.requesterId,
+            ...related.map((request) => request.requesterId),
+          ])) {
+            await recordNotification(tx, {
+              userId,
+              title: 'Sous-titres disponibles',
+              body: row.itemName,
+              url: '/requests?section=subtitles',
+            })
+          }
         })
       } else if (Date.now() - row.startedAt.getTime() > 120000) {
         await db.subtitleRequest.updateMany({
@@ -374,6 +392,19 @@ export function addSubtitleRoutes(
       (await db.subtitleRequest.findUnique({ where: { id: row.id } })) ?? row
     )
   }
+  backgroundTask(
+    app,
+    15000,
+    async () => {
+      const pending = await db.subtitleRequest.findMany({
+        where: { status: 'DOWNLOADING' },
+        orderBy: { startedAt: 'asc' },
+        take: 8,
+      })
+      await Promise.all(pending.map(reconcile))
+    },
+    'Vérification des installations de sous-titres temporairement indisponible',
+  )
   const limited = { rateLimit: { max: 90, timeWindow: '1 minute' } }
   app.get<{ Params: { id: string } }>(
     '/api/media/:id/subtitles',
@@ -586,7 +617,7 @@ export function addSubtitleRoutes(
       if (!row) throw new ApiError(404, 'NOT_FOUND', 'Demande introuvable.')
       const updated = await db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`subtitle:${row.sourceId}`}, 0))`
-        return tx.subtitleRequest.updateMany({
+        const result = await tx.subtitleRequest.updateMany({
           where: { id: row.id, status: { in: ['PENDING', 'FAILED'] } },
           data: {
             status: 'REJECTED',
@@ -597,6 +628,14 @@ export function addSubtitleRoutes(
             lastError: null,
           },
         })
+        if (result.count)
+          await recordNotification(tx, {
+            userId: row.requesterId,
+            title: 'Demande de sous-titres refusée',
+            body: row.itemName,
+            url: '/requests?section=subtitles',
+          })
+        return result
       })
       if (!updated.count)
         throw new ApiError(

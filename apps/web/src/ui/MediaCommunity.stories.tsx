@@ -86,6 +86,9 @@ export const Complete: Story = {
     await expect(await canvas.findByRole('status')).toHaveTextContent(
       'Ton avis a été enregistré.',
     )
+    await expect(
+      canvas.getByRole('button', { name: 'Écrire une critique' }),
+    ).toHaveFocus()
   },
 }
 export const EqualHeightReviews: Story = {

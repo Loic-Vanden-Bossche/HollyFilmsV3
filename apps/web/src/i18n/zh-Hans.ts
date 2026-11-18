@@ -1,4 +1,60 @@
 export default {
+  'Ouvrez HollyFilms en HTTPS pour activer les alertes sur cet appareil.':
+    '请通过 HTTPS 打开 HollyFilms，以启用此设备的提醒。',
+  'Sur cet appareil': '在此设备上',
+  'Application HollyFilms': 'HollyFilms 应用',
+  'HollyFilms est installée sur cet appareil.': '此设备已安装 HollyFilms。',
+  'Ajoutez HollyFilms à votre écran d’accueil pour ouvrir directement le catalogue.':
+    '将 HollyFilms 添加到主屏幕，即可直接打开片库。',
+  'Dans Safari, touchez Partager puis « Sur l’écran d’accueil ».':
+    '在 Safari 中轻点“共享”，然后选择“添加到主屏幕”。',
+  'Ouvrez le menu du navigateur pour voir les options d’installation disponibles.':
+    '打开浏览器菜单，查看可用的安装选项。',
+  'Impossible de lancer l’installation. Réessayez depuis le menu du navigateur.':
+    '无法开始安装。请通过浏览器菜单重试。',
+  'Installer HollyFilms': '安装 HollyFilms',
+  'Une mise à jour de HollyFilms est prête.': 'HollyFilms 更新已就绪。',
+  'Recharger pour mettre à jour': '重新加载以更新',
+  'Alertes sur cet appareil': '此设备的提醒',
+  'Voir toutes les notifications': '查看所有通知',
+  'Vérification des alertes de cet appareil…': '正在检查此设备的提醒…',
+  'Recevez les nouvelles de vos demandes de films, de séries et de sous-titres, même après avoir fermé HollyFilms.':
+    '即使 HollyFilms 已关闭，您也能收到影片、剧集和字幕请求的最新进展。',
+  'Les mises à jour de vos demandes sont envoyées sur cet appareil.':
+    '请求有新进展时，此设备会收到提醒。',
+  'Reconnectez-vous pour gérer les alertes de cet appareil.':
+    '请连接到网络，以管理此设备上的提醒。',
+  'Pour recevoir les alertes, ouvrez HollyFilms depuis votre écran d’accueil.':
+    '要接收提醒，请从主屏幕打开 HollyFilms。',
+  'Ce navigateur ne prend pas en charge les notifications sur cet appareil.':
+    '此设备上的浏览器不支持通知。',
+  'Autorisez les notifications dans les réglages du navigateur pour ce site.':
+    '请在浏览器的网站设置中允许此网站发送通知。',
+  'Les notifications sur appareil ne sont pas encore configurées sur ce serveur.':
+    '此服务器尚未配置设备通知。',
+  'Impossible de vérifier les alertes de cet appareil.':
+    '无法检查此设备的提醒。',
+  'Activer les alertes': '启用提醒',
+  'Envoyer un test': '发送测试通知',
+  'Désactiver les alertes': '关闭提醒',
+  'Activation…': '正在启用…',
+  'Désactivation…': '正在关闭…',
+  'Le test a été envoyé au service de notification de cet appareil.':
+    '测试通知已发送至此设备的通知服务。',
+  'Cet appareil recevra les prochaines alertes.': '此设备将接收后续提醒。',
+  'Les alertes sont désactivées sur cet appareil.': '此设备上的提醒已关闭。',
+  'Un autre compte reçoit déjà les alertes ici. Désactivez-les depuis ce compte pour changer.':
+    '另一账号已在此设备上接收提醒。请先在该账号中关闭提醒，再进行切换。',
+  'Cet abonnement a expiré. Réactivez les alertes sur cet appareil.':
+    '此订阅已过期。请在此设备上重新启用提醒。',
+  'Patientez un instant avant d’envoyer un autre test.':
+    '请稍等片刻，再发送新的测试通知。',
+  'L’autorisation n’a pas été accordée. Vous pouvez réessayer à tout moment.':
+    '尚未获得通知权限。您可以随时重试。',
+  'La clé de notification a changé. Réinitialisez les autorisations de ce site, puis réactivez les alertes.':
+    '通知密钥已更改。请重置此网站的权限，然后重新启用提醒。',
+  'Impossible de modifier les alertes pour le moment. Réessayez.':
+    '暂时无法更新提醒，请重试。',
   'Lecture interrompue': '播放中断',
   'Ouverture du titre…': '正在打开影片…',
   'Préparation de la lecture…': '正在准备播放…',
@@ -1005,4 +1061,29 @@ export default {
   Jaune: '黄色',
   'Couleur personnalisée': '自定义颜色',
   'Rétablir le style d’origine': '恢复原始样式',
+  Notifications: '通知',
+  'Notifications précédentes': '更早的通知',
+  'Réglages de l’appareil': '设备设置',
+  'Non lues · {count}': '未读 · {count}',
+  'Tout est lu': '已全部读完',
+  'Tout marquer comme lu': '全部标为已读',
+  'Marquer comme lu · {title}': '标为已读 · {title}',
+  'Marquer comme lu': '标为已读',
+  'Chargement des notifications…': '正在加载通知…',
+  'Impossible de charger les notifications.': '无法加载通知。',
+  'La lecture de la notification n’a pas été enregistrée.':
+    '未能将通知标为已读。',
+  'Aucune notification pour le moment': '暂无通知',
+  'Les nouvelles concernant tes demandes apparaîtront ici.':
+    '你的请求有新进展时，会显示在这里。',
+  'Demande de média approuvée': '媒体请求已批准',
+  'Demande de média refusée': '媒体请求已拒绝',
+  'Demande de média relancée': '媒体请求已重试',
+  'Sous-titres disponibles': '字幕已就绪',
+  'Demande de sous-titres refusée': '字幕请求已拒绝',
+  'Notifications activées': '通知已开启',
+  'Cet appareil peut recevoir les notifications HollyFilms.':
+    '此设备可以接收 HollyFilms 通知。',
+  'Ouvre tes demandes pour consulter la mise à jour.':
+    '打开请求列表以查看最新进展。',
 } as const

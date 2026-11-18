@@ -72,7 +72,13 @@
     linear-gradient(0deg, #080f1b, #080f1b99 12%, transparent 45%, #080f1b4d);
 }
 .home-carousel .home-hero-copy {
+  position: relative;
   width: min(760px, 61%);
+}
+.hero-slide-copy[data-present='false'] {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
 }
 .home-carousel .home-eyebrow {
   font-size: 10px;
@@ -308,6 +314,7 @@
     padding-bottom: 160px;
   }
   .home-carousel .home-hero-copy {
+    position: relative;
     width: min(700px, 85%);
   }
   .hero-pagination {
@@ -324,6 +331,7 @@
     padding: 150px 6vw 155px;
   }
   .home-carousel .home-hero-copy {
+    position: relative;
     width: 100%;
   }
   .home-carousel .home-hero-shade {

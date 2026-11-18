@@ -11,6 +11,7 @@ import {
   updateProfilePassword,
 } from './account-api.ts'
 import { profileFixture } from './profile-fixtures.ts'
+import { useDevicePreferences } from './pwa/use-device-preferences.ts'
 const meta = {
   title: 'HollyFilms/Profil connecté',
   component: ProfileScreen,
@@ -34,6 +35,21 @@ const meta = {
     },
   ],
   beforeEach: () => {
+    mocked(useDevicePreferences).mockReturnValue({
+      installed: false,
+      canInstall: true,
+      updateAvailable: false,
+      workerState: 'ready',
+      ios: false,
+      pushState: 'ready',
+      canTest: true,
+      action: undefined,
+      notice: undefined,
+      install: fn().mockResolvedValue('dismissed'),
+      applyUpdate: fn(),
+      onAction: fn().mockResolvedValue(undefined),
+      onRetry: fn(),
+    })
     mocked(getProfile).mockResolvedValue(profileFixture)
     mocked(getProfileImage).mockResolvedValue(new Blob())
     mocked(updateProfileImage).mockResolvedValue(undefined)
@@ -46,6 +62,12 @@ type Story = StoryObj<typeof meta>
 export const Connected: Story = {
   play: async ({ canvas, args }) => {
     await canvas.findByRole('heading', { name: 'Alex' })
+    await expect(
+      canvas.getByRole('region', { name: 'Sur cet appareil' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Activer les alertes' }),
+    ).toBeEnabled()
     await userEvent.type(
       canvas.getByLabelText('Mot de passe actuel'),
       'old-password',

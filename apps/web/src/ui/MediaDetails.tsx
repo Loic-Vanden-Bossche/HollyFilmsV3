@@ -1,12 +1,13 @@
 import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { duration, ease } from '../motion/tokens.ts'
 import { motion } from 'motion/react'
 import {
   X,
@@ -82,7 +83,8 @@ export function MediaDetails({
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const { scope, reduced, dismiss } = useMediaDetailsMotion()
+  const { scope, reduced, present, dismiss } = useMediaDetailsMotion()
+  const marker = useId()
   const activeSection = useDetailSections(scope, reduced)
   const collectionRequest = useRef<AbortController | null>(null)
   const outside = useRef(false)
@@ -154,6 +156,14 @@ export function MediaDetails({
     title: string
     type: 'collection' | 'person'
   }>()
+  const browserOpener = useRef<HTMLElement | null>(null)
+  function openBrowser(next: NonNullable<typeof browsing>) {
+    browserOpener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    setBrowsing(next)
+  }
   const browser = useRef<HTMLDivElement>(null)
   const members = useInfiniteQuery({
     queryKey: [...key, 'browse', browsing?.type, browsing?.id],
@@ -186,11 +196,13 @@ export function MediaDetails({
   })
   const memberItems = members.data?.pages.flatMap((p) => p.items) ?? []
   useEffect(() => {
-    if (browsing)
+    if (browsing) {
+      browser.current?.focus({ preventScroll: true })
       browser.current?.scrollIntoView({
         behavior: reduced ? 'instant' : 'smooth',
         block: 'start',
       })
+    }
   }, [browsing, reduced])
   async function update(
     target: MediaItem,
@@ -286,16 +298,32 @@ export function MediaDetails({
       collectionRequest.current?.abort()
     }
   }, [])
-  async function close() {
+  function close() {
     collectionRequest.current?.abort()
-    await dismiss(onClose)
+    dismiss(onClose)
   }
   function isOutside(x: number, y: number) {
     const rect = scope.current.getBoundingClientRect()
     return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
   }
   return (
-    <dialog
+    <motion.dialog
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{
+        opacity: 0,
+        y: reduced ? 0 : 6,
+        transition: { duration: reduced ? 0 : duration.micro, ease: ease.in },
+      }}
+      transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
+      inert={!present}
+      aria-hidden={!present}
+      data-present={present}
+      data-phase={present ? 'opening' : 'closing'}
+      onAnimationComplete={() => {
+        if (present && scope.current?.open)
+          scope.current.setAttribute('data-phase', 'open')
+      }}
       ref={scope}
       className="media-dialog glass-panel"
       aria-labelledby="media-detail-title"
@@ -359,6 +387,17 @@ export function MediaDetails({
                 })
               }
             >
+              {activeSection === id && (
+                <motion.i
+                  className="detail-nav-marker"
+                  layoutId={reduced ? undefined : marker}
+                  aria-hidden="true"
+                  transition={{
+                    duration: reduced ? 0 : duration.panel,
+                    ease: ease.out,
+                  }}
+                />
+              )}
               {t(label)}
             </button>
           ))}
@@ -440,6 +479,7 @@ export function MediaDetails({
             {onPlay && (
               <motion.button
                 className="home-primary"
+                data-artwork-open="player"
                 onClick={() => onPlay(item, true)}
                 whileTap={reduced ? undefined : { scale: 0.97 }}
               >
@@ -454,6 +494,7 @@ export function MediaDetails({
             {onPlay && item.progress > 0 && (
               <button
                 className="glass-control"
+                data-artwork-open="player"
                 onClick={() => onPlay(item, false)}
               >
                 {t('Depuis le début')}
@@ -690,7 +731,7 @@ export function MediaDetails({
                 disabled={!person.id || (!enabled && !loadRelatedPage)}
                 onClick={() =>
                   person.id &&
-                  setBrowsing({
+                  openBrowser({
                     id: person.id,
                     title: person.name,
                     type: 'person',
@@ -715,7 +756,7 @@ export function MediaDetails({
           )}
         </div>
         {browsing && (
-          <div ref={browser} className="detail-browser">
+          <div ref={browser} tabIndex={-1} className="detail-browser">
             <div className="detail-section-heading">
               <h3>
                 {browsing.type === 'person' ? t('Avec') + ' ' : ''}
@@ -728,6 +769,7 @@ export function MediaDetails({
                   onClick={() => {
                     collectionRequest.current?.abort()
                     setBrowsing(undefined)
+                    browserOpener.current?.focus()
                   }}
                 >
                   <X size={18} />
@@ -858,7 +900,7 @@ export function MediaDetails({
                   className="detail-collection"
                   disabled={!enabled && !loadRelatedPage}
                   onClick={() =>
-                    setBrowsing({
+                    openBrowser({
                       id: collection.id,
                       title: collection.title,
                       type: 'collection',
@@ -960,7 +1002,7 @@ export function MediaDetails({
                         <div>
                           <button
                             onClick={() =>
-                              setBrowsing({
+                              openBrowser({
                                 id: collection.id,
                                 title: collection.title,
                                 type: 'collection',
@@ -1078,6 +1120,6 @@ export function MediaDetails({
           </details>
         </footer>
       </div>
-    </dialog>
+    </motion.dialog>
   )
 }

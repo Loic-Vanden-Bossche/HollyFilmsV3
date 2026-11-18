@@ -116,5 +116,9 @@ export const ManualSelection: Story = {
         canvas.getByRole('button', { name: 'Débogage des performances' }),
       ).toHaveFocus(),
     )
+    await userEvent.keyboard('{Enter}')
+    await expect(await canvas.findByRole('dialog')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull())
   },
 }

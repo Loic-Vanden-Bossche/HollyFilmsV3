@@ -1,0 +1,25 @@
+.detail-section-heading [aria-expanded] svg {
+  transition:
+    transform var(--hf-micro) var(--hf-ease-out),
+    color var(--hf-micro);
+}
+.detail-section-heading [aria-expanded='true'] svg {
+  color: #7dded8;
+}
+.detail-provider-panel > .detail-field,
+.detail-delete-confirm,
+.detail-success,
+.detail-error,
+.review-continuation {
+  animation: community-reveal var(--hf-micro) var(--hf-ease-out);
+}
+@keyframes community-reveal {
+  from {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-section-heading [aria-expanded] svg {
+    transition: none;
+  }
+}

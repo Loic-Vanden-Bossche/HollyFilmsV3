@@ -6,7 +6,9 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
-import { MotionConfig, useReducedMotion } from 'motion/react'
+import { MotionConfig } from 'motion/react'
+import { useSystemReducedMotion } from '../motion/use-system-reduced-motion.ts'
+import { duration, ease } from '../motion/tokens.ts'
 import { PerformanceController, performanceController } from './profiles.ts'
 import { measurePerformance } from './measure.ts'
 import './performance.css'
@@ -27,7 +29,7 @@ export function usePerformanceProfile() {
 }
 // oxlint-disable-next-line react/only-export-components -- Hooks share the provider's context.
 export function usePerformanceReducedMotion() {
-  const preference = useReducedMotion()
+  const preference = useSystemReducedMotion()
   const profile = usePerformanceProfile()
   return (
     Boolean(preference) || profile.id === 'essential' || profile.id === 'light'
@@ -47,7 +49,7 @@ export function PerformanceProvider({
     controller.getSettings,
     controller.getSettings,
   )
-  const reduced = useReducedMotion()
+  const reduced = useSystemReducedMotion()
   const profile = settings.profile
   useEffect(
     () => (measure ? measurePerformance(controller) : undefined),
@@ -65,7 +67,12 @@ export function PerformanceProvider({
   return (
     <Context value={controller}>
       <MotionConfig
-        reducedMotion={reduced || !profile.ambient ? 'always' : 'user'}
+        reducedMotion={reduced || !profile.ambient ? 'always' : 'never'}
+        transition={{
+          duration:
+            reduced || !profile.ambient ? duration.press : duration.micro,
+          ease: ease.out,
+        }}
       >
         {children}
       </MotionConfig>

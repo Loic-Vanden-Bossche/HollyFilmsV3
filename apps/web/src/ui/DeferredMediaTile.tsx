@@ -1,3 +1,4 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import {
   memo,
@@ -6,8 +7,9 @@ import {
   useState,
   type ComponentProps,
 } from 'react'
-import { motion, useInView, useReducedMotion } from 'motion/react'
+import { motion, useInView } from 'motion/react'
 import { MediaTile } from './MediaTile.tsx'
+import { staggerDelay } from '../motion/tokens.ts'
 import { cinemaMotion } from '../components/reactbits/policy.ts'
 
 // Inside each mounted virtual row, defer the expensive artwork/gesture/control
@@ -42,7 +44,7 @@ export const DeferredMediaTile = memo(function DeferredMediaTile({
       }}
       transition={{
         duration: reduced ? 0 : 0.4,
-        delay: reduced || focused ? 0 : (order % 6) * 0.025,
+        delay: reduced || focused ? 0 : staggerDelay(order),
         ease: cinemaMotion.ease,
       }}
     >

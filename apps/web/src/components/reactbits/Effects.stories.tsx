@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, waitFor } from 'storybook/test'
+import { expect, fireEvent, waitFor } from 'storybook/test'
 import { Play } from 'lucide-react'
 import {
   AnimatedContent,
@@ -225,14 +225,16 @@ export const Volume: Story = {
       </>
     )
   },
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas }) => {
     const slider = canvas.getByRole('slider', { name: 'Volume' })
     slider.focus()
-    await userEvent.keyboard('{ArrowRight}')
+    await expect(slider).toHaveFocus()
+    // Synthetic key events do not run a native range input's default action.
+    fireEvent.change(slider, { target: { value: '0.76' } })
     await expect(slider).toHaveAttribute('aria-valuetext', '76 %')
-    await userEvent.keyboard('{Home}')
+    fireEvent.change(slider, { target: { value: '0' } })
     await expect(slider).toHaveValue('0')
-    await userEvent.keyboard('{End}')
+    fireEvent.change(slider, { target: { value: '1' } })
     await expect(slider).toHaveValue('1')
   },
 }

@@ -355,6 +355,20 @@ test('subtitle requests, verified provider downloads, approval and crash recover
       )
       assert.equal((await install(requestId)).statusCode, 409)
       assert.equal(downloads, 1)
+      await Promise.all([library(), library()])
+      const notices = await db.notification.findMany({
+        where: { userId: member },
+      })
+      assert.deepEqual(
+        notices.map(({ title, body, url }) => [title, body, url]),
+        [
+          [
+            'Sous-titres disponibles',
+            'Test movie',
+            '/requests?section=subtitles',
+          ],
+        ],
+      )
     },
   )
   await t.test(
@@ -421,6 +435,12 @@ test('subtitle requests, verified provider downloads, approval and crash recover
         'REJECTED',
       )
       assert.notEqual((await ask('other', edition)).json().id, pending.id)
+      assert.equal(
+        await db.notification.count({
+          where: { userId: other, title: 'Demande de sous-titres refusée' },
+        }),
+        1,
+      )
       currentRole = 'member'
       assert.equal((await install(undefined, 'fra', edition)).statusCode, 403)
       currentRole = 'admin'
@@ -462,7 +482,7 @@ test('subtitle requests, verified provider downloads, approval and crash recover
     },
   )
   await t.test(
-    'a user can observe a direct admin installation after the admin closes the panel',
+    'a pending installation reaches the inbox after restart with every browser closed',
     async () => {
       const pending = (await ask('member', movie, 'eng')).json()
       noFile = true
@@ -471,6 +491,24 @@ test('subtitle requests, verified provider downloads, approval and crash recover
       const acquisitions = downloads
       noFile = false
       refreshAfter = 1
+      await app.close()
+      app = await createApp(config)
+      await app.ready()
+      for (let i = 0; i < 60; i++) {
+        const background = await db.subtitleRequest.findUniqueOrThrow({
+          where: { id: pending.id },
+        })
+        if (background.status === 'DOWNLOADED') break
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      assert.equal(
+        (
+          await db.subtitleRequest.findUniqueOrThrow({
+            where: { id: pending.id },
+          })
+        ).status,
+        'DOWNLOADED',
+      )
       const own = await app.inject({
         url: '/api/subtitle-requests',
         headers: headers(),

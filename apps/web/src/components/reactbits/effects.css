@@ -179,36 +179,45 @@
   cursor: pointer;
   border-radius: 999px;
   color: #a4b6cb;
+  transition: color var(--hf-micro);
 }
 .rb-gooey-nav button[aria-current] {
   color: #b0f5e8;
 }
 .rb-nav-label {
   position: relative;
+  display: inline-block;
   z-index: 2;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rb-nav-label {
+    transition: scale var(--hf-micro) var(--hf-ease-out);
+  }
+  .rb-gooey-nav button:active .rb-nav-label {
+    scale: var(--hf-pressed);
+    transition-duration: var(--hf-press);
+  }
 }
 .rb-gooey-pill {
   position: absolute;
   inset: 0;
-  background: #173c44;
+  background: linear-gradient(105deg, #163c39, #173346);
   border: 1px solid #7dded833;
   border-radius: 999px;
   box-shadow: 0 0 22px #4ade800c;
 }
-.rb-gooey-pill i {
+.rb-gooey-pill::after {
+  content: '';
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #7dded84d;
-  top: calc(50% - 5px);
-  filter: blur(3px);
-}
-.rb-gooey-pill i:first-child {
-  left: -3px;
-}
-.rb-gooey-pill i:last-child {
-  right: -3px;
+  inset: auto 22% -1px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #62dca2 25%,
+    #69aeff 75%,
+    transparent
+  );
 }
 .rb-elastic-slider {
   display: inline-flex;
@@ -424,10 +433,15 @@
   overflow: auto;
 }
 .rb-staggered-menu::backdrop {
-  background: #03081099;
-  backdrop-filter: blur(12px);
+  background: transparent;
+}
+.rb-staggered-menu[data-exiting] {
+  display: block;
+  pointer-events: none;
+  z-index: 10;
 }
 .rb-menu-panel {
+  transform-origin: var(--dialog-origin, top);
   position: relative;
   isolation: isolate;
   min-height: 100%;
@@ -472,24 +486,6 @@
   color: #a4b6cb;
   font-size: 10px;
   letter-spacing: 0.12em;
-}
-.rb-menu-curtains {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 5;
-  display: flex;
-}
-.rb-menu-curtains i {
-  width: 33.333%;
-  background: #17403e;
-  transform-origin: top;
-}
-.rb-menu-curtains i:nth-child(2) {
-  background: #123750;
-}
-.rb-menu-curtains i:nth-child(3) {
-  background: #102a4e;
 }
 .rb-flowing-menu {
   margin-bottom: 35px;

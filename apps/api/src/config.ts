@@ -1,3 +1,5 @@
+import { createECDH } from 'node:crypto'
+
 export type ServerConfig = {
   databaseUrl: string
   jellyfinUrl: string
@@ -7,6 +9,7 @@ export type ServerConfig = {
   tmdbToken?: string
   seerr?: { url: string; apiKey: string }
   google?: { clientId: string; clientSecret: string; passwordKey: Buffer }
+  vapid?: { subject: string; publicKey: string; privateKey: string }
 }
 
 export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
@@ -47,6 +50,40 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
     }
   }
   const clientSecret = env.GOOGLE_CLIENT_SECRET
+  let vapid: ServerConfig['vapid']
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim()
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim()
+  const subject = env.VAPID_SUBJECT?.trim()
+  if (publicKey || privateKey || subject) {
+    try {
+      if (!publicKey || !privateKey || !subject) throw new Error()
+      const contact = new URL(subject)
+      if (
+        !(
+          contact.protocol === 'https:' &&
+          !contact.username &&
+          !contact.password
+        ) &&
+        !(
+          contact.protocol === 'mailto:' &&
+          /^[^\s@]+@[^\s@]+$/.test(contact.pathname)
+        )
+      )
+        throw new Error()
+      const key = createECDH('prime256v1')
+      key.setPrivateKey(Buffer.from(privateKey, 'base64url'))
+      if (
+        !/^[A-Za-z0-9_-]{43}$/.test(privateKey) ||
+        key.getPublicKey().toString('base64url') !== publicKey
+      )
+        throw new Error()
+      vapid = { publicKey, privateKey, subject }
+    } catch {
+      throw new Error(
+        'Web Push requiert VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (paire P-256 en base64url) et VAPID_SUBJECT (mailto: ou HTTPS)',
+      )
+    }
+  }
   const key = env.GOOGLE_PASSWORD_KEY
   let google: ServerConfig['google']
   if (clientId || clientSecret || key) {
@@ -68,5 +105,6 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
     tmdbToken: env.TMDB_API_TOKEN?.trim() || undefined,
     seerr,
     google,
+    vapid,
   }
 }

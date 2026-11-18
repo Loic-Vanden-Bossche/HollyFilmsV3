@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { duration, ease } from '../motion/tokens.ts'
 import { motion, useIsPresent } from 'motion/react'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import {
@@ -410,15 +411,16 @@ export function SubtitleOffset({
       className="subtitle-sync"
       data-reduced={reduced}
       inert={!present}
-      initial={{ opacity: 0, y: reduced ? 0 : -12, scale: reduced ? 1 : 0.98 }}
+      aria-hidden={!present}
+      initial={{ opacity: 0, y: reduced ? 0 : 8, scale: reduced ? 1 : 0.985 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{
         opacity: 0,
-        y: reduced ? 0 : -8,
+        y: reduced ? 0 : 6,
         scale: reduced ? 1 : 0.985,
-        transition: { duration: reduced ? 0 : 0.15, ease: 'easeIn' },
+        transition: { duration: reduced ? 0 : duration.press, ease: ease.in },
       }}
-      transition={{ duration: reduced ? 0 : 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+      transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
       onKeyDown={(e) => e.stopPropagation()}
     >
       <header>

@@ -1,11 +1,13 @@
+import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion, useInView, useReducedMotion } from 'motion/react'
+import { motion, useInView } from 'motion/react'
 import { Film } from 'lucide-react'
 import { getLibraryImage } from '@hollyfilms/shared/library'
 import type { LibraryImage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
+import { duration } from '../motion/tokens.ts'
 import { useArtworkHero } from './artwork-hero-context.ts'
 
 export const MediaArtwork = memo(function MediaArtwork({
@@ -114,7 +116,7 @@ export const MediaArtwork = memo(function MediaArtwork({
           decoding="async"
           initial={{ opacity: 0 }}
           animate={{ opacity: loadedSource === src ? 1 : 0 }}
-          transition={{ duration: reduced ? 0 : 0.4 }}
+          transition={{ duration: reduced ? 0 : duration.panel }}
           onLoad={(event) => {
             const element = event.currentTarget
             // Decode before declaring the hero ready, including cached images.

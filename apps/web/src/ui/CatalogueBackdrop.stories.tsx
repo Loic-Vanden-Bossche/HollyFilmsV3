@@ -64,8 +64,13 @@ export const PauseAndResume: Story = {
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Reprendre' }))
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
-      await waitFor(() =>
-        expect(background).toHaveAttribute('data-motion', 'running'),
-      )
+      await waitFor(() => {
+        expect(background).toHaveAttribute('data-motion', 'running')
+        expect(
+          background
+            .getAnimations({ subtree: true })
+            .filter((a) => a.playState === 'running'),
+        ).toHaveLength(2)
+      })
   },
 }

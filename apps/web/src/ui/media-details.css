@@ -26,8 +26,13 @@
 .media-dialog::backdrop {
   animation: detail-backdrop-in 0.32s ease-out both;
 }
-.media-dialog[data-phase='closing']::backdrop {
-  animation: detail-backdrop-out 0.24s ease-in both;
+.media-dialog[data-present='false']:not([open]) {
+  display: block;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  z-index: 9;
 }
 @keyframes detail-backdrop-in {
   from {
@@ -35,14 +40,6 @@
   }
   to {
     opacity: 1;
-  }
-}
-@keyframes detail-backdrop-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
   }
 }
 .detail-rail-entry {
@@ -127,29 +124,17 @@
   background: #4ade8014;
   color: #c5f9e5;
 }
-.detail-section-nav > button::after {
-  content: '';
+.detail-nav-marker {
   position: absolute;
-  bottom: 3px;
-  left: 22%;
-  right: 22%;
+  inset: auto 20% 3px;
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, #4ade80, #3b82f6);
-  opacity: 0;
-  transform: scaleX(0.4);
-  transition:
-    opacity 0.18s,
-    transform 0.22s;
+  pointer-events: none;
 }
-.detail-section-nav > button[aria-current='location']::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .detail-section-nav > button::after {
-    transition: none;
-  }
+.detail-browser:focus-visible {
+  outline: 2px solid #7dded8;
+  outline-offset: 4px;
 }
 .detail-sections {
   padding: 0 clamp(20px, 4vw, 64px) 40px;
@@ -847,5 +832,19 @@
   }
   .media-dialog * {
     transition-duration: 0s !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .detail-browser > .detail-section-heading {
+    animation: detail-selection-in var(--hf-panel) var(--hf-ease-out) both;
+  }
+  @keyframes detail-selection-in {
+    from {
+      opacity: 0.72;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }

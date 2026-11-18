@@ -7,6 +7,19 @@ import {
 } from './account-api.ts'
 import { useProfile, profileKey } from './use-profile.ts'
 import { ProfilePage } from './ProfilePage.tsx'
+import { DeviceSettings } from './ui/DeviceSettings.tsx'
+import { useDevicePreferences } from './pwa/use-device-preferences.ts'
+
+function ConnectedDeviceSettings({
+  session,
+  userId,
+}: {
+  session: JellyfinSession
+  userId: string
+}) {
+  const preferences = useDevicePreferences(session, userId)
+  return <DeviceSettings {...preferences} />
+}
 
 export function ProfileScreen({
   session,
@@ -24,6 +37,15 @@ export function ProfileScreen({
   return (
     <ProfilePage
       profile={profile.data}
+      deviceSettings={
+        profile.data && (
+          <ConnectedDeviceSettings
+            key={profile.data.id}
+            session={session}
+            userId={profile.data.id}
+          />
+        )
+      }
       avatarUrl={profile.avatarUrl}
       state={
         profile.isPending ? 'loading' : profile.isError ? 'error' : 'ready'

@@ -16,11 +16,20 @@
 }
 .account-menu-avatar {
   @apply border border-glass-edge;
+  position: relative;
   display: block;
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  transition: border-color 180ms;
+  transition:
+    border-color var(--hf-micro),
+    scale var(--hf-press) var(--hf-ease-out);
+}
+.account-unread-dot {
+  @apply absolute top-0 right-0 size-2.5 rounded-full border-2 border-background bg-primary;
+}
+.account-unread-count {
+  @apply ml-auto rounded-full bg-accent px-2 text-xs font-semibold text-accent-foreground;
 }
 .account-menu-trigger:hover .account-menu-avatar,
 .account-menu-trigger[aria-expanded='true'] .account-menu-avatar {
@@ -31,7 +40,7 @@
   @apply outline-2 outline-offset-2 outline-ring;
 }
 .account-menu-chevron {
-  transition: transform 180ms;
+  transition: transform var(--hf-micro) var(--hf-ease-out);
 }
 .account-menu-trigger[aria-expanded='true'] .account-menu-chevron {
   transform: rotate(180deg);
@@ -46,6 +55,20 @@
   border-radius: 16px;
   backdrop-filter: blur(24px);
   transform-origin: top right;
+}
+.account-menu-panel[inert] {
+  pointer-events: none;
+}
+.account-menu-trigger:active .account-menu-avatar {
+  scale: 0.96;
+}
+.account-menu-panel a svg {
+  transition: transform var(--hf-micro) var(--hf-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .account-menu-panel a:is(:hover, :focus-visible) svg {
+    transform: translateX(2px);
+  }
 }
 .account-menu-heading {
   @apply border-b border-glass-edge;
@@ -85,8 +108,14 @@
 @media (prefers-reduced-motion: reduce) {
   .account-menu-chevron,
   .account-menu-avatar,
+  .account-menu-panel a svg,
   .account-menu-panel a {
     transition: none;
+  }
+  .account-menu-trigger:active .account-menu-avatar,
+  .account-menu-panel a:is(:hover, :focus-visible) svg {
+    transform: none;
+    scale: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {

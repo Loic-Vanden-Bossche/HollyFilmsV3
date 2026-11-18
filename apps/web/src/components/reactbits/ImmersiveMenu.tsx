@@ -1,18 +1,19 @@
 import { useI18n } from '../../i18n/I18nProvider.tsx'
 import { Tooltip } from '../../ui/Tooltip.tsx'
 // React Bits Staggered Menu + Flowing Menu adapted to native dialog, Motion and authenticated artwork.
-import { createContext, useContext, useEffect, useRef } from 'react'
-import { motion, useAnimate } from 'motion/react'
+import { createContext, useContext, useRef } from 'react'
+import { motion } from 'motion/react'
 import { ArrowUpRight, X } from 'lucide-react'
 import type { LibraryFilter, MediaItem } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from '../../ui/MediaArtwork.tsx'
 import { Wordmark } from '../../ui/Wordmark.tsx'
-import { lockBodyScroll } from '../../ui/body-scroll-lock.ts'
+import { useModalPresence } from '../../ui/use-modal-presence.ts'
+import { duration, distance, staggerDelay } from '../../motion/tokens.ts'
 import { cinemaMotion, useMotionPolicy } from './policy.ts'
 import './effects.css'
 
-const CloseMenu = createContext<() => Promise<void>>(async () => {})
+const CloseMenu = createContext<() => void>(() => {})
 
 export function FlowingMenu({
   items,
@@ -55,15 +56,16 @@ export function FlowingMenu({
             key={value}
             type="button"
             aria-current={selected === value ? 'page' : undefined}
-            onClick={async () => {
-              await closeMenu()
+            onClick={() => {
               onSelect(value)
+              closeMenu()
             }}
-            initial={{ opacity: 0, y: reduced ? 0 : 24 }}
+            initial={{ opacity: 0.6, y: reduced ? 0 : distance.panel }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
-              duration: reduced ? 0 : 0.4,
-              delay: reduced ? 0 : 0.12 + index * 0.07,
+              duration: reduced ? duration.press : duration.panel,
+              delay: reduced ? 0 : staggerDelay(index),
+              ease: cinemaMotion.ease,
             }}
           >
             <span className="rb-flow-number">0{index + 1}</span>
@@ -101,75 +103,40 @@ export function StaggeredMenu({
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const [scope, animate] = useAnimate<HTMLDialogElement>()
-  const closing = useRef(false),
-    backdrop = useRef(false)
+  const { dialog, surface, present } = useModalPresence()
+  const backdrop = useRef(false)
   const { reduced } = useMotionPolicy()
-  useEffect(() => {
-    const dialog = scope.current
-    const trigger = document.activeElement as HTMLElement | null
-    const unlockScroll = lockBodyScroll()
-    dialog.showModal()
-    const controls = animate(
-      '.rb-menu-panel',
-      {
-        opacity: [0, 1],
-        clipPath: [
-          'inset(0 0 100% 0 round 28px)',
-          'inset(0 0 0% 0 round 28px)',
-        ],
-      },
-      { duration: reduced ? 0 : 0.45, ease: cinemaMotion.ease },
-    )
-    return () => {
-      controls.stop()
-      dialog.close()
-      unlockScroll()
-      trigger?.focus({ preventScroll: true })
-    }
-  }, [scope, animate, reduced])
-  async function close() {
-    if (closing.current) return
-    closing.current = true
-    await animate(
-      '.rb-menu-panel',
-      { opacity: 0, y: reduced ? 0 : -15 },
-      { duration: reduced ? 0 : 0.18 },
-    )
-    onClose()
-  }
   return (
-    <dialog
-      ref={scope}
+    <motion.dialog
+      ref={dialog}
+      inert={!present}
+      data-exiting={!present || undefined}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: duration.micro }}
       className="rb-staggered-menu"
       aria-label={t('Navigation HollyFilms')}
       onCancel={(e) => {
         e.preventDefault()
-        void close()
+        onClose()
       }}
       onPointerDown={(e) => {
         backdrop.current = e.target === e.currentTarget
       }}
       onClick={(e) => {
-        if (backdrop.current && e.target === e.currentTarget) void close()
+        if (backdrop.current && e.target === e.currentTarget) onClose()
         backdrop.current = false
       }}
     >
-      <div className="rb-menu-panel">
-        <div className="rb-menu-curtains" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <motion.i
-              key={i}
-              initial={{ scaleY: 1 }}
-              animate={{ scaleY: 0 }}
-              transition={{
-                duration: reduced ? 0 : 0.6,
-                delay: reduced ? 0 : i * 0.06,
-                ease: cinemaMotion.ease,
-              }}
-            />
-          ))}
-        </div>
+      <motion.section
+        ref={surface}
+        className="rb-menu-panel"
+        initial={reduced ? false : { scale: 0.98, y: -distance.panel }}
+        animate={{ scale: 1, y: 0 }}
+        exit={reduced ? {} : { scale: 0.98, y: -distance.panel }}
+        transition={{ duration: duration.panel, ease: cinemaMotion.ease }}
+      >
         <header>
           <Wordmark compact />
           <span>{t('EXPLORER / HOLLYFILMS 3.0')}</span>
@@ -177,18 +144,18 @@ export function StaggeredMenu({
             <button
               type="button"
               aria-label={t('Fermer la navigation')}
-              onClick={() => void close()}
+              onClick={onClose}
             >
               <X size={24} />
             </button>
           </Tooltip>
         </header>
-        <CloseMenu value={close}>{children}</CloseMenu>
+        <CloseMenu value={onClose}>{children}</CloseMenu>
         <footer>
           <span>{t('VOTRE BIBLIOTHÈQUE, EN GRAND.')}</span>
           <span>{t('Films · Séries · Reprise de lecture')}</span>
         </footer>
-      </div>
-    </dialog>
+      </motion.section>
+    </motion.dialog>
   )
 }
