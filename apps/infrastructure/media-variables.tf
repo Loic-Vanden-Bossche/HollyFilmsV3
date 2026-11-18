@@ -1,7 +1,7 @@
 variable "jellyfin_version" {
   description = "Stable LinuxServer Jellyfin image tag"
   type        = string
-  default     = "12.4ubu2604-ls59"
+  default     = "12.4ubu2604-ls60"
 
   validation {
     condition     = can(regex("^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?(?:ubu[0-9]+-ls[0-9]+)?$", var.jellyfin_version))
@@ -43,13 +43,13 @@ variable "jellyfin_home_defaults_api_key" {
 variable "jellyfin_enhanced_version" {
   description = "Pinned Jellyfin Enhanced plugin version compatible with Jellyfin 12"
   type        = string
-  default     = "12.15.0.0"
+  default     = "12.16.0.0"
 }
 
 variable "jellyfin_enhanced_checksum" {
   description = "MD5 checksum published in the Jellyfin Enhanced plugin catalog"
   type        = string
-  default     = "AA90F70ADD9BF1C1DFC195485B6BB42D"
+  default     = "588B840656D09418EBC61A47FBC2D42D"
 }
 
 variable "jellyfin_file_transformation_version" {
@@ -79,7 +79,7 @@ variable "jellyfin_tweaks_checksum" {
 variable "wizarr_version" {
   description = "Wizarr container image release tag"
   type        = string
-  default     = "v2026.7.1"
+  default     = "v2026.10.1"
 
   validation {
     condition     = can(regex("^v[0-9]{4}\\.[0-9]+\\.[0-9]+$", var.wizarr_version))
@@ -125,7 +125,7 @@ variable "wizarr_pgid" {
 variable "radarr_version" {
   description = "Pinned LinuxServer Radarr image tag"
   type        = string
-  default     = "6.3.0.10514-ls312"
+  default     = "7.0.3.10918-ls328"
 
   validation {
     condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+-ls[0-9]+$", var.radarr_version))
@@ -178,7 +178,7 @@ variable "radarr_pgid" {
 variable "seerr_version" {
   description = "Pinned official Seerr image release tag"
   type        = string
-  default     = "v3.4.1"
+  default     = "v3.5.2"
 
   validation {
     condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.seerr_version))
@@ -201,7 +201,7 @@ variable "seerr_config_host_path" {
 variable "prowlarr_version" {
   description = "Pinned LinuxServer Prowlarr image tag"
   type        = string
-  default     = "2.5.2.5491-ls155"
+  default     = "3.0.2.5780-ls169"
 
   validation {
     condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+-ls[0-9]+$", var.prowlarr_version))
@@ -242,7 +242,7 @@ variable "prowlarr_pgid" {
 variable "sabnzbd_version" {
   description = "Pinned LinuxServer SABnzbd image tag"
   type        = string
-  default     = "5.0.4-ls264"
+  default     = "5.1.3-ls281"
 
   validation {
     condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+-ls[0-9]+$", var.sabnzbd_version))

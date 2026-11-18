@@ -1,4 +1,11 @@
-resource "kubernetes_persistent_volume_claim_v1" "database" {
+moved {
+  from = kubernetes_persistent_volume_claim_v1.database
+  to   = kubernetes_persistent_volume_claim_v1.legacy_database[0]
+}
+
+# Keep the PostgreSQL 17 data untouched during and after a logical major upgrade.
+resource "kubernetes_persistent_volume_claim_v1" "legacy_database" {
+  count            = var.retain_legacy_volume ? 1 : 0
   wait_until_bound = false
 
   lifecycle {
@@ -16,6 +23,31 @@ resource "kubernetes_persistent_volume_claim_v1" "database" {
   spec {
     access_modes = ["ReadWriteOnce"]
 
+    resources {
+      requests = {
+        storage = var.storage_size
+      }
+    }
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "database_v18" {
+  wait_until_bound = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  metadata {
+    name      = "hollyfilms-postgres-18"
+    namespace = var.namespace
+    labels = merge(local.labels, {
+      "chbrx.com/protected-data" = "true"
+    })
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
         storage = var.storage_size
@@ -67,7 +99,7 @@ resource "kubernetes_deployment_v1" "database" {
 
           env {
             name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
+            value = var.major_version == 18 ? "/var/lib/postgresql/18/docker" : "/var/lib/postgresql/data/pgdata"
           }
 
           env {
@@ -103,7 +135,7 @@ resource "kubernetes_deployment_v1" "database" {
 
           volume_mount {
             name       = "database"
-            mount_path = "/var/lib/postgresql/data"
+            mount_path = var.major_version == 18 ? "/var/lib/postgresql" : "/var/lib/postgresql/data"
           }
 
           readiness_probe {
@@ -131,7 +163,7 @@ resource "kubernetes_deployment_v1" "database" {
           name = "database"
 
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.database.metadata[0].name
+            claim_name = var.major_version == 18 ? kubernetes_persistent_volume_claim_v1.database_v18.metadata[0].name : kubernetes_persistent_volume_claim_v1.legacy_database[0].metadata[0].name
           }
         }
       }

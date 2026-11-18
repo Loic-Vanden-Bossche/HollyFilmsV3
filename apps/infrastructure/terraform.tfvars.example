@@ -34,3 +34,7 @@ tmdb_api_token = ""
 #   username = "Loic-Vanden-Bossche"
 #   token = "...jeton read:packages..."
 # }
+
+# Sur une installation migrée depuis PostgreSQL 17, conserver le volume historique :
+# database_retain_legacy_volume = true
+# database_major_version = 18

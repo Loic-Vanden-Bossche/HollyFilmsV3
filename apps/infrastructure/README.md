@@ -9,13 +9,13 @@ Cette racine Terraform reprend l’architecture du [portfolio](https://github.co
 
 ## Architecture
 
-| Module          | Ressources                                                                                                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Racine          | Backend S3, provider Kubernetes, namespace protégé, variables et outputs.                                                                                                       |
-| `database`      | PostgreSQL 17, Secret, Service privé, Deployment `Recreate`, PVC 5 Gi par défaut avec `prevent_destroy`. `PGDATA` utilise un sous-dossier du volume.                            |
-| `app`           | Secret de configuration, authentification GHCR facultative, Job de migration et Deployment avec deux conteneurs : API Node 24 et web NGINX non privilégié.                      |
-| `domain`        | Ingress NGINX vers le port web 8080 et certificat via `letsencrypt-production`.                                                                                                 |
-| Services médias | Modules `jellyfin`, `prowlarr`, `radarr`, `sabnzbd`, `seerr`, `wizarr`, repris sans recréation depuis `chbrx.tfstate`. Voir [le compte rendu de migration](MEDIA-MIGRATION.md). |
+| Module          | Ressources                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Racine          | Backend S3, provider Kubernetes, namespace protégé, variables et outputs.                                                                                                               |
+| `database`      | PostgreSQL 18.7, Secret, Service privé, Deployment `Recreate`, PVC 5 Gi protégé et répertoire de données versionné. Le volume PostgreSQL 17 est conservé sur les installations migrées. |
+| `app`           | Secret de configuration, authentification GHCR facultative, Job de migration et Deployment avec deux conteneurs : API Node 24 et web NGINX non privilégié.                              |
+| `domain`        | Ingress NGINX vers le port web 8080 et certificat via `letsencrypt-production`.                                                                                                         |
+| Services médias | Modules `jellyfin`, `prowlarr`, `radarr`, `sabnzbd`, `seerr`, `wizarr`, repris sans recréation depuis `chbrx.tfstate`. Voir [le compte rendu de migration](MEDIA-MIGRATION.md).         |
 
 Le web sert Vite et relaie `/api` vers l’API du même pod et `/jellyfin` vers le serveur existant. Le Service n’expose que le port web. PostgreSQL n’a ni NodePort ni ingress. Les cookies Google et les appels du navigateur restent sur la même origine.
 
@@ -143,3 +143,13 @@ Le Compose racine reste réservé au développement : Vite et Fastify continuent
 Les builds Docker web/API, les quatre scénarios Terraform simulés et le test de conteneurs ont été exécutés. Lint, format, builds applicatifs/Storybook et les tests web passent également. Une requête à l’API publique du Jellyfin réel via l’image NGINX a confirmé le routage HTTPS et la validation de sa chaîne TLS (Jellyfin 12.4.0).
 
 Le cluster a été consulté en lecture seule pour confirmer l’ingress `nginx`, le ClusterIssuer prêt et la StorageClass par défaut. Aucun push GHCR, plan contre l’état distant ou apply n’a été exécuté pendant cette préparation. Le certificat et les parcours utilisateurs sur le nouveau domaine restent à vérifier après le premier déploiement.
+
+## Versions et migration PostgreSQL 18
+
+Les services ont été mis à jour le 18 novembre 2026 ; les versions, sauvegardes et contrôles sont décrits dans [SERVICE-UPGRADES.md](SERVICE-UPGRADES.md). Les images de base Node 24 et NGINX sont figées par digest. Le registre NGINX maintenu est `nginx/nginx-unprivileged`.
+
+Une nouvelle installation utilise PostgreSQL 18 et le PVC `hollyfilms-postgres-18`, monté sur `/var/lib/postgresql`, avec `PGDATA=/var/lib/postgresql/18/docker`. Les installations migrées conservent le PVC original `hollyfilms-postgres` grâce à `database_retain_legacy_volume = true`, enregistré dans leur fichier de variables privé. Le bloc `moved` conserve l’identité Terraform de cet ancien volume. Ne pas retirer cette option sur une installation migrée : la protection de suppression doit rester active.
+
+Le changement de version majeure n’est jamais une simple modification d’image : créer le nouveau volume, restaurer une sauvegarde logique, tester la compatibilité, arrêter les écritures, refaire la sauvegarde/restauration finale et vérifier toutes les tables avant de changer le Deployment. Le Service et son Secret conservent leurs noms et identifiants. `database_major_version = 17` avec l’image 17 correspondante sélectionne le volume historique uniquement pour une reprise contrôlée ; les écritures arrivées depuis la migration doivent être prises en compte avant tout retour arrière. Ne pas appliquer une ancienne version du code Terraform pour effectuer ce retour.
+
+Le Compose de développement conserve le format PostgreSQL 17 avec sa dernière version corrective 17.12 pour ne pas rendre les volumes locaux existants incompatibles. Les tests de demandes, sous-titres et conteneurs de production utilisent PostgreSQL 18.7 ; `HOLLYFILMS_TEST_POSTGRES_IMAGE` permet de tester également une autre version avec le harness API.

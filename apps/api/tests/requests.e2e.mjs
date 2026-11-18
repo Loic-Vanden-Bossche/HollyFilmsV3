@@ -13,7 +13,7 @@ try {
     'POSTGRES_PASSWORD=isolated-test-password',
     '-p',
     '127.0.0.1::5432',
-    'postgres:17-alpine',
+    process.env.HOLLYFILMS_TEST_POSTGRES_IMAGE || 'postgres:18.7-alpine',
   )
   let ready = false
   for (let i = 0; i < 60; i++) {

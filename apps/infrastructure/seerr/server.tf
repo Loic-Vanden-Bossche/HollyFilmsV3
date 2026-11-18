@@ -41,7 +41,7 @@ resource "kubernetes_deployment_v1" "seerr" {
 
         init_container {
           name              = "prepare-config"
-          image             = "alpine:3.24.1"
+          image             = "alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
           image_pull_policy = "IfNotPresent"
           command = [
             "/bin/sh",

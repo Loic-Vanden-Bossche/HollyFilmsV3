@@ -1,9 +1,11 @@
 module "database" {
-  source       = "./database"
-  namespace    = kubernetes_namespace_v1.hollyfilms.metadata[0].name
-  password     = var.database_password
-  image        = var.database_image
-  storage_size = var.database_storage_size
+  source               = "./database"
+  namespace            = kubernetes_namespace_v1.hollyfilms.metadata[0].name
+  password             = var.database_password
+  image                = var.database_image
+  storage_size         = var.database_storage_size
+  major_version        = var.database_major_version
+  retain_legacy_volume = var.database_retain_legacy_volume
 }
 
 module "app" {

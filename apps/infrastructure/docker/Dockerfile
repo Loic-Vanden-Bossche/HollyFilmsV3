@@ -1,5 +1,5 @@
 # Build from the repository root. No environment file or secret is needed.
-FROM node:24-bookworm-slim AS base
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS base
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -34,7 +34,7 @@ USER node
 EXPOSE 3000
 CMD ["node", "apps/api/src/index.ts"]
 
-FROM nginxinc/nginx-unprivileged:1.28-alpine AS web
+FROM nginx/nginx-unprivileged:stable-alpine@sha256:ea4fd7ab5a8dc6348c18240bd3546f355f8373cd8f112580f7d8bd8ff5a74772 AS web
 USER root
 RUN apk add --no-cache --upgrade ca-certificates && update-ca-certificates
 LABEL org.opencontainers.image.title="HollyFilms Web"

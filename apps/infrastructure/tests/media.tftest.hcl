@@ -30,7 +30,7 @@ run "preserve_radarr_storage" {
   command = plan
   module { source = "./radarr" }
   variables {
-    image_version           = "6.3.0.10514-ls312"
+    image_version           = "7.0.3.10918-ls328"
     hostname                = "radarr.chbrx.com"
     ingress_enabled         = false
     config_host_path        = "/mnt/HDD3/radarr/config"
@@ -59,7 +59,7 @@ run "preserve_wizarr_claim" {
   command = plan
   module { source = "./wizarr" }
   variables {
-    image_version           = "v2026.7.1"
+    image_version           = "v2026.10.1"
     hostname                = "invite.hollyfilms.chbrx.com"
     pvc_size                = "2Gi"
     storage_class_name      = "local-path"

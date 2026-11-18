@@ -9,7 +9,7 @@ services:
       - ./media:/media:ro
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine
     ports:
       - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     environment:

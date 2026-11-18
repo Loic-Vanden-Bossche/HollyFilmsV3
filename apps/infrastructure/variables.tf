@@ -101,9 +101,25 @@ variable "database_password" {
 }
 
 variable "database_image" {
-  description = "PostgreSQL image aligned with the canonical local compose environment"
+  description = "Pinned PostgreSQL image; major upgrades require restoring to the separate data volume"
   type        = string
-  default     = "postgres:17-alpine"
+  default     = "postgres:18.7-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015"
+}
+
+variable "database_major_version" {
+  description = "Active PostgreSQL data format (17 only during a controlled major upgrade or rollback)"
+  type        = number
+  default     = 18
+  validation {
+    condition     = contains([17, 18], var.database_major_version) && can(regex("^postgres:${var.database_major_version}([.@:-])", var.database_image))
+    error_message = "The PostgreSQL image must match the selected 17 or 18 data format."
+  }
+}
+
+variable "database_retain_legacy_volume" {
+  description = "Keep the original PostgreSQL 17 volume after migration; required on upgraded installations"
+  type        = bool
+  default     = false
 }
 
 variable "database_storage_size" {

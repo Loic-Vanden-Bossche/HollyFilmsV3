@@ -60,7 +60,7 @@ test(
       'POSTGRES_USER=hollyfilms',
       '-e',
       'POSTGRES_DB=hollyfilms',
-      'postgres:17-alpine',
+      'postgres:18.7-alpine',
     ])
     await until(() => {
       docker('exec', pg, 'pg_isready', '-U', 'hollyfilms')
