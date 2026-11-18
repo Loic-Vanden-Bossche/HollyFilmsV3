@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, fn, mocked, waitFor, within } from 'storybook/test'
 import { SubtitlePanel } from './SubtitlePanel.tsx'
+import '../player.css'
 import {
   getSubtitleLibrary,
   searchSubtitles,
@@ -88,6 +89,42 @@ const meta = {
 } satisfies Meta<typeof SubtitlePanel>
 export default meta
 type Story = StoryObj<typeof meta>
+export const PlayerSettings: Story = {
+  decorators: [
+    (Story) => (
+      <div
+        className="player-menu"
+        style={{
+          position: 'relative',
+          inset: 'auto',
+          width: '100%',
+          maxWidth: 320,
+          maxHeight: 'none',
+        }}
+      >
+        <div className="player-settings-body">
+          <Story />
+        </div>
+      </div>
+    ),
+  ],
+  play: async ({ canvas }) => {
+    const field = await canvas.findByRole('combobox', {
+      name: 'Langue des sous-titres',
+    })
+    const control = field.closest('.holly-select-native') ?? field
+    const label = field.closest('label')!
+    await expect(
+      Math.abs(
+        control.getBoundingClientRect().width -
+          label.getBoundingClientRect().width,
+      ),
+    ).toBeLessThan(2)
+    await expect(
+      canvas.getByText('Langue', { exact: true }).parentElement,
+    ).toHaveAttribute('aria-current', 'step')
+  },
+}
 export const AdministratorDownload: Story = {
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.click(

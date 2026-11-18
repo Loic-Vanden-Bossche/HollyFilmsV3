@@ -19,6 +19,7 @@ import type { LibraryPage, MediaItem } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { getMediaDetails } from '@hollyfilms/shared/media-details'
 import { PlaybackPlayer } from './PlaybackPlayer.tsx'
+import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { HomePage } from './HomePage.tsx'
 import { useProfile } from './use-profile.ts'
 import { useRemoteCommands } from './playback/remote-commands.ts'
@@ -56,8 +57,12 @@ export function HomeScreen({
 }) {
   const { t } = useI18n()
   const client = useQueryClient()
-  const profile = useProfile(session)
   const route = useAppRoute()
+  // Keep an existing catalogue and its scroll position. A direct player link
+  // only needs the catalogue after the viewer returns to it.
+  const [libraryMounted, setLibraryMounted] = useState(!route.play)
+  if (!route.play && !libraryMounted) setLibraryMounted(true)
+  const profile = useProfile(session, libraryMounted)
   const baseUrl = new URL('/jellyfin', window.location.origin).href
   const [playbackSeed, setPlayback] = useState<{
     item: MediaItem
@@ -171,7 +176,7 @@ export function HomeScreen({
     queryKey: ['collection', session.deviceId, user.id, route.collection],
     queryFn: ({ signal }) =>
       getCollection(baseUrl, session, user.id, route.collection!, signal),
-    enabled: filter === 'collections' && !!route.collection,
+    enabled: libraryMounted && filter === 'collections' && !!route.collection,
     staleTime: 300_000,
     retry: false,
   })
@@ -194,7 +199,7 @@ export function HomeScreen({
       ),
     getNextPageParam: (page, pages) =>
       pages.length * 24 < page.total ? pages.length * 24 : undefined,
-    enabled: collectionsIndex,
+    enabled: libraryMounted && collectionsIndex,
     staleTime: 60_000,
     gcTime: 300_000,
     retry: false,
@@ -220,7 +225,10 @@ export function HomeScreen({
       pages.length * 36 < page.total ? pages.length * 36 : undefined,
     retry: false,
     gcTime: 300_000,
-    enabled: !collectionsIndex && (!route.collection || collection.isSuccess),
+    enabled:
+      libraryMounted &&
+      !collectionsIndex &&
+      (!route.collection || collection.isSuccess),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   })
@@ -249,6 +257,7 @@ export function HomeScreen({
     getNextPageParam: (page, pages) =>
       pages.length * 36 < page.total ? pages.length * 36 : undefined,
     enabled:
+      libraryMounted &&
       !collectionsIndex &&
       Boolean(search.trim() && debouncedSearch) &&
       (!route.collection || collection.isSuccess),
@@ -270,7 +279,7 @@ export function HomeScreen({
       }),
     retry: false,
     gcTime: 300_000,
-    enabled: filter === 'all' || filter === 'series',
+    enabled: libraryMounted && (filter === 'all' || filter === 'series'),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   })
@@ -325,6 +334,56 @@ export function HomeScreen({
         : pageData.isError && !pageData.data
           ? 'error'
           : 'ready'
+  const player = playback ? (
+    <PlaybackPlayer
+      key={JSON.stringify([
+        route.play,
+        route.time,
+        route.source,
+        route.audio,
+        route.subtitle,
+        route.secondarySubtitle,
+        route.paused,
+        playback.openedAt,
+      ])}
+      item={playback.item}
+      userId={user.id}
+      resume={playback.resume}
+      initialPaused={route.paused}
+      initialSecondarySubtitle={route.secondarySubtitle}
+      onLocationChange={savePlaybackLocation}
+      session={session}
+      initialOptions={playback.options}
+      initialQueue={playback.queue}
+      queuedNext={playback.queuedNext}
+      queuedLast={playback.queuedLast}
+      remoteCommand={remoteCommand}
+      onClose={() => {
+        setRemoteCommand(undefined)
+        setPlayback(null)
+        navigateApp({ play: undefined })
+        void client.invalidateQueries({ queryKey: ['library'] })
+        void client.invalidateQueries({ queryKey: ['library-resume'] })
+        void client.invalidateQueries({
+          queryKey: ['jellyfin', 'current-user'],
+        })
+      }}
+    />
+  ) : route.play ? (
+    <PlaybackRouteStatus
+      onClose={() => navigateApp({ play: undefined })}
+      failure={
+        playingDetails.isError
+          ? {
+              message: t('Ce média est indisponible ou tu n’y as pas accès.'),
+              retry: () => void playingDetails.refetch(),
+            }
+          : undefined
+      }
+    />
+  ) : null
+
+  if (!libraryMounted) return player
   return (
     <>
       <HomePage
@@ -477,81 +536,32 @@ export function HomeScreen({
         onSignOut={onSignOut}
         signingOut={signingOut}
       />
-      {(route.play ? !playback : route.media && !selected) && (
+      {!route.play && route.media && !selected && (
         <div className="glass-panel fixed inset-x-4 bottom-6 z-50 mx-auto max-w-lg rounded-2xl p-5">
-          <p
-            role={
-              playingDetails.isError || selectedDetails.isError
-                ? 'alert'
-                : 'status'
-            }
-          >
-            {(route.play ? playingDetails.isError : selectedDetails.isError)
+          <p role={selectedDetails.isError ? 'alert' : 'status'}>
+            {selectedDetails.isError
               ? t('Ce média est indisponible ou tu n’y as pas accès.')
               : t('Ouverture du média…')}
           </p>
           <div className="mt-4 flex gap-4">
-            {(route.play
-              ? playingDetails.isError
-              : selectedDetails.isError) && (
+            {selectedDetails.isError && (
               <button
                 className="detail-text-button"
-                onClick={() =>
-                  void (route.play ? playingDetails : selectedDetails).refetch()
-                }
+                onClick={() => void selectedDetails.refetch()}
               >
                 {t('Réessayer')}
               </button>
             )}
             <button
               className="detail-text-button"
-              onClick={() =>
-                navigateApp(
-                  route.play ? { play: undefined } : { media: undefined },
-                )
-              }
+              onClick={() => navigateApp({ media: undefined })}
             >
               {t('Fermer')}
             </button>
           </div>
         </div>
       )}
-      {playback && (
-        <PlaybackPlayer
-          key={JSON.stringify([
-            route.play,
-            route.time,
-            route.source,
-            route.audio,
-            route.subtitle,
-            route.secondarySubtitle,
-            route.paused,
-            playback.openedAt,
-          ])}
-          item={playback.item}
-          userId={user.id}
-          resume={playback.resume}
-          initialPaused={route.paused}
-          initialSecondarySubtitle={route.secondarySubtitle}
-          onLocationChange={savePlaybackLocation}
-          session={session}
-          initialOptions={playback.options}
-          initialQueue={playback.queue}
-          queuedNext={playback.queuedNext}
-          queuedLast={playback.queuedLast}
-          remoteCommand={remoteCommand}
-          onClose={() => {
-            setRemoteCommand(undefined)
-            setPlayback(null)
-            navigateApp({ play: undefined })
-            void client.invalidateQueries({ queryKey: ['library'] })
-            void client.invalidateQueries({ queryKey: ['library-resume'] })
-            void client.invalidateQueries({
-              queryKey: ['jellyfin', 'current-user'],
-            })
-          }}
-        />
-      )}
+      {player}
     </>
   )
 }

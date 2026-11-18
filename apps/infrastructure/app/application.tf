@@ -152,7 +152,7 @@ resource "kubernetes_deployment_v1" "application" {
         }
         volume {
           name = "api-tmp"
-          empty_dir {}
+          empty_dir { size_limit = "128Mi" }
         }
         volume {
           name = "web-tmp"

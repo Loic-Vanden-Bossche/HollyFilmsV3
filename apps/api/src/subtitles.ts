@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { addSubtitleSyncRoutes } from './subtitle-sync.ts'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { getLibraryApi } from '@jellyfin/sdk/lib/utils/api/library-api.js'
 import { getUserApi } from '@jellyfin/sdk/lib/utils/api/user-api.js'
@@ -188,6 +189,7 @@ export function addSubtitleRoutes(
         id: normalize(data.Id),
         name: data.Name || data.Id,
         administrator: data.Policy?.IsAdministrator === true,
+        canPlay: data.Policy?.EnableMediaPlayback !== false,
       }
     } catch (error) {
       if (error instanceof ApiError) throw error
@@ -249,6 +251,13 @@ export function addSubtitleRoutes(
     await item(identity.api, source.Id, identity.id)
     return { data, source }
   }
+  addSubtitleSyncRoutes(app, db, async (request, itemId, sourceId) => {
+    const identity = await authorize(request)
+    const { data, source } = await accessibleSource(identity, itemId, sourceId)
+    if (!identity.canPlay || data.PlayAccess === 'None')
+      throw new ApiError(403, 'ACCESS_DENIED', 'Lecture indisponible.')
+    return { userId: identity.id, api: identity.api, data, source }
+  })
   async function search(sourceId: string, lang: string, perfect = false) {
     try {
       return (

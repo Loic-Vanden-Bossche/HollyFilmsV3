@@ -344,6 +344,7 @@ export function HomePage({
         ref={scope}
         className="home-page"
         data-opening={opening}
+        inert={playbackOpen}
         onKeyDown={(event) => {
           if (
             event.key === 'Escape' &&

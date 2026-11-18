@@ -70,6 +70,46 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+.holly-select-searchable {
+  display: flex;
+  flex-direction: column;
+}
+.holly-select-search {
+  @apply border border-glass-edge text-link;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 4px;
+  padding-inline: 10px;
+  border-radius: 9px;
+  background: #0a1524;
+}
+.holly-select-search:focus-within {
+  @apply border-ring;
+}
+.holly-select-search svg {
+  flex: none;
+}
+.holly-select-search input {
+  @apply text-foreground;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 4px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+.holly-select-empty {
+  @apply text-muted-foreground;
+  display: block;
+  padding: 8px 11px;
+  font-size: 13px;
+}
 .holly-select-option {
   gap: 10px;
   position: relative;
@@ -123,10 +163,18 @@
   right: 10px;
   display: grid;
 }
-.holly-select-native {
+.holly-select-native,
+.holly-select-native-control {
   position: relative;
   display: block;
   min-width: 0;
+}
+.holly-select-native .holly-select-search {
+  margin: 5px 0 0;
+}
+.holly-select-native .holly-select-search input {
+  min-height: 44px;
+  font-size: 16px;
 }
 .holly-select-native select {
   appearance: none;
@@ -134,7 +182,7 @@
   min-height: 44px;
   font-size: 16px;
 }
-.holly-select-native > svg {
+.holly-select-native-control > svg {
   @apply text-link;
   position: absolute;
   right: 12px;

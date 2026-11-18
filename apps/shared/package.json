@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./subtitle-sync": "./src/subtitle-sync.ts",
     "./subtitles": "./src/subtitles.ts",
     "./requests": "./src/requests.ts",
     "./profile": "./src/profile.ts",

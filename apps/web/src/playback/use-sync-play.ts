@@ -341,11 +341,9 @@ export function useSyncPlay(
       clearTimeout(actionTimer.current)
       setGroup(undefined)
     },
-    toggle() {
+    setPaused(paused: boolean) {
       void (
-        videoRef.current?.paused
-          ? sync.syncPlayUnpause(config)
-          : sync.syncPlayPause(config)
+        paused ? sync.syncPlayPause(config) : sync.syncPlayUnpause(config)
       ).catch(notifyError)
     },
     seek(seconds: number) {

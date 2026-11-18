@@ -1,5 +1,7 @@
 import { useRef, useState, type ComponentProps } from 'react'
 import { PlayerControls } from './PlayerControls.tsx'
+import { PlayerCaptions } from './PlayerCaptions.tsx'
+import { classicSubtitle, subtitleYellow } from '../playback/preferences.ts'
 import { useSubtitleClearance } from '../playback/use-subtitle-clearance.ts'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, waitFor } from 'storybook/test'
@@ -88,6 +90,10 @@ export const SessionActions: Story = {
   },
 }
 
+const subtitleStyles = {
+  primary: classicSubtitle,
+  secondary: { ...classicSubtitle, color: subtitleYellow, scale: 0.9 },
+}
 function SubtitleClearanceScene({
   styledSubtitles,
   splitSubtitles,
@@ -147,24 +153,23 @@ function SubtitleClearanceScene({
             }}
           />
         ) : (
-          <div
-            className="player-captions"
-            style={{ fontSize: 'clamp(18px, 2.6vw, 34px)' }}
-          >
-            <p data-subtitle-slot="secondary" lang="zh-Hans">
-              仰望星空。
-            </p>
-            <p data-subtitle-slot="primary" lang="fr">
-              Gardez les yeux tournés vers les étoiles.
-            </p>
-          </div>
+          <PlayerCaptions
+            layout="paired"
+            styles={subtitleStyles}
+            primaryLanguage="fr"
+            secondaryLanguage="zh-Hans"
+            primary={'Gardez les yeux tournés\nvers les étoiles.'}
+            secondary="仰望星空。"
+          />
         )}
         {splitSubtitles && (
-          <div className="player-captions" data-split="true">
-            <p data-subtitle-slot="secondary" lang="zh-Hans">
-              仰望星空。
-            </p>
-          </div>
+          <PlayerCaptions
+            layout="split"
+            styles={subtitleStyles}
+            primary=""
+            secondary="仰望星空。"
+            secondaryLanguage="zh-Hans"
+          />
         )}
         <div
           className="player-controls-layer"

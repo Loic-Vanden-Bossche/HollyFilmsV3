@@ -148,6 +148,10 @@ Pour tester les inscriptions, créer un PostgreSQL 17 de test et un Jellyfin 12.
 
 La recherche et les pages utilisateur/admin réutilisent Seerr et les services Radarr/Sonarr existants. Voir [la configuration et les tests des demandes](docs/media-requests.md).
 
+## Synchronisation des sous-titres
+
+Le lecteur permet de corriger chaque langue séparément, de se caler sur une réplique et d’essayer une analyse automatique de la piste audio. [Configuration, fonctionnement et tests](docs/subtitle-sync.md).
+
 ## Sous-titres externes
 
 Recherche et téléchargement administrateur depuis la fiche média ou le lecteur, avec demandes de langues soumises à approbation pour les utilisateurs. Voir [le fonctionnement et les tests des sous-titres](docs/subtitles.md).

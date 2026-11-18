@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "test": "prisma generate && node --test tests/accounts.test.ts",
+    "test:subtitle-sync": "prisma generate && node tests/requests.e2e.mjs tests/subtitle-sync.test.ts ../../apps/web/tests/subtitle-timing.test.ts",
     "test:media": "prisma generate && node --test tests/media.test.ts",
     "test:requests": "prisma generate && node tests/requests.e2e.mjs",
     "test:subtitles": "prisma generate && node tests/requests.e2e.mjs tests/subtitles.test.ts"

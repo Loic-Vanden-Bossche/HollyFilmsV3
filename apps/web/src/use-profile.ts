@@ -8,17 +8,18 @@ export const profileKey = (session: JellyfinSession) => [
   session.deviceId,
 ]
 
-export function useProfile(session: JellyfinSession) {
+export function useProfile(session: JellyfinSession, enabled = true) {
   const profile = useQuery({
     queryKey: profileKey(session),
     queryFn: ({ signal }) => getProfile(session, signal),
+    enabled,
     staleTime: 60_000,
     retry: false,
   })
   const image = useQuery({
     queryKey: [...profileKey(session), 'image', profile.data?.imageTag],
     queryFn: ({ signal }) => getProfileImage(session, signal),
-    enabled: Boolean(profile.data?.imageTag),
+    enabled: enabled && Boolean(profile.data?.imageTag),
     staleTime: Infinity,
     retry: false,
   })

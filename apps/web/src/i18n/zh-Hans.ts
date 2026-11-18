@@ -1,4 +1,86 @@
 export default {
+  'Le serveur média n’a pas pu fournir le fichier. Vérifiez son accès, puis réessayez.':
+    '媒体服务器无法提供此文件。请检查访问权限后重试。',
+  'La piste audio sélectionnée est introuvable dans cette version. Choisissez une autre piste audio.':
+    '此版本中找不到所选音轨。请选择其他音轨。',
+  'Impossible de décoder cette piste audio. Essayez une autre piste ou le réglage manuel.':
+    '无法解码此音轨。请尝试其他音轨或手动调整。',
+  'Le texte des sous-titres est illisible. Choisissez une autre piste.':
+    '无法读取字幕文本。请选择其他字幕轨。',
+  'Le moteur de synchronisation s’est arrêté. Réessayez ou utilisez le réglage manuel.':
+    '同步引擎已停止。请重试或手动调整。',
+  'L’analyse a dépassé le temps autorisé. Vous pouvez réessayer ou régler le décalage manuellement.':
+    '分析已超时。请重试或手动调整时间。',
+  'L’analyse a été interrompue. Relancez-la pour reprendre.':
+    '分析已中断。请重新开始。',
+  'Référence de l’analyse': '分析编号',
+  'Le service d’analyse est occupé. Réessayez dans un instant.':
+    '分析服务繁忙。请稍后重试。',
+  'Le décalage change entre les passages. La piste correspond peut-être à un autre montage.':
+    '不同片段的偏移不一致。这条字幕可能属于另一剪辑版本。',
+  'Décalage constant estimé': '估算为固定偏移',
+  'Correction de cadence estimée · ×{rate}': '估算时间倍率 · ×{rate}',
+  'Choisir une autre piste': '选择其他轨道',
+  'Aperçu disponible. La sauvegarde nécessite une piste audio identifiée et une connexion au serveur.':
+    '可以预览更改。保存需要已识别的音轨和服务器连接。',
+  'Corriger la synchronisation': '校准字幕时间',
+  'Analyse en attente': '分析已排队',
+  'Préparation des pistes': '正在准备轨道',
+  'Détection des dialogues': '正在检测对白',
+  'Alignement des répliques': '正在对齐对白',
+  'Vérification sur plusieurs passages': '正在核对多个片段',
+  'Proposition disponible': '校准方案已就绪',
+  'L’analyse a échoué. Vous pouvez réessayer.': '分析失败，可以重试。',
+  'Analyse annulée': '分析已取消',
+  'Les dialogues ne donnent pas de correspondance assez nette. Essayez le réglage sur une réplique.':
+    '对白匹配不够清晰。请尝试按台词校准。',
+  'Statut indisponible. Réessayez dans un instant.':
+    '暂时无法获取状态，请稍后重试。',
+  'Analyse indisponible. Le réglage manuel reste accessible.':
+    '暂时无法分析，您仍可手动调整。',
+  'Vérifiez le réglage puis validez à nouveau.': '请核对时间，然后再次保存。',
+  'Le réglage a changé. Rouvrez le panneau pour charger la dernière version.':
+    '设置已更改，重新打开面板以载入最新版本。',
+  'Enregistrement impossible. Votre essai est conservé.':
+    '无法保存。当前预览已保留。',
+  'Aucun décalage ajouté': '未添加偏移',
+  'Affichage {value} s plus tard': '延后 {value} 秒显示',
+  'Affichage {value} s plus tôt': '提前 {value} 秒显示',
+  'Réglage mémorisé pour ce film': '本片字幕时间已保存',
+  'Synchroniser automatiquement': '自动校准',
+  'Annuler l’analyse': '取消分析',
+  'Essayer cette proposition': '预览此校准方案',
+  'Une cadence différente peut se corriger sur le film entier. Si le montage change, essayez une autre piste dans le menu des sous-titres.':
+    '自动分析可校正全片的帧率差异。剪辑版本不同时，请尝试其他字幕轨道。',
+  'Les sous-titres apparaissent…': '字幕出现得…',
+  'Encore trop tôt': '还是太早',
+  'Encore trop tard': '还是太晚',
+  'Trop tôt': '太早',
+  'Trop tard': '太晚',
+  'Après correction automatique': '自动校准后',
+  'Rejouer pour vérifier': '重播核对',
+  'Rejouer le passage': '重播片段',
+  Recommencer: '重新开始',
+  'Recaler sur une réplique': '按台词校准',
+  'Réglage précis': '微调',
+  'Trop tôt · 0,1 s': '太早 · 0.1 秒',
+  'Trop tard · 0,1 s': '太晚 · 0.1 秒',
+  Réinitialiser: '重置',
+  'Ça se décale à nouveau': '字幕又不同步了',
+  'Choisis une réplique que tu viens d’entendre.': '选择刚刚听到的一句台词。',
+  'Rechercher une réplique': '搜索台词',
+  'Aucune réplique trouvée': '未找到匹配的台词',
+  Précédentes: '上一组',
+  Suivantes: '下一组',
+  'Appuie dès que cette réplique commence.': '听到这句台词开头时按下按钮。',
+  'Écouter le passage': '聆听片段',
+  'C’est maintenant': '就是现在',
+  'Utiliser ce nouveau passage': '使用这个新片段',
+  'Ce passage ne peut pas encore être rejoué.': '此片段暂时无法重播。',
+  'C’est bon': '确认保存',
+  'Choisissez une piste séparée en lecture locale.':
+    '请在本地播放时选择独立字幕轨道。',
+  'Piste principale': '主字幕轨',
   '. Les liens ouvrent les offres du titre, selon le pays.':
     '。链接会打开此影片在所选地区的观看渠道。',
   '· Admin': '· 管理员',
@@ -156,6 +238,9 @@ export default {
   'Comptes approuvés': '已批准的账户',
   Confirmer: '确认',
   'Confirmer après 3 épisodes': '播放 3 集后确认',
+  'Accepter les pauses du système': '允许系统暂停播放',
+  'Désactive cette option si ton casque ou une autre application interrompt le film.':
+    '如果耳机或其他应用会意外暂停影片，请关闭此选项。',
   'Confirmer la suppression': '确认移除',
   'Confirmer le mot de passe': '确认密码',
   'Connecté en tant que': '登录身份',
@@ -903,4 +988,17 @@ export default {
   Installé: '已安装',
   'Traitement en cours…': '处理中…',
   'Aucun résultat': '没有结果',
+  'Rechercher une option': '搜索选项',
+  'Options trouvées · {count}': '找到 {count} 个选项',
+  'Filtrer les options de « {field} »': '筛选“{field}”的选项',
+  'Rechercher ou demander des sous-titres': '搜索或申请字幕',
+  'Apparence des sous-titres': '字幕外观',
+  'Piste à personnaliser': '选择要调整的字幕轨',
+  Principale: '主字幕',
+  Secondaire: '第二字幕',
+  'Cette piste est incrustée dans la vidéo.': '这条字幕已嵌入视频画面。',
+  Blanc: '白色',
+  Jaune: '黄色',
+  'Couleur personnalisée': '自定义颜色',
+  'Rétablir le style d’origine': '恢复原始样式',
 } as const

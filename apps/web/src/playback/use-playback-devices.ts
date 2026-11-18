@@ -241,6 +241,11 @@ export function usePlaybackDevices(api: PlaybackApi) {
         destination.connection.controller.playOrPause()
       else playstate('PlayPause')
     },
+    setPaused(paused: boolean) {
+      if (destination?.kind === 'cast')
+        destination.connection.setPaused(paused, fail)
+      else playstate(paused ? 'Pause' : 'Unpause')
+    },
     seek(position: number) {
       if (destination?.kind === 'cast') {
         destination.connection.seek(

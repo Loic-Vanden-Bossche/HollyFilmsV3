@@ -11,6 +11,7 @@ import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import test from 'node:test'
 import { chromium } from 'playwright'
+import { createApp } from '../../api/src/app.ts'
 
 const exec = promisify(execFile)
 const require = createRequire(import.meta.url)
@@ -130,7 +131,7 @@ test(
     await writeInContainer(
       name,
       '/media/Signal Test (2026)/Signal Test (2026).fr.srt',
-      '1\n00:00:00,000 --> 00:02:59,000\nHollyFilms — sous-titres de test\n\n2\n00:00:01,000 --> 00:00:02,000\nHollyFilms — cue courte\n',
+      '1\n00:00:00,000 --> 00:01:10,000\nHollyFilms — sous-titres de test\nDeuxième ligne\n\n2\n00:01:20,000 --> 00:02:59,000\nHollyFilms — sous-titres de test\n',
     )
     await writeInContainer(
       name,
@@ -252,6 +253,19 @@ test(
     }, 'generated trickplay frames')
     const httpPort = await port()
     const origin = `http://127.0.0.1:${httpPort}`
+    const databaseUrl = process.env.HOLLYFILMS_TEST_DATABASE_URL
+    assert.ok(
+      databaseUrl,
+      'Run yarn test:player with its isolated PostgreSQL container',
+    )
+    const accountApi = await createApp({
+      databaseUrl,
+      jellyfinUrl: backend,
+      jellyfinApiKey: auth.AccessToken,
+      publicOrigin: origin,
+    })
+    const apiOrigin = await accountApi.listen({ port: 0, host: '127.0.0.1' })
+    t.after(() => accountApi.close())
     const vite = spawn(
       process.execPath,
       [
@@ -270,7 +284,11 @@ test(
         cwd: workspace,
         windowsHide: true,
         stdio: 'ignore',
-        env: { ...process.env, JELLYFIN_URL: backend },
+        env: {
+          ...process.env,
+          JELLYFIN_URL: backend,
+          HOLLYFILMS_API_URL: apiOrigin,
+        },
       },
     )
     t.after(() => vite.kill())
@@ -278,7 +296,9 @@ test(
     const browser = await chromium.launch({
       channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome',
       headless: true,
-      args: ['--disable-gpu'],
+      // Drive the real Media Session handlers below without unrelated commands
+      // from the host's hardware or other media applications.
+      args: ['--disable-gpu', '--disable-features=HardwareMediaKeyHandling'],
     })
     t.after(() => browser.close())
     const page = await browser.newPage({
@@ -286,6 +306,43 @@ test(
       viewport: { width: 1440, height: 900 },
     })
     await page.addInitScript(() => {
+      const mediaActions = new Map()
+      window.testMediaActions = mediaActions
+      const mediaSession = navigator.mediaSession
+      const register = mediaSession.setActionHandler.bind(mediaSession)
+      mediaSession.setActionHandler = (action, handler) => {
+        register(action, handler)
+        if (handler) mediaActions.set(action, handler)
+        else mediaActions.delete(action)
+      }
+      if (new URLSearchParams(location.search).has('play')) {
+        const visibleSurfaces = new Set()
+        window.testPlayerRestoreSurfaces = visibleSurfaces
+        const sampleFrame = () => {
+          for (const selector of [
+            '.home-page',
+            '.home-topbar',
+            '.home-intro',
+            '.media-dialog',
+            '.showcase-nav',
+          ]) {
+            if (
+              document.querySelector(selector)?.checkVisibility({
+                opacityProperty: true,
+                visibilityProperty: true,
+              })
+            )
+              visibleSurfaces.add(selector)
+          }
+          const video = document.querySelector('.player-shell video')
+          if (
+            (!video || video.readyState < 2) &&
+            new URLSearchParams(location.search).has('play')
+          )
+            requestAnimationFrame(sampleFrame)
+        }
+        requestAnimationFrame(sampleFrame)
+      }
       const play = HTMLMediaElement.prototype.play
       HTMLMediaElement.prototype.play = function () {
         if (
@@ -328,6 +385,7 @@ test(
     })
     // Provider transport is simulated; installation and track refresh use this
     // disposable Jellyfin's real files/metadata and the real HTML video element.
+
     await page.route('**/api/media/*/subtitles', async (route) => {
       const id = new URL(route.request().url()).pathname.split('/')[3]
       const data = await (
@@ -454,6 +512,39 @@ test(
       .locator('[data-artwork-destination="player"]')
       .waitFor({ timeout: 1500 })
     const playerView = page.locator('.player-shell')
+    const video = playerView.locator('video')
+    async function expectContinuousPlayback(description) {
+      const start = await video.evaluate((element) => element.currentTime)
+      await until(
+        () =>
+          video.evaluate(
+            (element, from) =>
+              !element.paused && element.currentTime > from + 2,
+            start,
+          ),
+        description,
+        8000,
+      )
+    }
+    const mediaCommands = (actions) =>
+      video.evaluate(
+        (element, commands) =>
+          commands.map((action) => {
+            const handler = window.testMediaActions.get(action)
+            if (!handler)
+              throw new Error('No Media Session handler for ' + action)
+            handler({ action })
+            return element.paused
+          }),
+        actions,
+      )
+    const settingsButton = playerView.getByRole('button', {
+      name: 'Paramètres de lecture',
+    })
+    const allowSystemPause = playerView.getByRole('checkbox', {
+      name: 'Accepter les pauses du système',
+      exact: true,
+    })
     try {
       await until(async () => playbackRequested, 'playback negotiation', 30_000)
       assert.equal(
@@ -507,6 +598,7 @@ test(
           ),
       'decoded video',
     )
+    await expectContinuousPlayback('video keeps advancing after startup')
     await playerView
       .locator('.player-artwork-hero')
       .waitFor({ state: 'detached' })
@@ -565,8 +657,31 @@ test(
     )
     await leaveFullscreen.click()
     await page.waitForFunction(() => !document.fullscreenElement)
+    assert.deepEqual(
+      await mediaCommands(['pause', 'pause', 'play', 'play']),
+      [true, true, false, false],
+      'consecutive explicit Media Session commands are idempotent even before React renders',
+    )
+    await settingsButton.click()
+    assert(
+      await allowSystemPause.isChecked(),
+      'system pauses are enabled by default',
+    )
+    await allowSystemPause.uncheck()
+    await playerView.getByRole('button', { name: 'Fermer les options' }).click()
+    assert.deepEqual(
+      await mediaCommands(['pause']),
+      [false],
+      'system pause can be ignored',
+    )
     await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     assert(await playerView.locator('video').evaluate((video) => video.paused))
+    assert.deepEqual(
+      await mediaCommands(['play']),
+      [false],
+      'system play still resumes',
+    )
+    await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     // The animated volume meter preserves native range keys and actual video volume.
     const volume = playerView.getByRole('slider', {
       name: 'Volume',
@@ -751,13 +866,17 @@ test(
       .getByRole('button', { name: 'Sous-titres', exact: true })
       .click()
     const language = options().getByLabel('Langue', { exact: true })
-    await language.click()
-    await page
-      .locator('.holly-select-popup[data-open]')
-      .getByRole('option')
-      .filter({ hasText: /French|Français|SRT/i })
-      .first()
-      .click()
+    const selectTrack = async (field, name) => {
+      await field.click()
+      await page
+        .locator('.holly-select-popup[data-open]')
+        .getByRole('option')
+        .filter({ hasText: name })
+        .click()
+    }
+    const frenchTrack = /French|Français/i
+    const chineseTrack = /Chinese|Chinois|中文/i
+    await selectTrack(language, frenchTrack)
     await until(
       async () =>
         (
@@ -786,18 +905,25 @@ test(
       'subtitle select includes a flag',
     )
     stage = 'bilingual subtitles'
-    const secondLanguage = options().getByLabel('Deuxième piste', {
+    const secondLanguage = options().getByRole('combobox', {
+      name: 'Deuxième piste',
       exact: true,
     })
-    const selectSecondLanguage = async (name) => {
-      await secondLanguage.click()
-      await page
-        .locator('.holly-select-popup[data-open]')
-        .getByRole('option')
-        .filter({ hasText: name })
-        .click()
-    }
-    await selectSecondLanguage(/Chinese|Chinois|中文/i)
+    const selectSecondLanguage = (name) => selectTrack(secondLanguage, name)
+    const primarySync = options().getByRole('button', {
+      name: 'Corriger la synchronisation Piste principale',
+      exact: true,
+    })
+    const secondarySync = options().getByRole('button', {
+      name: 'Corriger la synchronisation Deuxième piste',
+      exact: true,
+    })
+    const offsetPanel = playerView.getByRole('region', {
+      name: 'Corriger la synchronisation',
+    })
+    assert(await primarySync.isVisible())
+    assert.equal(await secondarySync.count(), 0)
+    await selectSecondLanguage(chineseTrack)
     await until(
       async () =>
         (
@@ -815,11 +941,85 @@ test(
     )
     await until(
       () =>
-        page.evaluate(
-          () => Number(new URLSearchParams(location.search).get('sub2')) >= 0,
+        page.evaluate(() =>
+          /^\d+$/.test(new URLSearchParams(location.search).get('sub2') ?? ''),
         ),
       'the second track is saved in the URL',
     )
+    stage = 'independent subtitle timing and appearance'
+    const mainCue = playerView.locator('p[data-subtitle-slot="primary"]')
+    const secondCue = playerView.locator('p[data-subtitle-slot="secondary"]')
+    const movie = playerView.locator('video')
+    const resumeTime = await movie.evaluate((video) => {
+      video.pause()
+      return video.currentTime
+    })
+    const gapTime = await movie.evaluate((video) => {
+      const french = Array.from(video.textTracks).find((track) =>
+        Array.from(track.cues ?? []).some((cue) =>
+          cue.text.includes('Deuxième ligne'),
+        ),
+      )
+      if (!french || french.cues.length !== 2)
+        throw Error('Expected two timed French cues')
+      return (french.cues[0].endTime + french.cues[1].startTime) / 2
+    })
+    await secondCue.evaluate(async (cue) => {
+      await Promise.all(
+        cue.parentElement
+          .getAnimations()
+          .map((animation) => animation.finished),
+      )
+    })
+    const secondBaseline = await secondCue.evaluate(
+      (cue) => cue.getBoundingClientRect().bottom,
+    )
+    const gap =
+      (await mainCue.evaluate((cue) => cue.getBoundingClientRect().top)) -
+      secondBaseline
+    assert.ok(
+      gap >= 0 && gap <= 8,
+      `The two text tracks should read as a pair (gap ${gap}px)`,
+    )
+    for (const [time, expected] of [
+      [gapTime + 10, 'sous-titres de test'],
+      [gapTime, null],
+      [resumeTime, 'sous-titres de test'],
+    ]) {
+      await movie.evaluate((video, t) => {
+        video.currentTime = t
+      }, time)
+      if (expected) await mainCue.filter({ hasText: expected }).waitFor()
+      else await mainCue.waitFor({ state: 'detached' })
+      const baseline = await secondCue.evaluate(
+        (cue) => cue.getBoundingClientRect().bottom,
+      )
+      assert.ok(
+        Math.abs(baseline - secondBaseline) < 1,
+        `Chinese baseline at ${time}s: expected ${secondBaseline}, got ${baseline}`,
+      )
+    }
+    const appearance = options().getByRole('button', {
+      name: 'Apparence des sous-titres',
+    })
+    await appearance.click()
+    await options()
+      .getByRole('button', { name: 'Secondaire', exact: true })
+      .click()
+    await options().getByRole('button', { name: 'Jaune', exact: true }).click()
+    const fontSlider = options().getByRole('slider', { name: 'Taille' })
+    await fontSlider.press('ArrowRight')
+    await fontSlider.press('ArrowRight')
+    const readCaptionStyle = (el) => ({
+      color: getComputedStyle(el).color,
+      size: parseFloat(getComputedStyle(el).fontSize),
+    })
+    const chosenStyle = await secondCue.evaluate(readCaptionStyle)
+    const mainStyle = await mainCue.evaluate(readCaptionStyle)
+    assert.equal(chosenStyle.color, 'rgb(255, 224, 102)')
+    assert.equal(mainStyle.color, 'rgb(255, 255, 255)')
+    assert.ok(Math.abs(chosenStyle.size / mainStyle.size - 1.2) < 0.01)
+    await appearance.click()
     stage = 'download subtitles without restarting playback'
     const beforeInstall = await playerView
       .locator('video')
@@ -834,12 +1034,43 @@ test(
     const startsBeforeInstall = reports.filter((report) =>
       /\/Sessions\/Playing$/.test(report.path),
     ).length
+    const externalTools = options().getByRole('button', {
+      name: 'Sous-titres externes Rechercher ou demander des sous-titres',
+    })
+    assert.equal(await externalTools.getAttribute('aria-expanded'), 'false')
+    assert.equal(await options().locator('.subtitle-panel').count(), 0)
+    assert.ok(
+      await options()
+        .getByRole('combobox', { name: 'Langue', exact: true })
+        .isVisible(),
+    )
+    assert.ok(
+      await options()
+        .getByRole('combobox', { name: 'Deuxième piste', exact: true })
+        .isVisible(),
+    )
+    await externalTools.click()
+    assert.equal(await externalTools.getAttribute('aria-expanded'), 'true')
     const externalPanel = options().getByRole('region', {
       name: 'Sous-titres externes',
     })
-    await externalPanel
-      .getByRole('combobox', { name: 'Langue des sous-titres' })
-      .click()
+    const languageField = externalPanel.getByRole('combobox', {
+      name: 'Langue des sous-titres',
+    })
+    await languageField.waitFor()
+    assert.ok(
+      await languageField.evaluate((field) => {
+        const control = field.closest('.holly-select-native') ?? field
+        return (
+          Math.abs(
+            control.getBoundingClientRect().width -
+              field.closest('label').getBoundingClientRect().width,
+          ) < 2
+        )
+      }),
+      'external subtitle language uses all available field width in the player',
+    )
+    await languageField.click()
     await page
       .locator('.holly-select-popup[data-open]')
       .getByRole('option')
@@ -848,6 +1079,16 @@ test(
     await externalPanel
       .getByRole('button', { name: 'Rechercher des sous-titres' })
       .click()
+    // Folding retains the chosen language and results without restarting a search.
+    await externalTools.click()
+    assert.equal(await externalTools.getAttribute('aria-expanded'), 'false')
+    await externalTools.click()
+    assert.match(
+      await externalPanel
+        .getByRole('combobox', { name: 'Langue des sous-titres' })
+        .innerText(),
+      /allemand|German/i,
+    )
     await externalPanel
       .getByRole('button', { name: 'Télécharger ce sous-titre' })
       .click()
@@ -959,6 +1200,27 @@ test(
     await playerView
       .getByRole('button', { name: 'Sous-titres', exact: true })
       .click()
+    assert.deepEqual(
+      await secondCue.evaluate(readCaptionStyle),
+      chosenStyle,
+      'secondary appearance survives a reload',
+    )
+    assert.deepEqual(await mainCue.evaluate(readCaptionStyle), mainStyle)
+    const chineseIndex = new URL(page.url()).searchParams.get('sub2')
+    assert.match(chineseIndex ?? '', /^\d+$/)
+    await secondarySync.click()
+    await offsetPanel.getByText(chineseTrack).waitFor()
+    await page.keyboard.press('Escape')
+    await offsetPanel.waitFor({ state: 'detached' })
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await appearance.click()
+    const secondaryStyle = options().getByRole('button', {
+      name: 'Secondaire',
+      exact: true,
+    })
+    await secondaryStyle.click()
     await selectSecondLanguage(/^Désactivée$/)
     await until(
       async () =>
@@ -967,6 +1229,44 @@ test(
           .count()) === 0,
       'disabling the second track removes its captions',
     )
+    assert.equal(await secondaryStyle.count(), 0)
+    assert.equal(await secondarySync.count(), 0)
+    assert.equal(
+      await options()
+        .getByRole('button', { name: 'Blanc', exact: true })
+        .getAttribute('aria-pressed'),
+      'true',
+    )
+    await appearance.click()
+    await selectSecondLanguage(chineseTrack)
+    await secondarySync.waitFor()
+    await selectTrack(language, /^Désactivés$/)
+    await secondLanguage.waitFor({ state: 'detached' })
+    assert.equal(await appearance.count(), 0)
+    assert.equal(await primarySync.count(), 0)
+    assert.equal(await secondarySync.count(), 0)
+    await page.waitForURL(
+      (url) =>
+        url.searchParams.get('sub2') === '-1' &&
+        url.searchParams.get('sub') === '-1',
+    )
+    // Older links could combine a disabled primary with a valid secondary.
+    const staleLink = new URL(page.url())
+    staleLink.searchParams.set('sub2', chineseIndex)
+    await Promise.all([
+      page.waitForEvent('domcontentloaded'),
+      page.evaluate((url) => location.replace(url), staleLink.href),
+    ])
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await language.waitFor()
+    assert.equal(await secondLanguage.count(), 0)
+    await selectTrack(language, frenchTrack)
+    await secondLanguage.waitFor()
+    assert.match(await secondLanguage.textContent(), /Désactivée/)
+    assert.equal(await secondarySync.count(), 0)
+    assert.equal(await secondCue.count(), 0)
     await until(
       () =>
         playerView
@@ -980,63 +1280,79 @@ test(
         window.subtitleOffsetTrack = track
         return track.track.cues[0].startTime
       })
-    await options()
-      .getByRole('button', { name: /Régler le décalage/ })
+    const syncLaunch = () => primarySync.click()
+    await syncLaunch()
+    const cueTime = async () =>
+      playerView
+        .locator('video track')
+        .evaluate((track) =>
+          track === window.subtitleOffsetTrack
+            ? track.track.cues[0].startTime
+            : null,
+        )
+    await offsetPanel
+      .getByRole('button', { name: 'Recaler sur une réplique' })
       .click()
-    const offsetPanel = playerView.getByRole('region', {
-      name: 'Décalage des sous-titres',
+    assert.equal(await movie.evaluate((v) => v.paused), true)
+    await offsetPanel.getByRole('searchbox').fill('Deuxième')
+    await offsetPanel.getByRole('button', { name: /Deuxième ligne/ }).click()
+    const capture = offsetPanel.getByRole('button', {
+      name: 'C’est maintenant',
     })
-    const offsetSlider = offsetPanel.getByRole('slider')
+    assert.equal(await capture.isEnabled(), false)
     await offsetPanel
-      .getByRole('button', { name: 'Retarder de 0,1 seconde' })
+      .getByRole('button', { name: 'Écouter le passage' })
+      .click()
+    await until(() => capture.isEnabled(), 'armed after real playback resumes')
+    await capture.press('Enter')
+    await offsetPanel
+      .getByRole('button', { name: 'Rejouer pour vérifier' })
+      .waitFor()
+    await offsetPanel.getByRole('button', { name: 'Recommencer' }).click()
+    await offsetPanel
+      .getByRole('button', { name: 'Retour', exact: true })
+      .click()
+    await offsetPanel
+      .getByRole('button', { name: 'Trop tôt', exact: true })
       .click()
     await until(
-      () =>
-        playerView
-          .locator('video track')
-          .evaluate(
-            (track, start) =>
-              track === window.subtitleOffsetTrack &&
-              Math.abs(track.track.cues[0].startTime - start - 0.1) < 0.001,
-            originalCue,
-          ),
-      'live subtitle offset without reload',
-    )
-    await offsetSlider.focus()
-    await page.keyboard.press('Home')
-    await until(
-      () =>
-        playerView
-          .locator('video track')
-          .evaluate(
-            (track) =>
-              track.track.cues.length === 1 &&
-              track.track.cues[0].endTime === 59,
-          ),
-      'negative offset removes expired cues',
+      async () => Math.abs((await cueTime()) - originalCue - 0.2) < 0.001,
+      'live preview on the original track',
     )
     await offsetPanel
-      .getByRole('button', { name: 'Réinitialiser le décalage' })
+      .getByRole('button', { name: 'C’est bon', exact: true })
+      .click()
+    await offsetPanel.getByText('Réglage mémorisé pour ce film').waitFor()
+    await offsetPanel.getByRole('button', { name: 'Fermer' }).first().click()
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await syncLaunch()
+    await offsetPanel.getByText('Réglage précis', { exact: true }).click()
+    await offsetPanel
+      .getByRole('button', { name: 'Réinitialiser', exact: true })
       .click()
     await until(
-      () =>
-        playerView
-          .locator('video track')
-          .evaluate(
-            (track, start) =>
-              track === window.subtitleOffsetTrack &&
-              track.track.cues.length === 2 &&
-              track.track.cues[0].startTime === start,
-            originalCue,
-          ),
-      'reset restores cues without reload or drift',
+      async () => Math.abs((await cueTime()) - originalCue) < 0.001,
+      'reset previews original cues',
     )
     await page.keyboard.press('Escape')
     await offsetPanel.waitFor({ state: 'detached' })
+    await until(
+      async () => Math.abs((await cueTime()) - originalCue - 0.2) < 0.001,
+      'cancel restores the committed correction',
+    )
     assert(
       await playerView.isVisible(),
-      'Escape closes offset panel, not playback',
+      'Escape closes sync without closing playback',
     )
+    await page.reload()
+    await playerView
+      .getByRole('button', { name: 'Sous-titres', exact: true })
+      .click()
+    await syncLaunch()
+    await offsetPanel.getByText('Affichage 0,2 s plus tard').waitFor()
+    await page.keyboard.press('Escape')
     await playerView
       .getByRole('button', { name: 'Sous-titres', exact: true })
       .click()
@@ -1198,7 +1514,6 @@ test(
     )
     await page.getByRole('button', { name: 'Reprendre', exact: true }).click()
     await page.locator('.player-viewport[data-state="ready"]').waitFor()
-    const video = playerView.locator('video')
     assert(await video.evaluate((element) => element.paused))
     await playerView
       .getByRole('button', { name: 'Démarrer la lecture' })
@@ -1218,7 +1533,53 @@ test(
     )
     assert(page.workers().some((worker) => worker.url().includes('hls.worker')))
     stage = 'restoring active playback from the URL'
-    await video.evaluate((element) => element.pause())
+    const metadataGate = Promise.withResolvers()
+    let restoringMetadata = false
+    await page.route(
+      (url) => url.pathname.endsWith('/Items/' + item.Id),
+      async (route) => {
+        restoringMetadata = true
+        await metadataGate.promise
+        await route.continue()
+      },
+      { times: 1 },
+    )
+    try {
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await until(
+        async () => restoringMetadata,
+        'deep link requested item details',
+        8000,
+      )
+      await page.locator('.playback-route-status').waitFor()
+      assert.deepEqual(
+        await page.locator('.playback-route-status').boundingBox(),
+        { x: 0, y: 0, ...page.viewportSize() },
+      )
+      assert.equal(
+        await page.locator('.home-topbar, .home-intro, .media-dialog').count(),
+        0,
+      )
+    } finally {
+      metadataGate.resolve()
+    }
+    await page.locator('.player-viewport[data-state="playing"]').waitFor()
+    await expectContinuousPlayback('video keeps advancing after reload')
+    assert.deepEqual(
+      await page.evaluate(() => [...window.testPlayerRestoreSurfaces]),
+      [],
+      'no catalogue, navigation or media detail appeared during player restoration',
+    )
+    await page.mouse.move(700, 600)
+    await settingsButton.click()
+    assert.equal(
+      await allowSystemPause.isChecked(),
+      false,
+      'reload remembers the system pause preference',
+    )
+    assert.deepEqual(await mediaCommands(['pause']), [false])
+    await playerView.getByRole('button', { name: 'Fermer les options' }).click()
+    await playerView.getByRole('button', { name: 'Pause', exact: true }).click()
     await until(
       async () => new URL(page.url()).searchParams.get('paused') === '1',
       'pause reflected in URL',
@@ -1510,10 +1871,19 @@ test(
       headers,
     })
     await page.goto(origin + '/app/favorites')
-    const favoriteCard = page.getByRole('article', {
-      name: item.Name,
-      exact: true,
+    // The grid renders a lightweight button until the poster enters view.
+    const favoriteDetails = page.getByRole('button', {
+      name: /Voir la fiche de Signal Test/,
     })
+    await favoriteDetails.scrollIntoViewIfNeeded().catch(async (error) => {
+      t.diagnostic(
+        'Favorites page: ' + (await page.locator('body').innerText()),
+      )
+      throw error
+    })
+    const favoriteCard = page
+      .getByRole('article')
+      .filter({ has: favoriteDetails })
     await favoriteCard.hover()
     await favoriteCard
       .getByRole('button', { name: 'Retirer des favoris' })

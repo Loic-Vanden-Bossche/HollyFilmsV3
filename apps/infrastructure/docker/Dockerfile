@@ -22,6 +22,10 @@ COPY apps/shared apps/shared
 RUN corepack yarn build:api && corepack yarn workspaces focus @hollyfilms/api
 
 FROM base AS api
+COPY apps/api/worker/requirements.txt /tmp/subtitle-sync-requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3-venv && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/subtitle-sync && /opt/subtitle-sync/bin/pip install --no-cache-dir -r /tmp/subtitle-sync-requirements.txt
+ENV SUBTITLE_SYNC_PYTHON=/opt/subtitle-sync/bin/python
 LABEL org.opencontainers.image.title="HollyFilms API"
 ARG SOURCE_URL
 LABEL org.opencontainers.image.source=$SOURCE_URL

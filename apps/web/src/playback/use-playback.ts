@@ -52,6 +52,7 @@ export function usePlayback(
 ) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const cleanup = useRef<() => Promise<void>>(async () => {})
+  const applyPaused = useRef<(paused: boolean) => void>(() => {})
   const pendingReports = useRef(Promise.resolve())
   const active = useRef<
     { target: PlaybackTarget; stream: PlaybackStream } | undefined
@@ -105,6 +106,7 @@ export function usePlayback(
     let finished = false
     let failure = false
     let initialSeek = true
+    let startPaused = request.paused ?? false
     let time = target.start
     let lastUpdate = 0
     let startTime = 0
@@ -217,7 +219,7 @@ export function usePlayback(
             sourceId: stream.source.Id,
             forceTranscode: true,
           },
-          paused: request.paused,
+          paused: started ? video!.paused : startPaused,
         }
         if (pendingSeek.current)
           pendingSeek.current = { request: next, position: next.target.start }
@@ -242,8 +244,20 @@ export function usePlayback(
         }
       }
     }
+    applyPaused.current = (paused) => {
+      if (finished || failure) return
+      startPaused = paused
+      if (initialSeek) return
+      if (paused) {
+        if (!video!.paused) video!.pause()
+        if (!started) {
+          clearTimeout(startupTimer)
+          setState('ready')
+        }
+      } else if (video!.paused) void play()
+    }
     function onMetadata() {
-      if (!stream || finished) return
+      if (!initialSeek || !stream || finished || failure) return
       setLoadingPhase('image')
       const position = target.start - stream.offset
       if (position > 0 && Number.isFinite(video!.duration)) {
@@ -256,7 +270,7 @@ export function usePlayback(
       if (!video!.seeking && pendingSeek.current?.request === request)
         pendingSeek.current = undefined
       update(true)
-      if (request.paused) {
+      if (startPaused) {
         clearTimeout(startupTimer)
         setState('ready')
       } else {
@@ -353,6 +367,7 @@ export function usePlayback(
       video!.removeAttribute('src')
       video!.load()
       active.current = undefined
+      applyPaused.current = () => {}
       report.current = () => {}
       if (started && keepalive) {
         void fetch(api.sdk.getUri('/Sessions/Playing/Stopped'), {
@@ -531,13 +546,6 @@ export function usePlayback(
     }))
     setEnded(false)
   }
-  function toggle() {
-    const video = videoRef.current
-    if (!video || !active.current) return
-    if (video.paused) void video.play().catch(() => setState('ready'))
-    else video.pause()
-  }
-
   return {
     videoRef,
     playback,
@@ -556,7 +564,7 @@ export function usePlayback(
     requestIsActive: playback?.request === request,
     requestedPaused: request.paused,
     seek,
-    toggle,
+    setPaused: (paused: boolean) => applyPaused.current(paused),
     replaceStream,
     refreshSubtitles,
     open(target: PlaybackTarget, paused = false) {

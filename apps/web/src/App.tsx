@@ -22,7 +22,8 @@ import { readSession, writeSession } from './session.ts'
 import { Button } from './ui/Button.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { GlassPanel } from './ui/GlassPanel.tsx'
-import { takeAppReturn } from './use-app-route.ts'
+import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
+import { navigateApp, takeAppReturn, useAppRoute } from './use-app-route.ts'
 import { performanceController } from './performance/profiles.ts'
 import { bindPerformancePreference } from './performance/preferences.ts'
 
@@ -35,13 +36,12 @@ const isRequestsPage = /^\/(?:admin\/)?requests\/?$/.test(
 const isAdminRequestsPage = /^\/admin\/requests\/?$/.test(
   window.location.pathname,
 )
-const isPrivatePage =
-  isAdminPage ||
-  isProfilePage ||
-  isRequestsPage ||
+const isLibraryPage =
   /^\/app(?:\/(favorites|movies|series|collections))?\/?$/.test(
     window.location.pathname,
   )
+const isPrivatePage =
+  isAdminPage || isProfilePage || isRequestsPage || isLibraryPage
 const secondaryButton = 'glass-control rounded-lg px-4 py-2 text-sm font-medium'
 const HomeScreen = lazy(() =>
   import('./HomeScreen.tsx').then((module) => ({ default: module.HomeScreen })),
@@ -63,6 +63,7 @@ export default function App({
   googleReturn?: Promise<GoogleReturn>
 }) {
   const { t } = useI18n()
+  const route = useAppRoute()
   const [session, setSession] = useState(readSession)
   const [loginNotice, setLoginNotice] = useState<string>()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -192,16 +193,31 @@ export default function App({
       />
     )
 
+  const opening =
+    isLibraryPage && route.play ? (
+      <PlaybackRouteStatus
+        onClose={() => navigateApp({ play: undefined })}
+        failure={
+          user.isError && !sessionRejected
+            ? {
+                message: t(
+                  'Impossible de vérifier la session auprès du serveur.',
+                ),
+                retry: () => void user.refetch(),
+              }
+            : undefined
+        }
+      />
+    ) : (
+      <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
+        <Wordmark />
+        <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
+      </main>
+    )
+
   if (!isAdminPage && user.isSuccess) {
     return (
-      <Suspense
-        fallback={
-          <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
-            <Wordmark />
-            <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
-          </main>
-        }
-      >
+      <Suspense fallback={opening}>
         {isRequestsPage ? (
           isAdminRequestsPage && !user.data.isAdministrator ? (
             <GlassPanel>
@@ -233,13 +249,8 @@ export default function App({
     )
   }
 
-  if (!isAdminPage && user.isPending)
-    return (
-      <main className="member-shell flex min-h-dvh flex-col items-center justify-center gap-6 bg-background text-sm text-muted-foreground">
-        <Wordmark />
-        <p role="status">{t('Ouverture de votre bibliothèque…')}</p>
-      </main>
-    )
+  if (!isAdminPage && (user.isPending || (isLibraryPage && route.play)))
+    return opening
 
   return (
     <main

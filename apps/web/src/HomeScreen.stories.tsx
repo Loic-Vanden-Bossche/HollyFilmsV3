@@ -551,6 +551,8 @@ export const RestoredPlayback: Story = {
       expect.objectContaining({ id: homeItems[1].id, start: 83 }),
       expect.any(AbortSignal),
     )
+    await expect(mocked(getLibraryPage)).not.toHaveBeenCalled()
+    await expect(mocked(getResumeItems)).not.toHaveBeenCalled()
     await expect(
       canvas.queryByRole('button', { name: 'Fermer la fiche' }),
     ).not.toBeInTheDocument()
@@ -603,11 +605,14 @@ export const UnavailableRoute: Story = {
     await expect(await canvas.findByRole('alert')).toHaveTextContent(
       'Ce média est indisponible',
     )
+    await expect(canvas.queryByRole('searchbox')).not.toBeInTheDocument()
+    await expect(mocked(getLibraryPage)).not.toHaveBeenCalled()
     await userEvent.click(canvas.getByRole('button', { name: /^Fermer$/ }))
     await waitFor(() =>
       expect(canvas.queryByRole('alert')).not.toBeInTheDocument(),
     )
     await expect(new URLSearchParams(location.search).has('play')).toBe(false)
+    await expect(await canvas.findByRole('searchbox')).toBeInTheDocument()
   },
 }
 export const CardActions: Story = {

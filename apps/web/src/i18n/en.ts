@@ -1,4 +1,91 @@
 export default {
+  'Le serveur média n’a pas pu fournir le fichier. Vérifiez son accès, puis réessayez.':
+    'The media server could not deliver the file. Check access and try again.',
+  'La piste audio sélectionnée est introuvable dans cette version. Choisissez une autre piste audio.':
+    'This edition does not contain the selected audio track. Choose another audio track.',
+  'Impossible de décoder cette piste audio. Essayez une autre piste ou le réglage manuel.':
+    'This audio track could not be decoded. Try another track or adjust the timing manually.',
+  'Le texte des sous-titres est illisible. Choisissez une autre piste.':
+    'The subtitle text could not be read. Choose another subtitle track.',
+  'Le moteur de synchronisation s’est arrêté. Réessayez ou utilisez le réglage manuel.':
+    'The synchronization engine stopped. Try again or adjust the timing manually.',
+  'L’analyse a dépassé le temps autorisé. Vous pouvez réessayer ou régler le décalage manuellement.':
+    'The analysis timed out. Try again or adjust the timing manually.',
+  'L’analyse a été interrompue. Relancez-la pour reprendre.':
+    'The analysis was interrupted. Start it again to continue.',
+  'Référence de l’analyse': 'Analysis reference',
+  'Le service d’analyse est occupé. Réessayez dans un instant.':
+    'The analysis service is busy. Try again shortly.',
+  'Le décalage change entre les passages. La piste correspond peut-être à un autre montage.':
+    'The offset changes between passages. This track may belong to a different cut.',
+  'Décalage constant estimé': 'Estimated constant offset',
+  'Correction de cadence estimée · ×{rate}': 'Estimated timing scale · ×{rate}',
+  'Choisir une autre piste': 'Choose another track',
+  'Aperçu disponible. La sauvegarde nécessite une piste audio identifiée et une connexion au serveur.':
+    'You can preview changes. Saving requires an identified audio track and a server connection.',
+  'Corriger la synchronisation': 'Adjust subtitle sync',
+  'Analyse en attente': 'Analysis queued',
+  'Préparation des pistes': 'Preparing tracks',
+  'Détection des dialogues': 'Detecting speech',
+  'Alignement des répliques': 'Aligning dialogue',
+  'Vérification sur plusieurs passages': 'Checking several passages',
+  'Proposition disponible': 'An alignment is ready to try',
+  'L’analyse a échoué. Vous pouvez réessayer.':
+    'Analysis failed. You can try again.',
+  'Analyse annulée': 'Analysis cancelled',
+  'Les dialogues ne donnent pas de correspondance assez nette. Essayez le réglage sur une réplique.':
+    'There wasn’t a clear match. Try matching a line of dialogue.',
+  'Statut indisponible. Réessayez dans un instant.':
+    'Status unavailable. Try again in a moment.',
+  'Analyse indisponible. Le réglage manuel reste accessible.':
+    'Analysis is unavailable. You can still adjust the timing manually.',
+  'Vérifiez le réglage puis validez à nouveau.':
+    'Check the timing, then save again.',
+  'Le réglage a changé. Rouvrez le panneau pour charger la dernière version.':
+    'The timing changed. Reopen this panel to load the latest version.',
+  'Enregistrement impossible. Votre essai est conservé.':
+    'Couldn’t save. Your preview is still here.',
+  'Aucun décalage ajouté': 'No extra delay',
+  'Affichage {value} s plus tard': 'Shown {value} s later',
+  'Affichage {value} s plus tôt': 'Shown {value} s earlier',
+  'Réglage mémorisé pour ce film': 'Timing saved for this title',
+  'Synchroniser automatiquement': 'Sync automatically',
+  'Annuler l’analyse': 'Cancel analysis',
+  'Essayer cette proposition': 'Preview this alignment',
+  'Une cadence différente peut se corriger sur le film entier. Si le montage change, essayez une autre piste dans le menu des sous-titres.':
+    'Automatic analysis can correct a different frame rate across the film. For a different cut, try another subtitle track.',
+  'Les sous-titres apparaissent…': 'The subtitles appear…',
+  'Encore trop tôt': 'Still too early',
+  'Encore trop tard': 'Still too late',
+  'Trop tôt': 'Too early',
+  'Trop tard': 'Too late',
+  'Après correction automatique': 'After automatic alignment',
+  'Rejouer pour vérifier': 'Replay to check',
+  'Rejouer le passage': 'Replay passage',
+  Recommencer: 'Try again',
+  'Recaler sur une réplique': 'Match a line of dialogue',
+  'Réglage précis': 'Fine adjustment',
+  'Trop tôt · 0,1 s': 'Too early · 0.1 s',
+  'Trop tard · 0,1 s': 'Too late · 0.1 s',
+  Réinitialiser: 'Reset',
+  'Ça se décale à nouveau': 'It goes out of sync again',
+  'Choisis une réplique que tu viens d’entendre.':
+    'Choose a line you just heard.',
+  'Rechercher une réplique': 'Search dialogue',
+  'Aucune réplique trouvée': 'No matching lines',
+  Précédentes: 'Previous lines',
+  Suivantes: 'Next lines',
+  'Appuie dès que cette réplique commence.':
+    'Press as soon as this line starts.',
+  'Écouter le passage': 'Listen to passage',
+  'C’est maintenant': 'Right now',
+  'Utiliser ce nouveau passage': 'Use this new passage',
+  'Ce passage ne peut pas encore être rejoué.':
+    'This passage isn’t ready to replay yet.',
+  'C’est bon': 'Save timing',
+  'Choisissez une piste séparée en lecture locale.':
+    'Choose a separate subtitle track during local playback.',
+  'Piste principale': 'Primary track',
   '. Les liens ouvrent les offres du titre, selon le pays.':
     '. Links open offers for this title in the selected country.',
   '· Admin': '· Admin',
@@ -161,6 +248,9 @@ export default {
   'Comptes approuvés': 'Approved accounts',
   Confirmer: 'Confirm',
   'Confirmer après 3 épisodes': 'Ask after 3 episodes',
+  'Accepter les pauses du système': 'Allow system pause commands',
+  'Désactive cette option si ton casque ou une autre application interrompt le film.':
+    'Turn this off if your headset or another app interrupts playback.',
   'Confirmer la suppression': 'Confirm removal',
   'Confirmer le mot de passe': 'Confirm password',
   'Connecté en tant que': 'Signed in as',
@@ -956,4 +1046,18 @@ export default {
   Installé: 'Installed',
   'Traitement en cours…': 'Processing…',
   'Aucun résultat': 'No results',
+  'Rechercher une option': 'Search options',
+  'Options trouvées · {count}': 'Matching options · {count}',
+  'Filtrer les options de « {field} »': 'Filter options for “{field}”',
+  'Rechercher ou demander des sous-titres': 'Search or request subtitles',
+  'Apparence des sous-titres': 'Subtitle appearance',
+  'Piste à personnaliser': 'Track to customize',
+  Principale: 'Primary',
+  Secondaire: 'Secondary',
+  'Cette piste est incrustée dans la vidéo.':
+    'This track is burned into the video.',
+  Blanc: 'White',
+  Jaune: 'Yellow',
+  'Couleur personnalisée': 'Custom color',
+  'Rétablir le style d’origine': 'Restore original style',
 } as const

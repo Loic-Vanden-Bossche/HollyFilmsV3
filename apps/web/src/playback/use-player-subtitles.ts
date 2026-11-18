@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  correctedTime,
+  cueInterval,
+  type Correction,
+  type SourceCue,
+} from '@hollyfilms/shared/subtitle-sync'
 import { subtitleRevision } from './subtitle-tracks.ts'
+import type { SubtitleStyles } from './preferences.ts'
 import type { RefObject } from 'react'
 import type { MediaStream } from '@jellyfin/sdk/lib/generated-client/index.js'
 import type {
@@ -12,13 +19,22 @@ type CaptionsInput = {
   api: PlaybackApi
   videoRef: RefObject<HTMLVideoElement | null>
   playback?: { target: PlaybackTarget; stream: PlaybackStream }
-  delay: number
+  corrections: Record<'primary' | 'secondary', Correction>
   split?: boolean
+  styles: SubtitleStyles
   onError: (message: string) => void
 }
 
 function useTrack(
-  { api, videoRef, playback, delay, split, onError }: CaptionsInput,
+  {
+    api,
+    videoRef,
+    playback,
+    corrections,
+    split,
+    styles,
+    onError,
+  }: CaptionsInput,
   selected?: MediaStream,
   slot: 'primary' | 'secondary' = 'primary',
   plainText = false,
@@ -29,12 +45,28 @@ function useTrack(
     plainText?: boolean
     text: string
   }>({ text: '' })
-  const delayRef = useRef(delay)
+  const timing = corrections[slot]
+  const timingRef = useRef(timing)
+  const [transcript, setTranscript] = useState<{
+    selected: MediaStream
+    playback: CaptionsInput['playback']
+    plainText: boolean
+    cues: SourceCue[]
+  }>()
   const updateOffset = useRef<(() => void) | undefined>(undefined)
+  const scale = styles[slot].scale
+  const bitmapScale = useRef(scale)
+  const bitmapRenderer = useRef<
+    { setDisplaySettings(settings: { scale: number }): void } | undefined
+  >(undefined)
   useEffect(() => {
-    delayRef.current = delay
+    bitmapScale.current = scale
+    bitmapRenderer.current?.setDisplaySettings({ scale })
+  }, [scale])
+  useEffect(() => {
+    timingRef.current = timing
     updateOffset.current?.()
-  }, [delay])
+  }, [timing])
   useEffect(() => {
     const video = videoRef.current
     if (
@@ -55,7 +87,8 @@ function useTrack(
       '/' +
       encodeURIComponent(stream.source.Id)
     const subPath = path + '/Subtitles/' + selected.Index + '/0/Stream.'
-    const offset = () => stream.offset - delayRef.current
+    const offset = () =>
+      stream.offset - correctedTime(0, timingRef.current) / 1000
     const fail = () =>
       onError('Cette piste de sous-titres ne peut pas être affichée.')
     let cancelled = false
@@ -65,6 +98,7 @@ function useTrack(
       canvas = document.createElement('canvas')
       canvas.className = 'player-subtitle-canvas'
       canvas.dataset.subtitleSlot = slot
+      canvas.dataset.bitmap = String(/pgs|dvd|vobsub/.test(codec))
       canvas.dataset.split = String(Boolean(split))
       canvas.style.position = 'absolute'
       canvas.style.pointerEvents = 'none'
@@ -141,6 +175,7 @@ function useTrack(
           onError: () => {
             if (!cancelled) fail()
           },
+          displaySettings: { scale: bitmapScale.current },
         }
         const renderer = pgs
           ? new PgsRenderer(options)
@@ -149,7 +184,11 @@ function useTrack(
           renderer.timeOffset = offset()
         }
         updateOffset.current()
-        dispose = () => renderer.dispose()
+        bitmapRenderer.current = renderer
+        dispose = () => {
+          bitmapRenderer.current = undefined
+          renderer.dispose()
+        }
       })().catch(() => {
         if (!cancelled) fail()
       })
@@ -188,13 +227,19 @@ function useTrack(
       }[] = []
       const adjust = () => {
         for (const entry of originals) {
-          const end = entry.end - offset()
-          if (end <= 0) {
+          const interval = cueInterval(
+            entry.start,
+            entry.end,
+            timingRef.current,
+            stream.offset,
+            video.duration,
+          )
+          if (!interval) {
             if (entry.attached) element.track.removeCue(entry.cue)
             entry.attached = false
           } else {
-            entry.cue.endTime = end
-            entry.cue.startTime = Math.max(0, entry.start - offset())
+            entry.cue.endTime = interval.end
+            entry.cue.startTime = interval.start
             if (!entry.attached) element.track.addCue(entry.cue)
             entry.attached = true
           }
@@ -205,18 +250,37 @@ function useTrack(
       element.addEventListener('load', () => {
         originals = Array.from(element.track.cues ?? []).map((cue) => ({
           cue,
-          start: cue.startTime,
-          end: cue.endTime,
+          start: Math.round(cue.startTime * 1000),
+          end: Math.round(cue.endTime * 1000),
           attached: true,
         }))
+        if (cancelled) return
+        setTranscript({
+          plainText,
+          selected,
+          playback,
+          cues: originals.map(({ cue, start, end }, id) => ({
+            id,
+            startMs: start,
+            endMs: end,
+            text:
+              cue instanceof VTTCue
+                ? (cue.getCueAsHTML().textContent ?? '')
+                : '',
+          })),
+        })
         adjust()
       })
       element.addEventListener('error', fail)
       element.track.addEventListener('cuechange', read)
+      video.addEventListener('durationchange', adjust)
+      video.addEventListener('seeked', read)
       video.appendChild(element)
       element.track.mode = 'hidden'
       dispose = () => {
         element.track.removeEventListener('cuechange', read)
+        video.removeEventListener('durationchange', adjust)
+        video.removeEventListener('seeked', read)
         element.track.mode = 'disabled'
         element.remove()
       }
@@ -228,12 +292,21 @@ function useTrack(
       canvas?.remove()
     }
   }, [api, videoRef, playback, selected, onError, plainText, slot, split])
-  return selected &&
-    caption.track === selected &&
-    caption.playback === playback &&
-    caption.plainText === plainText
-    ? caption.text
-    : ''
+  return {
+    cues:
+      transcript?.selected === selected &&
+      transcript?.playback === playback &&
+      transcript?.plainText === plainText
+        ? transcript?.cues
+        : undefined,
+    text:
+      selected &&
+      caption.track === selected &&
+      caption.playback === playback &&
+      caption.plainText === plainText
+        ? caption.text
+        : '',
+  }
 }
 
 export function usePlayerSubtitles(
@@ -242,7 +315,14 @@ export function usePlayerSubtitles(
   // Jellyfin converts styled text to VTT for bilingual playback so authored
   // positions from two ASS files cannot paint over one another.
   const bilingual = Boolean(options.secondary)
-  const primary = useTrack(options, options.primary, 'primary', bilingual)
+  const plainPrimary =
+    /^(ass|ssa)$/i.test(options.primary?.Codec ?? '') &&
+    (bilingual || options.styles.primary.customized)
+  const primary = useTrack(options, options.primary, 'primary', plainPrimary)
   const secondary = useTrack(options, options.secondary, 'secondary', bilingual)
-  return { primary, secondary }
+  return {
+    primary: primary.text,
+    secondary: secondary.text,
+    cues: { primary: primary.cues, secondary: secondary.cues },
+  }
 }

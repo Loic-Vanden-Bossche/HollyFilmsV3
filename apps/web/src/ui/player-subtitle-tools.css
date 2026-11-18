@@ -1,0 +1,68 @@
+.player-subtitle-tools {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d5edff18;
+}
+.player-subtitle-tools > button.player-subtitle-tools-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px;
+  border: 1px solid #7dded82b;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #4ade800a, #3b82f60a);
+  color: #b0f5e8;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 180ms,
+    background-color 180ms;
+}
+.player-subtitle-tools-trigger:hover,
+.player-subtitle-tools[data-open='true'] .player-subtitle-tools-trigger {
+  border-color: #7dded866;
+  background-color: #7dded80a;
+}
+.player-subtitle-tools-trigger:focus-visible {
+  outline: 2px solid #7dded8;
+  outline-offset: 3px;
+}
+.player-subtitle-tools-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #7dded80d;
+}
+.player-subtitle-tools-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  line-height: 1.4;
+}
+.player-subtitle-tools-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #edf6ff;
+}
+.player-subtitle-tools-copy > span {
+  font-size: 11px;
+  color: #a7b6cc;
+}
+.player-subtitle-tools-content {
+  overflow: hidden;
+}
+.player-subtitle-tools-inner {
+  padding: 16px 0 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-subtitle-tools-trigger {
+    transition: none;
+  }
+}

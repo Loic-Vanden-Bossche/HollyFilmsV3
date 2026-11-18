@@ -28,6 +28,10 @@ type CastContext = {
       autoplay?: boolean
     }): Promise<void>
     getCastDevice(): { friendlyName: string }
+    getMediaSession(): {
+      play(request: null, success: () => void, error: () => void): void
+      pause(request: null, success: () => void, error: () => void): void
+    } | null
   } | null
   endCurrentSession(stopCasting: boolean): void
 }
@@ -131,6 +135,12 @@ export async function castMedia(
     stream,
     player,
     controller,
+    setPaused(paused: boolean, onError: () => void) {
+      const receiver = session.getMediaSession()
+      if (!receiver) return onError()
+      if (paused) receiver.pause(null, () => {}, onError)
+      else receiver.play(null, () => {}, onError)
+    },
     seek(seconds: number) {
       player.currentTime = seconds
       controller.seek()

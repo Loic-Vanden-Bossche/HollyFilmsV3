@@ -294,10 +294,11 @@ export function SubtitlePanel({
           )}
           <ol
             className="subtitle-steps"
+            data-motion={reduced ? 'reduced' : 'full'}
             aria-label={t('Parcours des sous-titres')}
           >
             {[
-              t('Version et langue'),
+              t('Langue'),
               library.data.administrator ? t('Recherche') : t('Approbation'),
               t('Installation'),
             ].map((label, index) => (
@@ -312,10 +313,17 @@ export function SubtitlePanel({
                 }
                 aria-current={index + 1 === stage ? 'step' : undefined}
               >
-                <span>
-                  {index + 1 < stage ? <Check size={12} /> : index + 1}
-                </span>
-                {label}
+                <motion.span
+                  className="subtitle-step-marker"
+                  aria-hidden="true"
+                  key={index + 1 < stage ? 'done' : 'number'}
+                  initial={reduced ? false : { opacity: 0.6, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: reduced ? 0 : 0.18 }}
+                >
+                  {index + 1 < stage ? <Check size={13} /> : index + 1}
+                </motion.span>
+                <span>{label}</span>
               </li>
             ))}
           </ol>

@@ -1,3 +1,31 @@
+model SubtitleTiming {
+  userId      String
+  fingerprint String
+  revision    Int
+  manualMs    Int
+  scale       Float?
+  shiftMs     Int?
+  updatedAt   DateTime @updatedAt
+
+  @@id([userId, fingerprint])
+}
+
+model SubtitleAnalysis {
+  id               String   @id @default(uuid())
+  userId           String
+  fingerprint      String
+  engine           String
+  stage            String
+  processedSeconds Int      @default(0)
+  failureCode      String?
+  scale            Float?
+  shiftMs          Int?
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, fingerprint, engine])
+  @@index([stage, updatedAt])
+}
+
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"

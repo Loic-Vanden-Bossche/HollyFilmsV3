@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 export function useMediaSession(
   title: string | undefined,
@@ -7,14 +7,14 @@ export function useMediaSession(
     duration: number
     rate: number
     paused: boolean
-    toggle: () => void
+    setPaused: (paused: boolean) => void
     seek: (position: number) => void
     step: (direction: -1 | 1) => void
     stop: () => void
   },
 ) {
   const current = useRef(controls)
-  useEffect(() => {
+  useLayoutEffect(() => {
     current.current = controls
   }, [controls])
   useEffect(() => {
@@ -27,18 +27,8 @@ export function useMediaSession(
     const session = navigator.mediaSession
     session.metadata = new MediaMetadata({ title, album: 'HollyFilms' })
     const actions: [MediaSessionAction, MediaSessionActionHandler][] = [
-      [
-        'play',
-        () => {
-          if (current.current.paused) current.current.toggle()
-        },
-      ],
-      [
-        'pause',
-        () => {
-          if (!current.current.paused) current.current.toggle()
-        },
-      ],
+      ['play', () => current.current.setPaused(false)],
+      ['pause', () => current.current.setPaused(true)],
       [
         'seekbackward',
         ({ seekOffset }) =>
@@ -79,12 +69,48 @@ export function useMediaSession(
   useEffect(() => {
     if (!title || !navigator.mediaSession) return
     navigator.mediaSession.playbackState = paused ? 'paused' : 'playing'
-    if (Number.isFinite(duration) && duration > 0) {
-      navigator.mediaSession.setPositionState?.({
-        duration,
-        position: Math.max(0, Math.min(duration, position)),
-        playbackRate: rate,
-      })
+  }, [title, paused])
+
+  const lastPosition = useRef<
+    | {
+        position: number
+        at: number
+        duration: number
+        rate: number
+        paused: boolean
+      }
+    | undefined
+  >(undefined)
+  useEffect(() => {
+    lastPosition.current = undefined
+  }, [title])
+  useEffect(() => {
+    if (
+      !title ||
+      !navigator.mediaSession ||
+      !Number.isFinite(duration) ||
+      duration <= 0
+    )
+      return
+    // The OS advances its own clock between updates. Re-anchor on seeks,
+    // pauses, speed changes and drift instead of republishing every video tick.
+    const at = performance.now()
+    const last = lastPosition.current
+    if (
+      last &&
+      last.duration === duration &&
+      last.paused === paused &&
+      last.rate === rate
+    ) {
+      const expected =
+        last.position + (paused ? 0 : ((at - last.at) / 1000) * rate)
+      if (Math.abs(position - expected) < 1) return
     }
+    navigator.mediaSession.setPositionState?.({
+      duration,
+      position: Math.max(0, Math.min(duration, position)),
+      playbackRate: rate,
+    })
+    lastPosition.current = { position, at, duration, rate, paused }
   }, [title, position, duration, rate, paused])
 }
