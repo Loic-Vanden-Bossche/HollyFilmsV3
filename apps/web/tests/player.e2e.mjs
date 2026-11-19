@@ -1554,12 +1554,14 @@ test(
     await page.screenshot({
       path: path.join(root, '.playwright-mcp/player-verified.png'),
     })
-    const persistedToken = await page.evaluate(
+    const tokenStorageKeys = await page.evaluate(
       (token) =>
-        Object.values(localStorage).some((value) => value.includes(token)),
+        Object.keys(localStorage).filter((key) =>
+          localStorage.getItem(key)?.includes(token),
+        ),
       auth.AccessToken,
     )
-    assert.equal(persistedToken, false)
+    assert.deepEqual(tokenStorageKeys, ['hollyfilms.jellyfin.session'])
     stage = 'closing playback'
     const releaseStop = Promise.withResolvers()
     await page.route(
