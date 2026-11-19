@@ -66,6 +66,11 @@ export function appRouteUrl(href: string, patch: Partial<AppRoute>) {
   )
   if (appPath)
     url.pathname = route.filter === 'all' ? '/app' : `/app/${route.filter}`
+  if (
+    (route.filter !== 'all' || route.search.trim()) &&
+    url.hash.startsWith('#home-shelf-')
+  )
+    url.hash = ''
   const values = {
     view: appPath || route.filter === 'all' ? undefined : route.filter,
     sort: route.sort === 'recent' ? undefined : route.sort,

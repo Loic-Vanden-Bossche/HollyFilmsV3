@@ -12,6 +12,7 @@ import { AdminPage } from './AdminPage.tsx'
 import { AdminUsers } from './AdminUsers.tsx'
 import { RequestsPage } from './RequestsPage.tsx'
 import { SubtitleRequests } from './SubtitleRequests.tsx'
+import { JellyfinStatus } from './ui/JellyfinStatus.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import './admin.css'
 
@@ -67,39 +68,42 @@ export function AdminDashboard({
       </header>
       <h1>{t('Administration')}</h1>
       <div className="admin-layout">
-        <nav aria-label={t('Administration')} className="admin-navigation">
-          {(Object.keys(sections) as Section[]).map((key) => {
-            const { label, icon: Icon } = sections[key]
-            const href = key === 'users' ? '/admin' : `/admin?section=${key}`
-            return (
-              <a
-                key={key}
-                href={href}
-                aria-current={section === key ? 'page' : undefined}
-                onClick={(event) => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  )
-                    return
-                  event.preventDefault()
-                  if (
-                    !initialSection &&
-                    location.pathname + location.search !== href
-                  )
-                    window.history.pushState(null, '', href)
-                  setSection(key)
-                }}
-              >
-                <Icon size={19} aria-hidden="true" />
-                {t(label)}
-              </a>
-            )
-          })}
-        </nav>
+        <aside className="admin-sidebar">
+          <nav aria-label={t('Administration')} className="admin-navigation">
+            {(Object.keys(sections) as Section[]).map((key) => {
+              const { label, icon: Icon } = sections[key]
+              const href = key === 'users' ? '/admin' : `/admin?section=${key}`
+              return (
+                <a
+                  key={key}
+                  href={href}
+                  aria-current={section === key ? 'page' : undefined}
+                  onClick={(event) => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    )
+                      return
+                    event.preventDefault()
+                    if (
+                      !initialSection &&
+                      location.pathname + location.search !== href
+                    )
+                      window.history.pushState(null, '', href)
+                    setSection(key)
+                  }}
+                >
+                  <Icon size={19} aria-hidden="true" />
+                  {t(label)}
+                </a>
+              )
+            })}
+          </nav>
+          <JellyfinStatus compact />
+        </aside>
         <div className="admin-content">
           {section === 'users' && <AdminUsers session={session} />}
           {section === 'registrations' && <AdminPage session={session} />}

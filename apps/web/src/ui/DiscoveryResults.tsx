@@ -7,7 +7,7 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { Plus, Clock3, Film, RotateCcw, Check } from 'lucide-react'
+import { Plus, Clock3, RotateCcw, Check } from 'lucide-react'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import type {
   DiscoveryTitle,
@@ -33,6 +33,8 @@ import {
 } from '../motion/tokens.ts'
 import { claimRequestFollowUp } from '../request-follow-up.ts'
 import { MediaRequestDialog } from './MediaRequestDialog.tsx'
+import { MediaArtwork } from './MediaArtwork.tsx'
+import { ArtworkPreview } from './ArtworkPreview.tsx'
 import '../requests.css'
 
 export function DiscoveryResults({
@@ -229,9 +231,8 @@ export function DiscoveryResults({
               const requested =
                 item.requested || submitted.has(`${item.type}:${item.id}`)
               return (
-                <motion.article
+                <motion.div
                   key={`${item.type}:${item.id}`}
-                  className="discovery-card glass-panel"
                   initial={
                     reduced ? false : { opacity: 0.65, y: distance.control }
                   }
@@ -245,70 +246,71 @@ export function DiscoveryResults({
                     delay: reduced ? 0 : staggerDelay(index),
                   }}
                 >
-                  <div className="discovery-artwork">
-                    {item.poster ? (
-                      <img
-                        src={item.poster}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none'
+                  <ArtworkPreview
+                    title={item.title}
+                    cinematic
+                    selectLabel={item.title}
+                    wide={false}
+                    artwork={<MediaArtwork source={item.poster} />}
+                  >
+                    <div className="discovery-copy">
+                      <motion.button
+                        type="button"
+                        data-preview-select
+                        whileTap={
+                          reduced ? undefined : { scale: scale.pressed }
+                        }
+                        className="request-button glass-control"
+                        disabled={
+                          replacing ||
+                          requested ||
+                          !supported ||
+                          mutation.isPending
+                        }
+                        onClick={() => {
+                          mutation.reset()
+                          setSuccess(undefined)
+                          setOfferRequests(false)
+                          setConfirming(item)
                         }}
-                      />
-                    ) : (
-                      <Film aria-hidden="true" />
-                    )}
-                    <span>{t(item.type === 'movie' ? 'Film' : 'Série')}</span>
-                  </div>
-                  <div className="discovery-copy">
-                    <p>
-                      {item.year}
-                      {item.rating ? ` · ★ ${item.rating.toFixed(1)}` : ''}
-                    </p>
-                    <h3>{item.title}</h3>
-                    <motion.button
-                      whileTap={reduced ? undefined : { scale: scale.pressed }}
-                      className="request-button glass-control"
-                      disabled={
-                        replacing ||
-                        requested ||
-                        !supported ||
-                        mutation.isPending
-                      }
-                      onClick={() => {
-                        mutation.reset()
-                        setSuccess(undefined)
-                        setOfferRequests(false)
-                        setConfirming(item)
-                      }}
-                    >
-                      <AnimatePresence mode="popLayout" initial={false}>
-                        <motion.span
-                          key={requested ? 'requested' : 'request'}
-                          className="request-button-label"
-                          initial={{ opacity: 0, y: reduced ? 0 : 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: reduced ? 0 : -6 }}
-                          transition={{
-                            duration: reduced ? duration.press : duration.micro,
-                          }}
-                        >
-                          {requested ? (
-                            <Clock3 size={16} />
-                          ) : (
-                            <Plus size={16} />
-                          )}
-                          {requested
-                            ? t('Déjà demandé')
-                            : !supported
-                              ? t('Service indisponible')
-                              : t('Demander')}
-                        </motion.span>
-                      </AnimatePresence>
-                    </motion.button>
-                  </div>
-                </motion.article>
+                      >
+                        <AnimatePresence mode="popLayout" initial={false}>
+                          <motion.span
+                            key={requested ? 'requested' : 'request'}
+                            className="request-button-label"
+                            initial={{ opacity: 0, y: reduced ? 0 : 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: reduced ? 0 : -6 }}
+                            transition={{
+                              duration: reduced
+                                ? duration.press
+                                : duration.micro,
+                            }}
+                          >
+                            {requested ? (
+                              <Clock3 size={16} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                            {requested
+                              ? t('Déjà demandé')
+                              : !supported
+                                ? t('Service indisponible')
+                                : t('Demander')}
+                          </motion.span>
+                        </AnimatePresence>
+                      </motion.button>
+                      <p>
+                        {t(item.type === 'movie' ? 'Film' : 'Série')}
+                        {item.year && ` · ${item.year}`}
+                        {item.rating ? ` · ★ ${item.rating.toFixed(1)}` : ''}
+                      </p>
+                      {item.overview && (
+                        <p className="discovery-overview">{item.overview}</p>
+                      )}
+                    </div>
+                  </ArtworkPreview>
+                </motion.div>
               )
             })}
           </div>

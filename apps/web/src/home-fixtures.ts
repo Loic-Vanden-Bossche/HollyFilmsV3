@@ -33,6 +33,113 @@ export const homeItems: MediaItem[] = catalogueItems.map((item, index) => ({
 }))
 export const homeResume = homeItems.slice(1, 4).map((item, index) => ({
   ...item,
+  thumb:
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+        <image width="640" height="360" href="${backdrop}"/>
+        <text x="34" y="286" fill="#f1f7ff" font-family="sans-serif" font-size="52" font-weight="bold" letter-spacing="3">${item.title.toUpperCase()}</text>
+      </svg>`,
+    ),
   progress: 0.24 + index * 0.19,
   remainingMinutes: 76 - index * 18,
 }))
+
+// A larger catalogue lets the home stories exercise the independent shelves.
+const shelfProgrammes = [
+  [
+    'Thriller',
+    'Heure de pointe',
+    'Angle mort',
+    'Le Guetteur',
+    'Silence radio',
+    'La Planque',
+    'Minuit trente',
+  ],
+  [
+    'Aventure',
+    'Au large',
+    'Grand Nord',
+    'Les Éclaireurs',
+    'Ligne de crête',
+    'Courant sud',
+    'Le Col',
+  ],
+  [
+    'Fantastique',
+    'La Traversée',
+    'L’Autre Rive',
+    'Poussière de lune',
+    'Les Veilleurs',
+    'Métamorphoses',
+    'Équinoxe',
+  ],
+  [
+    'Drame',
+    'Trois jours',
+    'Sur le départ',
+    'Le Grand Bain',
+    'Première neige',
+    'De passage',
+    'Les Beaux Jours',
+  ],
+  [
+    'Comédie',
+    'Au suivant',
+    'Le Voisin',
+    'La Répétition',
+    'Double jeu',
+    'Terrain libre',
+    'Un dimanche',
+  ],
+  [
+    'Science-fiction',
+    'Horizon rouge',
+    'L’Orbite bleue',
+    'Le Transit',
+    'Protocole zéro',
+    'Onde longue',
+    'Le Sillage',
+  ],
+]
+
+export const homeShelfItems: MediaItem[] = Array.from(
+  { length: 36 },
+  (_, i) => {
+    const group = i % shelfProgrammes.length
+    const programme = shelfProgrammes[group]
+    const title = programme[1 + Math.floor(i / shelfProgrammes.length)]
+    const base = homeItems[i % homeItems.length]
+    const illustration = String(base.poster)
+    const hue = [190, 55, 260, 310, 120, 0][group]
+    return {
+      ...base,
+      id: 'shelf-' + i,
+      title,
+      kind: group === 5 ? 'Série' : 'Film',
+      genres: [programme[0]],
+      rating: 7.2 + (i % 16) / 10,
+      minutes: group === 4 ? 82 + (i % 8) : 100 + i,
+      poster:
+        'data:image/svg+xml,' +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
+            <defs><filter id="tone"><feColorMatrix type="hueRotate" values="${hue}"/></filter><linearGradient id="shade" x2="0" y2="1"><stop stop-color="#080c14" stop-opacity="0"/><stop offset="1" stop-color="#080c14"/></linearGradient></defs>
+            <svg width="400" height="600" viewBox="80 86 215 320" preserveAspectRatio="xMidYMid slice"><image href="${illustration}" width="400" height="600" filter="url(#tone)"/></svg>
+            <rect y="350" width="400" height="250" fill="url(#shade)"/>
+            <text x="24" y="538" fill="#fff" font-family="sans-serif" font-weight="bold" font-size="${Math.min(52, 610 / title.length)}">${title}</text>
+          </svg>`,
+        ),
+      logo:
+        'data:image/svg+xml,' +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 96"><text x="0" y="75" fill="white" font-family="sans-serif" font-size="58" font-weight="bold">${title}</text></svg>`,
+        ),
+      thumb:
+        'data:image/svg+xml,' +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><defs><filter id="tone"><feColorMatrix type="hueRotate" values="${hue}"/></filter></defs><rect width="640" height="360" fill="#101a28"/><image href="${illustration}" y="-220" width="640" height="960" filter="url(#tone)"/><text x="30" y="316" fill="white" font-family="sans-serif" font-size="42" font-weight="bold">${title}</text></svg>`,
+        ),
+    }
+  },
+)

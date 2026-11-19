@@ -53,7 +53,7 @@ test('favorites, sorting and collections are scoped by the SDK to the current us
     Name: 'Saga',
     Type: 'BoxSet',
     ChildCount: 3,
-    ImageTags: { Primary: 'poster' },
+    ImageTags: { Primary: 'poster', Logo: 'wordmark' },
   }
   const server = createServer((request, response) => {
     const url = new URL(request.url!, 'http://localhost')
@@ -112,7 +112,13 @@ test('favorites, sorting and collections are scoped by the SDK to the current us
   assert.equal(requests[3].searchParams.get('searchTerm'), 'Saga')
   assert.equal(requests[3].searchParams.get('startIndex'), '24')
   assert.equal(page.items[0].count, 3)
+  assert.deepEqual(page.items[0].logo, {
+    itemId: 'saga',
+    type: 'Logo',
+    tag: 'wordmark',
+  })
   assert.equal(detail.id, 'saga')
+  assert.deepEqual(detail.logo, page.items[0].logo)
   assert.equal(requests[5].searchParams.get('includeItemTypes'), 'Episode')
   for (const request of requests)
     assert.equal(request.searchParams.get('userId'), 'user-123')
@@ -227,6 +233,12 @@ test('SDK requests use the signed-in user, search, pagination and header authent
   assert.equal(requests[1].url.pathname, '/UserItems/Resume')
   assert.equal(requests[1].url.searchParams.get('userId'), 'user-123')
   for (const request of requests.slice(0, 2)) {
+    assert.ok(
+      request.url.searchParams
+        .getAll('fields')
+        .join(',')
+        .includes('RemoteTrailers'),
+    )
     assert.ok(
       request.url.searchParams
         .getAll('fields')

@@ -12,7 +12,6 @@ import { LandingPage } from './LandingPage.tsx'
 import type { GoogleReturn } from './account-api.ts'
 import {
   endJellyfinSession,
-  getJellyfinServerInfo,
   getJellyfinUser,
   isJellyfinAccessDenied,
 } from '@hollyfilms/shared/jellyfin'
@@ -26,6 +25,7 @@ import {
 import { Button } from './ui/Button.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { GlassPanel } from './ui/GlassPanel.tsx'
+import { JellyfinStatus } from './ui/JellyfinStatus.tsx'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { navigateApp, takeAppReturn, useAppRoute } from './use-app-route.ts'
 import { performanceController } from './performance/profiles.ts'
@@ -324,7 +324,6 @@ export default function App({
       <Suspense fallback={opening}>
         <main className="member-shell mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-8 sm:py-9">
           <AdminDashboard key={session.deviceId} session={session} />
-          <JellyfinStatus />
         </main>
       </Suspense>
     )
@@ -399,57 +398,5 @@ export default function App({
 
       <JellyfinStatus />
     </main>
-  )
-}
-
-function JellyfinStatus() {
-  const { t } = useI18n()
-  const server = useQuery({
-    queryKey: ['jellyfin', 'public-system-info'],
-    queryFn: ({ signal }) => getJellyfinServerInfo(jellyfinUrl, signal),
-    retry: false,
-  })
-
-  return (
-    <GlassPanel aria-labelledby="jellyfin-heading">
-      <h2 id="jellyfin-heading" className="text-xl font-medium">
-        {t('État du service')}
-      </h2>
-
-      <div role="status" className="mt-3 space-y-2 text-sm">
-        {server.isPending && (
-          <p className="text-muted-foreground">
-            {t('Vérification de la connexion…')}
-          </p>
-        )}
-        {server.isError && (
-          <p className="text-destructive">
-            {t('Impossible de joindre le serveur.')}
-          </p>
-        )}
-        {server.isSuccess && (
-          <>
-            <p className="font-medium text-success">{t('Connexion établie')}</p>
-            <p className="text-muted-foreground">
-              {'HollyFilms'} {t('· Version')} {server.data.Version}
-            </p>
-            {server.data.StartupWizardCompleted === false && (
-              <p className="text-muted-foreground">
-                {t('L’assistant de configuration du serveur reste à terminer.')}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="mt-6">
-        <Button
-          onClick={() => void server.refetch()}
-          disabled={server.isFetching}
-        >
-          {t('Vérifier la connexion')}
-        </Button>
-      </div>
-    </GlassPanel>
   )
 }

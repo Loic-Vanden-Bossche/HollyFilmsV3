@@ -1,0 +1,351 @@
+@reference "../index.css";
+
+.artwork-preview {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+}
+
+.artwork-preview-trigger {
+  @apply bg-card text-foreground;
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0.65rem;
+  padding: 0;
+  cursor: pointer;
+}
+.artwork-preview[data-wide='true'] > .artwork-preview-trigger,
+.artwork-preview-hero {
+  aspect-ratio: 16 / 9;
+}
+.artwork-preview-trigger:focus-visible,
+.artwork-preview-panel button:focus-visible {
+  @apply outline-2 outline-offset-2 outline-ring;
+}
+.artwork-preview:has(> .artwork-preview-trigger:focus-visible)
+  .artwork-preview-surface {
+  @apply outline-2 outline-ring;
+}
+.artwork-preview-trigger > img,
+.artwork-preview-backdrop > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artwork-preview-panel {
+  position: fixed;
+  inset: auto;
+  z-index: 40;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+.artwork-preview-surface {
+  @apply bg-popover text-popover-foreground;
+  position: relative;
+  max-height: var(--preview-max-height, calc(100dvh - 16px));
+  overflow: auto;
+  scrollbar-width: thin;
+  border-radius: 0.8rem;
+  box-shadow:
+    0 16px 38px rgb(0 0 0 / 55%),
+    0 0 0 1px rgb(255 255 255 / 14%);
+}
+.artwork-preview-hero {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+.artwork-preview-stack {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: var(--preview-min-height);
+}
+.artwork-preview-stack > .artwork-preview-hero {
+  align-self: stretch;
+}
+.artwork-preview-hero[data-contain='true'] {
+  min-height: var(--preview-min-height);
+}
+.artwork-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  transform-origin: 60% 40%;
+}
+.artwork-preview-hero[data-contain='true'] img {
+  object-fit: contain;
+}
+.artwork-preview-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.artwork-preview-content {
+  display: grid;
+  align-items: start;
+  gap: 0.65rem;
+  padding: clamp(0.875rem, 1.3vw, 1.25rem);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.artwork-preview-title {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.artwork-preview-stage {
+  --preview-base: theme('colors.background');
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  color: theme('colors.foreground');
+  background: var(--preview-base);
+}
+.artwork-preview-stage > .artwork-preview-hero {
+  position: absolute;
+  inset: 0 0 auto;
+  min-height: 100%;
+}
+.artwork-preview-stage .card-video-preview {
+  inset: 0 0 auto;
+  aspect-ratio: 16 / 9;
+  mask-image: linear-gradient(to bottom, black 78%, transparent);
+}
+/* The same scrim covers both the still and the playing video. */
+.artwork-preview-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--preview-base) 94%, transparent),
+      color-mix(in srgb, var(--preview-base) 75%, transparent) 26%,
+      transparent 80%
+    ),
+    linear-gradient(
+      95deg,
+      rgb(4 8 14 / 78%),
+      rgb(4 8 14 / 20%) 65%,
+      transparent
+    );
+}
+.artwork-preview-stage > .artwork-preview-content {
+  position: relative;
+  min-height: max(56.25cqw, var(--preview-min-height));
+  align-content: end;
+  gap: clamp(0.45rem, 1.8cqw, 0.75rem);
+  padding: min(16cqw, 15dvh) clamp(0.875rem, 4cqw, 1.875rem)
+    clamp(0.875rem, 4cqw, 1.875rem);
+  pointer-events: none;
+}
+.artwork-preview-stage > .artwork-preview-content > * {
+  pointer-events: auto;
+}
+.artwork-preview-stage .artwork-preview-title {
+  align-self: end;
+  width: fit-content;
+  max-width: 100%;
+  color: white;
+  font-size: clamp(1.25rem, 5cqw, 2rem);
+  font-weight: 750;
+  line-height: 1.08;
+  text-wrap: balance;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 85%);
+  pointer-events: none;
+}
+.artwork-preview-logo.media-artwork {
+  display: grid;
+  align-items: end;
+  width: min(65cqw, 24rem);
+  min-height: clamp(2.5rem, 13cqw, 6.5rem);
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+.artwork-preview-logo.media-artwork img {
+  object-fit: contain;
+  object-position: left bottom;
+  transform-origin: left bottom;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 66%));
+}
+.artwork-preview-logo .media-artwork-fallback {
+  position: static;
+  display: block;
+  background: transparent;
+  color: inherit;
+}
+.artwork-preview-close {
+  position: absolute;
+  right: 0.4rem;
+  top: 0.4rem;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  color: white;
+  background: rgb(6 11 18 / 82%);
+  cursor: pointer;
+}
+
+/* A portrait unfolds into a single picture. Leave the right side clear for
+   faces and keep the title, primary action and synopsis on the readable side. */
+[data-presentation='cinema']
+  > .artwork-preview-surface
+  .artwork-preview-content {
+  gap: clamp(0.4rem, 1.15cqw, 0.65rem);
+  padding-block-start: clamp(2.75rem, 12cqw, 5.5rem);
+}
+[data-presentation='cinema']
+  > .artwork-preview-surface
+  .artwork-preview-content
+  > * {
+  max-width: min(100%, max(69cqw, 20rem));
+}
+[data-presentation='cinema'][data-branded]
+  > .artwork-preview-surface
+  .artwork-preview-content
+  > :last-child {
+  margin-inline-end: clamp(4rem, 18cqw, 6.5rem);
+}
+[data-presentation='cinema'] > .artwork-preview-surface .artwork-preview-logo {
+  width: min(57cqw, 22rem);
+  min-height: clamp(2.5rem, 10cqw, 5rem);
+}
+[data-presentation='cinema'] > .artwork-preview-surface .media-card-overview {
+  -webkit-line-clamp: 2;
+}
+
+/* A ranked film keeps its entire frame, with its actions on a separate
+   surface. Small landscape previews share this touch-friendly reading order. */
+.artwork-preview-panel:is(
+    [data-presentation='ranked'],
+    [data-presentation='landscape']
+  )
+  .artwork-preview-hero {
+  position: relative;
+  inset: auto;
+  min-height: 0;
+}
+.artwork-preview-panel:is(
+    [data-presentation='ranked'],
+    [data-presentation='landscape']
+  )
+  .artwork-preview-content {
+  min-height: 0;
+  padding: clamp(0.875rem, 4cqw, 1.35rem);
+  gap: clamp(0.375rem, 1.6cqw, 0.65rem);
+  background: var(--preview-base);
+  pointer-events: auto;
+}
+.artwork-preview-panel:is(
+    [data-presentation='ranked'],
+    [data-presentation='landscape']
+  )
+  .artwork-preview-logo {
+  width: min(60cqw, 14rem);
+  min-height: clamp(2.2rem, 9cqw, 3.3rem);
+}
+.artwork-preview-panel:is(
+    [data-presentation='ranked'],
+    [data-presentation='landscape']
+  )
+  .artwork-preview-scrim {
+  background: linear-gradient(to top, rgb(3 7 13 / 40%), transparent 28%);
+}
+.artwork-preview-panel:is(
+    [data-presentation='ranked'],
+    [data-presentation='landscape']
+  )
+  .card-video-preview {
+  inset: 0;
+  aspect-ratio: auto;
+  mask-image: none;
+}
+.artwork-preview-panel[data-presentation='ranked'] .media-card-play {
+  flex: 1;
+}
+.artwork-preview-panel[data-presentation='ranked'] .media-card-overview {
+  -webkit-line-clamp: 2;
+}
+
+.artwork-preview-panel[data-presentation='landscape'] .artwork-preview-title {
+  position: absolute;
+  inset-inline: clamp(0.875rem, 3cqw, 1.5rem);
+  bottom: clamp(0.875rem, 3cqw, 1.5rem);
+  max-width: calc(100% - 3rem);
+  width: auto;
+  user-select: none;
+}
+.artwork-preview-panel[data-presentation='landscape'] .artwork-preview-scrim {
+  background: linear-gradient(to top, rgb(4 8 14 / 78%), transparent 62%);
+}
+@container (max-width: 23rem) {
+  .artwork-preview-panel[data-presentation] .media-card-dock {
+    gap: 0.375rem;
+  }
+  .artwork-preview-panel[data-presentation] .media-card-play {
+    gap: 0.375rem;
+    padding-inline: 0.65rem;
+  }
+}
+@container (max-width: 16rem) {
+  .artwork-preview-panel[data-presentation] .media-card-play {
+    gap: 0.25rem;
+    padding-inline: 0.375rem;
+    font-size: 0.875rem;
+  }
+}
+.artwork-preview-panel[data-split] {
+  & .artwork-preview-stage {
+    display: grid;
+    grid-template-columns: var(--preview-picture-width) minmax(0, 1fr);
+    align-items: stretch;
+  }
+  & .artwork-preview-hero {
+    aspect-ratio: auto;
+    min-height: max(38cqw, var(--preview-min-height));
+  }
+  & .artwork-preview-scrim {
+    background:
+      linear-gradient(to right, transparent 72%, var(--preview-base)),
+      linear-gradient(to top, rgb(4 8 14 / 78%), transparent 55%);
+  }
+  & .artwork-preview-content {
+    align-content: center;
+    padding: clamp(2.8rem, 7cqw, 3.6rem) clamp(1rem, 3cqw, 1.6rem)
+      clamp(1rem, 3cqw, 1.6rem) clamp(0.65rem, 1.8cqw, 1rem);
+    gap: 0.5rem;
+  }
+  & .artwork-preview-logo {
+    width: min(100%, 29cqw, 14rem);
+    min-height: 3rem;
+  }
+  & .media-card-dock {
+    --action-size: 44px;
+  }
+  & .media-card-overview {
+    -webkit-line-clamp: 2;
+  }
+}

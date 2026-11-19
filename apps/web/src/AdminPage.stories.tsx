@@ -56,6 +56,7 @@ export const Requests: Story = {
         createdAt: '2026-01-12T09:00:00Z',
         decidedAt: '2026-01-12T11:00:00Z',
         decidedBy: 'Alex',
+        googleName: 'Jo Martin',
         googleEmail: 'jo@example.com',
         lastError: 'Impossible de consulter les comptes.',
       },
@@ -117,6 +118,8 @@ export const RejectAndRetry: Story = {
   beforeEach: Requests.beforeEach,
   play: async ({ canvas, userEvent }) => {
     await canvas.findByText('Camille')
+    await expect(canvas.getByText('Jo Martin')).toBeVisible()
+    await expect(canvas.getByText('jo@example.com')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Refuser' }))
     await waitFor(() => expect(canvas.getByText('Refusée')).toBeVisible())
     await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))

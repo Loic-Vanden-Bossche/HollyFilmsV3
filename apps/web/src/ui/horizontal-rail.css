@@ -1,0 +1,54 @@
+.horizontal-rail {
+  position: relative;
+  min-width: 0;
+}
+.horizontal-rail-arrow {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 3.8vw, 56px);
+  height: clamp(56px, 65%, 104px);
+  padding: 0;
+  border: 0;
+  color: white;
+  cursor: pointer;
+  background: radial-gradient(
+    ellipse at var(--rail-edge) center,
+    rgb(5 9 17 / 65%),
+    transparent 75%
+  );
+}
+.horizontal-rail-arrow--previous {
+  left: 0;
+  --rail-edge: left;
+}
+.horizontal-rail-arrow--next {
+  right: 0;
+  --rail-edge: right;
+}
+.horizontal-rail-arrow svg {
+  width: 88%;
+  height: auto;
+  stroke-width: 1.65;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 85%));
+}
+.horizontal-rail-arrow:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--color-ring, #7dded8);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .horizontal-rail-arrow:hover {
+    background: radial-gradient(
+      ellipse at var(--rail-edge) center,
+      rgb(5 9 17 / 85%),
+      transparent 80%
+    );
+  }
+}
+.horizontal-rail-arrow:disabled {
+  visibility: hidden;
+}

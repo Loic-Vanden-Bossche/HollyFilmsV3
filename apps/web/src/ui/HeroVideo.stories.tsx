@@ -29,8 +29,13 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 export const Playing: Story = {
-  play: async ({ args }) => {
+  play: async ({ args, canvasElement }) => {
     await waitFor(() => expect(args.onStatus).toHaveBeenCalledWith('playing'))
+    const video = canvasElement.querySelector('video')!
+    await expect(video.controls).toBe(false)
+    await expect(video.playsInline).toBe(true)
+    await expect(video.disablePictureInPicture).toBe(true)
+    await expect(video.disableRemotePlayback).toBe(true)
   },
 }
 export const Paused: Story = {

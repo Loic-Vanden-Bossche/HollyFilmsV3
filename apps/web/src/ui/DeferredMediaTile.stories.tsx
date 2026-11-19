@@ -49,6 +49,8 @@ export const OffscreenKeyboard: Story = {
       name: 'Voir la fiche de ' + args.item.title,
     })
     await expect(canvas.queryByRole('article')).not.toBeInTheDocument()
+    const slot = placeholder.getBoundingClientRect()
+    await expect(slot.width / slot.height).toBeCloseTo(2 / 3, 2)
     const height = canvasElement.ownerDocument.documentElement.scrollHeight
     placeholder.focus({ preventScroll: true })
     await canvas.findByRole('article', { name: args.item.title })
@@ -56,6 +58,7 @@ export const OffscreenKeyboard: Story = {
       name: 'Voir la fiche de ' + args.item.title,
     })
     await waitFor(() => expect(button).toHaveFocus())
+    await expect(button.getBoundingClientRect().height).toBe(slot.height)
     await expect(
       Math.abs(
         canvasElement.ownerDocument.documentElement.scrollHeight - height,

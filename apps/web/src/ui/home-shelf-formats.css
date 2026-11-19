@@ -1,0 +1,82 @@
+@reference "../index.css";
+
+/* Keep the shelf's document-edge gutters and the partial next tile. */
+.home-shelves [data-shelf-format='poster'] .home-shelf-track {
+  grid-auto-columns: calc(
+    (100% + var(--spacing-stage) - var(--shelf-peek)) /
+      (var(--shelf-columns) + 1) - var(--shelf-gap)
+  );
+}
+.home-shelves [data-shelf-format='poster'] .home-skeleton {
+  aspect-ratio: 2 / 3;
+}
+
+.home-shelves [data-shelf-format='ranked'] .home-shelf-track {
+  --rank-columns: max(1, calc(var(--shelf-columns) * 0.8));
+  --rank-peek: clamp(88px, 7vw, 132px);
+  grid-auto-columns: calc(
+    (100% + var(--spacing-stage) - var(--rank-peek)) / var(--rank-columns) -
+      var(--shelf-gap)
+  );
+}
+.home-rank-card {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: 23% minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.home-rank-card > .media-tile,
+.home-rank-card > .home-skeleton {
+  grid-area: 1 / 2;
+  scroll-snap-align: none;
+}
+.home-shelf[aria-hidden='true'] .home-shelf-link {
+  visibility: hidden;
+}
+.home-shelf[aria-hidden='true'] h2 {
+  color: transparent;
+  background: linear-gradient(theme('colors.card'), theme('colors.card')) left
+    center / 72% 0.6em no-repeat;
+}
+.home-rank-number {
+  grid-area: 1 / 1;
+  justify-self: end;
+  margin-inline-end: -0.035em;
+  user-select: none;
+  pointer-events: none;
+  font-size: 42cqw;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  line-height: 0.82;
+  color: transparent;
+  background: linear-gradient(
+    155deg,
+    theme('colors.foreground') 8%,
+    theme('colors.muted.foreground') 55%,
+    theme('colors.input') 100%
+  );
+  background-clip: text;
+}
+.home-rank-card:first-child .home-rank-number {
+  background-image: linear-gradient(
+    155deg,
+    theme('colors.foreground'),
+    theme('colors.link') 66%,
+    theme('colors.input')
+  );
+}
+.home-rank-card:nth-child(10) .home-rank-number {
+  font-size: 35cqw;
+  letter-spacing: -0.09em;
+  margin-inline-end: 0.065em;
+  transform: scaleX(0.7);
+  transform-origin: right center;
+}
+@media (forced-colors: active) {
+  .home-rank-number {
+    color: CanvasText;
+  }
+}

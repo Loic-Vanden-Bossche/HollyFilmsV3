@@ -10,7 +10,7 @@ export { normalizeAudioLanguage } from './media-metadata.ts'
 
 export type LibraryImage = {
   itemId: string
-  type: 'Primary' | 'Backdrop' | 'Logo' | 'Chapter'
+  type: 'Primary' | 'Backdrop' | 'Logo' | 'Chapter' | 'Thumb'
   tag: string
   index?: number
 }
@@ -30,6 +30,8 @@ export type MediaItem = {
   editions?: string[]
   logo?: LibraryImage | string
   trailers?: { url: string; name: string }[]
+  /** Null for items that cannot be opened as a direct video file. */
+  previewSource?: { id?: string; durationSeconds?: number } | null
   classification?: string
   minutes?: number
   progress: number
@@ -39,6 +41,7 @@ export type MediaItem = {
   episode?: string
   poster?: LibraryImage | string
   backdrop?: LibraryImage | string
+  thumb?: LibraryImage | string
 }
 export type LibraryPage = { items: MediaItem[]; total: number }
 export type LibraryFilter =
@@ -47,7 +50,7 @@ export type LibrarySort = 'recent' | 'title' | 'rating' | 'year'
 export type LibraryOptions = { sort?: LibrarySort; collectionId?: string }
 export type CollectionItem = Pick<
   MediaItem,
-  'id' | 'title' | 'overview' | 'poster' | 'backdrop'
+  'id' | 'title' | 'overview' | 'poster' | 'backdrop' | 'logo'
 > & { count?: number }
 export type CollectionsPage = { items: CollectionItem[]; total: number }
 
@@ -66,6 +69,7 @@ export function toMediaItem(item: BaseItemDto): MediaItem | null {
     item.BackdropImageTags?.[0] ?? item.ParentBackdropImageTags?.[0]
   const posterId = item.ImageTags?.Primary ? item.Id : item.SeriesId
   const posterTag = item.ImageTags?.Primary ?? item.SeriesPrimaryImageTag
+  const source = item.MediaSources?.[0]
   return {
     id: item.Id,
     title: item.Type === 'Episode' ? item.SeriesName || item.Name : item.Name,
@@ -95,6 +99,17 @@ export function toMediaItem(item: BaseItemDto): MediaItem | null {
     trailers: (item.RemoteTrailers ?? []).flatMap((trailer) =>
       trailer.Url ? [{ url: trailer.Url, name: trailer.Name ?? '' }] : [],
     ),
+    previewSource:
+      (item.Type && item.Type !== 'Movie' && item.Type !== 'Episode') ||
+      item.PlayAccess === 'None' ||
+      item.LocationType === 'Virtual' ||
+      source?.IsInfiniteStream ||
+      source?.RequiresOpening
+        ? null
+        : {
+            id: source?.Id ?? undefined,
+            durationSeconds: runtime > 0 ? runtime / 10_000_000 : undefined,
+          },
     classification: item.OfficialRating ?? undefined,
     minutes: runtime > 0 ? Math.round(runtime / 600_000_000) : undefined,
     progress: Math.min(1, Math.max(0, progress)),
@@ -118,6 +133,21 @@ export function toMediaItem(item: BaseItemDto): MediaItem | null {
       posterId && posterTag
         ? { itemId: posterId, type: 'Primary', tag: posterTag }
         : undefined,
+    thumb: item.ImageTags?.Thumb
+      ? { itemId: item.Id, type: 'Thumb', tag: item.ImageTags.Thumb }
+      : item.SeriesId && item.SeriesThumbImageTag
+        ? {
+            itemId: item.SeriesId,
+            type: 'Thumb',
+            tag: item.SeriesThumbImageTag,
+          }
+        : item.ParentThumbItemId && item.ParentThumbImageTag
+          ? {
+              itemId: item.ParentThumbItemId,
+              type: 'Thumb',
+              tag: item.ParentThumbImageTag,
+            }
+          : undefined,
     backdrop:
       backdropId && backdropTag
         ? { itemId: backdropId, type: 'Backdrop', tag: backdropTag }
@@ -192,6 +222,7 @@ function toCollection(item: BaseItemDto): CollectionItem | null {
     overview: media.overview,
     poster: media.poster,
     backdrop: media.backdrop,
+    logo: media.logo,
     count: item.ChildCount ?? undefined,
   }
 }
@@ -278,7 +309,13 @@ export async function getResumeItems(
       limit: 12,
       mediaTypes: ['Video'],
       includeItemTypes: options.episodesOnly ? ['Episode'] : undefined,
-      fields: ['Overview', 'Genres', 'MediaSources', 'MediaStreams'],
+      fields: [
+        'Overview',
+        'Genres',
+        'RemoteTrailers',
+        'MediaSources',
+        'MediaStreams',
+      ],
       enableUserData: true,
       enableImages: true,
       imageTypeLimit: 1,
@@ -313,27 +350,43 @@ export async function getLibraryImage(
   return data
 }
 
-export type HeroPreview =
-  { kind: 'youtube'; id: string } | { kind: 'video'; url: string }
+export type HeroPreview = { kind: 'video'; url: string }
 
-export function youtubeId(value: string): string | undefined {
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'https:') return
-    const host = url.hostname.replace(/^www\./, '')
-    const id =
-      host === 'youtu.be'
-        ? url.pathname.slice(1)
-        : ['youtube.com', 'm.youtube.com', 'youtube-nocookie.com'].includes(
-              host,
-            )
-          ? (url.searchParams.get('v') ??
-            url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)$/)?.[1])
-          : undefined
-    return id && /^[\w-]{11}$/.test(id) ? id : undefined
-  } catch {
-    return undefined
-  }
+/** A native range request for the file, independent of the watched-position API. */
+export function getItemPreviewClip(
+  baseUrl: string,
+  session: JellyfinSession,
+  item: MediaItem,
+  chapterStartSeconds?: number,
+): HeroPreview | null {
+  if (item.kind === 'Série' || item.previewSource === null) return null
+  const duration =
+    item.previewSource?.durationSeconds ?? (item.minutes ?? 0) * 60
+  const knownDuration = Number.isFinite(duration) && duration > 0
+  const opening = knownDuration ? Math.min(30, Math.floor(duration * 0.1)) : 0
+  const bookmark =
+    item.progress > 0 && !item.watched ? item.playbackPosition : undefined
+  // Resume previews avoid the credits. A chapter preview follows the selected chapter.
+  const position = chapterStartSeconds ?? bookmark
+  const limit = knownDuration
+    ? duration -
+      (chapterStartSeconds == null ? Math.min(120, duration * 0.1) : 0)
+    : Infinity
+  const start =
+    position != null && position >= 0 && position < limit ? position : opening
+  const end = knownDuration ? Math.min(duration, start + 15) : start + 15
+  const url = new URL(
+    baseUrl.replace(/\/$/, '') +
+      '/Videos/' +
+      encodeURIComponent(item.id) +
+      '/stream',
+  )
+  url.searchParams.set('static', 'true')
+  url.searchParams.set('api_key', session.accessToken)
+  if (item.previewSource?.id)
+    url.searchParams.set('mediaSourceId', item.previewSource.id)
+  url.hash = 't=' + start + ',' + end
+  return { kind: 'video', url: url.href }
 }
 
 export async function getHeroPreview(
@@ -359,29 +412,24 @@ export async function getHeroPreview(
     results[0].status === 'fulfilled' ? (results[0].value.data.Items ?? []) : []
   const trailers =
     results[1].status === 'fulfilled' ? results[1].value.data : []
-  const local = [...themes, ...trailers].find((video) => video.Id)
-  if (local?.Id) {
-    const url = new URL(
-      baseUrl.replace(/\/$/, '') +
-        '/Videos/' +
-        encodeURIComponent(local.Id) +
-        '/stream.mp4',
-    )
-    url.searchParams.set('api_key', session.accessToken)
-    url.searchParams.set('static', 'true')
-    if (local.MediaSources?.[0]?.Id)
-      url.searchParams.set('mediaSourceId', local.MediaSources[0].Id)
-    return { kind: 'video', url: url.href }
-  }
-  // Prefer the French trailer where metadata provides one, without a separate catalogue service.
-  const remote = [...(item.trailers ?? [])].sort(
-    (a, b) => Number(/\bVF\b/i.test(b.name)) - Number(/\bVF\b/i.test(a.name)),
+  const local = [...themes, ...trailers].find(
+    (video) =>
+      video.Id &&
+      video.PlayAccess !== 'None' &&
+      video.LocationType !== 'Virtual',
   )
-  for (const trailer of remote) {
-    const id = youtubeId(trailer.url)
-    if (id) return { kind: 'youtube', id }
-  }
-  return null
+  if (!local?.Id) return null
+  const url = new URL(
+    baseUrl.replace(/\/$/, '') +
+      '/Videos/' +
+      encodeURIComponent(local.Id) +
+      '/stream.mp4',
+  )
+  url.searchParams.set('api_key', session.accessToken)
+  url.searchParams.set('static', 'true')
+  if (local.MediaSources?.[0]?.Id)
+    url.searchParams.set('mediaSourceId', local.MediaSources[0].Id)
+  return { kind: 'video', url: url.href }
 }
 
 export async function setMediaFavorite(

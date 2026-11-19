@@ -17,6 +17,8 @@ import {
 } from '@hollyfilms/shared/jellyfin'
 import type {
   AdminUser,
+  AdminUserDetails,
+  AdminUserOptions,
   AuthResult,
   RegistrationSummary,
 } from '@hollyfilms/shared/accounts'
@@ -139,6 +141,7 @@ test(
     const address = proxy.address()
     assert.ok(address && typeof address !== 'string')
 
+    let googleProfileName: string | null = null
     const provider: GoogleProvider = {
       async authorizationUrl(params) {
         return new URL(
@@ -158,6 +161,7 @@ test(
           issuer: 'https://accounts.google.com',
           subject: 'fixture-subject',
           email: 'test@example.org',
+          name: googleProfileName,
           picture: 'https://lh3.googleusercontent.com/fixture-avatar',
         }
       },
@@ -202,6 +206,19 @@ test(
       assert.equal(response.statusCode, 200, response.body)
       return response.json<AdminUser[]>()
     }
+    const adminUserPath = '/api/admin/users'
+    const manageUser = (
+      method: 'GET' | 'PUT' | 'DELETE',
+      path: string,
+      payload?: object,
+      headers = adminHeaders,
+    ) =>
+      app.inject({
+        method,
+        url: `${adminUserPath}/${path}`,
+        headers,
+        payload,
+      })
     const setAccess = (id: string, disabled: boolean, headers = adminHeaders) =>
       app.inject({
         method: 'PUT',
@@ -284,6 +301,14 @@ test(
       true,
     )
     assert.equal((await setAccess(partial.jellyfinId, false)).statusCode, 409)
+    assert.equal(
+      (
+        await manageUser('PUT', `${partial.jellyfinId}/policy`, {
+          policy: { IsHidden: false },
+        })
+      ).statusCode,
+      409,
+    )
     const activated = await post('/api/auth/password', body)
     assert.equal(activated.statusCode, 200, activated.body)
     const login = activated.json<AuthResult>()
@@ -452,12 +477,28 @@ test(
     const google = (await list()).find(
       (entry) => entry.googleEmail === 'test@example.org',
     )!
+    assert.equal(google.googleName, null)
     const approvedGoogle = await decide(google.id, 'approve')
     assert.equal(approvedGoogle.statusCode, 204, approvedGoogle.body)
+    assert.equal(
+      (await directory()).find((user) => user.username === google.username)
+        ?.displayName,
+      'test@example.org',
+    )
+    googleProfileName = 'Élodie Moreau'
     const googleLogin = await googleFlow()
     assert.equal(googleLogin.status, 'authenticated')
     if (googleLogin.status !== 'authenticated')
       throw new Error('Session Google attendue')
+    assert.equal(
+      (await list()).find((entry) => entry.id === google.id)?.googleName,
+      googleProfileName,
+    )
+    assert.equal(
+      (await directory()).find((user) => user.username === google.username)
+        ?.displayName,
+      googleProfileName,
+    )
     assert.deepEqual(await getJellyfinUser(jellyfinUrl, googleLogin.session), {
       id: (
         await db.registration.findUniqueOrThrow({ where: { id: google.id } })
@@ -468,6 +509,185 @@ test(
     assert.equal(
       await db.registration.count({ where: { method: 'GOOGLE' } }),
       1,
+    )
+
+    await context.test(
+      'Gestion administrateur : création, règles Jellyfin et suppression',
+      async () => {
+        const username = 'Compte administration Test'
+        const replacementPassword = randomBytes(18).toString('hex')
+        const create = (name: string, headers = adminHeaders) =>
+          app.inject({
+            method: 'POST',
+            url: adminUserPath,
+            headers,
+            payload: { username: name, password },
+          })
+
+        assert.equal(
+          (await app.inject(`${adminUserPath}/options`)).statusCode,
+          401,
+        )
+        assert.equal(
+          (await manageUser('GET', 'options', undefined, standardHeaders))
+            .statusCode,
+          403,
+        )
+        const options = await manageUser('GET', 'options')
+        assert.equal(options.statusCode, 200, options.body)
+        const choices = options.json<AdminUserOptions>()
+        assert.ok(Array.isArray(choices.libraries))
+        assert.ok(Array.isArray(choices.devices))
+        assert.ok(Array.isArray(choices.channels))
+        assert.ok(Array.isArray(choices.ratings))
+        assert.ok(choices.authenticationProviders.length > 0)
+        assert.ok(choices.passwordResetProviders.length > 0)
+        assert.equal((await create(username, standardHeaders)).statusCode, 403)
+        assert.equal(
+          (await create(body.username.toUpperCase())).statusCode,
+          409,
+        )
+        const created = await create(username)
+        assert.equal(created.statusCode, 204, created.body)
+        const target = (await directory()).find(
+          (user) => user.username === username,
+        )
+        assert.ok(target)
+
+        const current = await manageUser('GET', target.id)
+        assert.equal(current.statusCode, 200, current.body)
+        const details = current.json<AdminUserDetails>()
+        assert.equal(details.policy.IsAdministrator, false)
+        assert.equal(details.canRename, true)
+        assert.equal(details.canChangePassword, true)
+        assert.equal(details.canChangeRole, true)
+        assert.equal(details.canDelete, true)
+        assert.equal(
+          (await manageUser('GET', target.id, undefined, standardHeaders))
+            .statusCode,
+          403,
+        )
+        const editPolicy = (policy: object, headers = adminHeaders) =>
+          manageUser('PUT', `${target.id}/policy`, { policy }, headers)
+        const setVisible = await editPolicy({ IsHidden: false })
+        assert.equal(setVisible.statusCode, 204, setVisible.body)
+        assert.ok(
+          (await users.getPublicUsers()).data.some(
+            (user) => user.Id === target.id,
+          ),
+        )
+        const edited = await editPolicy({
+          IsHidden: true,
+          EnableAllFolders: false,
+          EnableMediaPlayback: false,
+        })
+        assert.equal(edited.statusCode, 204, edited.body)
+        assert.equal(
+          (await editPolicy({ IsDisabled: true }, standardHeaders)).statusCode,
+          403,
+        )
+        assert.equal(
+          (await editPolicy({ UnknownPolicyOption: true })).statusCode,
+          400,
+        )
+        assert.equal(
+          (await editPolicy({ InvalidLoginAttemptCount: 37 })).statusCode,
+          400,
+        )
+
+        const updated = await editPolicy({ EnableMediaPlayback: true })
+        assert.equal(updated.statusCode, 204, updated.body)
+        const policy = (await users.getUserById({ userId: target.id })).data
+          .Policy
+        assert.equal(policy?.IsDisabled, false)
+        assert.equal(policy?.IsHidden, true)
+        assert.equal(policy?.EnableAllFolders, false)
+        assert.equal(policy?.EnableMediaPlayback, true)
+        assert.equal(policy?.InvalidLoginAttemptCount, 0)
+        assert.ok(
+          !(await users.getPublicUsers()).data.some(
+            (user) => user.Id === target.id,
+          ),
+        )
+        const session = await authenticateJellyfin(
+          jellyfinUrl,
+          username,
+          password,
+        )
+
+        const promoted = await editPolicy({ IsAdministrator: true })
+        assert.equal(promoted.statusCode, 204, promoted.body)
+        assert.equal(
+          (await getJellyfinUser(jellyfinUrl, session)).isAdministrator,
+          true,
+        )
+        const suspendAdmin = await editPolicy({ IsDisabled: true })
+        assert.ok(
+          [403, 409].includes(suspendAdmin.statusCode),
+          suspendAdmin.body,
+        )
+        const demoted = await editPolicy({ IsAdministrator: false })
+        assert.equal(demoted.statusCode, 204, demoted.body)
+        assert.equal(
+          (await getJellyfinUser(jellyfinUrl, session)).isAdministrator,
+          false,
+        )
+        const selfDemotion = await manageUser('PUT', `${adminUser.id}/policy`, {
+          policy: { IsAdministrator: false },
+        })
+        assert.equal(selfDemotion.statusCode, 403, selfDemotion.body)
+
+        const renamed = 'Compte administration Renommé'
+        const rename = await manageUser('PUT', `${target.id}/username`, {
+          username: renamed,
+        })
+        assert.equal(rename.statusCode, 204, rename.body)
+        assert.equal(
+          (await getJellyfinUser(jellyfinUrl, session)).name,
+          renamed,
+        )
+        const reset = await manageUser('PUT', `${target.id}/password`, {
+          password: replacementPassword,
+        })
+        assert.equal(reset.statusCode, 204, reset.body)
+        await assert.rejects(getJellyfinUser(jellyfinUrl, session))
+        const newSession = await authenticateJellyfin(
+          jellyfinUrl,
+          renamed,
+          replacementPassword,
+        )
+        assert.equal(
+          (await getJellyfinUser(jellyfinUrl, newSession)).id,
+          target.id,
+        )
+
+        const restricted = await editPolicy({
+          BlockedTags: ['fixture-tag'],
+          AccessSchedules: [
+            { DayOfWeek: 'Monday', StartHour: 17.5, EndHour: 20 },
+          ],
+        })
+        assert.equal(restricted.statusCode, 204, restricted.body)
+        const saved = (
+          await manageUser('GET', target.id)
+        ).json<AdminUserDetails>()
+        assert.deepEqual(saved.policy.BlockedTags, ['fixture-tag'])
+        const [schedule] = saved.policy.AccessSchedules ?? []
+        assert.equal(schedule?.DayOfWeek, 'Monday')
+        assert.equal(schedule?.StartHour, 17.5)
+        assert.equal(schedule?.EndHour, 20)
+
+        assert.equal(
+          (await manageUser('DELETE', target.id, undefined, standardHeaders))
+            .statusCode,
+          403,
+        )
+        assert.equal((await manageUser('DELETE', adminUser.id)).statusCode, 403)
+        const removed = await manageUser('DELETE', target.id)
+        assert.equal(removed.statusCode, 204, removed.body)
+        await assert.rejects(getJellyfinUser(jellyfinUrl, newSession))
+        assert.equal((await manageUser('GET', target.id)).statusCode, 404)
+      },
     )
 
     await context.test(
@@ -491,7 +711,9 @@ test(
         )
         assert.equal((await profile()).id, active.jellyfinId)
         assert.equal((await profile()).google, null)
+        assert.equal((await profile()).name, active.username)
         assert.equal((await profile()).canEdit, true)
+        assert.equal((await profile(googleHeaders)).name, 'Élodie Moreau')
         assert.equal(
           (await profile(googleHeaders)).google?.picture,
           'https://lh3.googleusercontent.com/fixture-avatar',
@@ -650,10 +872,103 @@ test(
           (await change(googleHeaders, '', 'do-not-change')).statusCode,
           409,
         )
+        googleProfileName = null
         assert.equal(
           (await googleFlow()).status,
           'authenticated',
           'Google SSO must remain functional',
+        )
+        assert.equal(
+          (await list()).find((entry) => entry.id === google.id)?.googleName,
+          'Élodie Moreau',
+          'An omitted Google claim must preserve the last known profile name',
+        )
+      },
+    )
+    await context.test(
+      'Gestion administrateur : identifiants synchronisés et protection Google',
+      async () => {
+        assert.ok(active.jellyfinId)
+        const username = 'Demande renommée'
+        const renamed = await manageUser(
+          'PUT',
+          `${active.jellyfinId}/username`,
+          {
+            username,
+          },
+        )
+        assert.equal(renamed.statusCode, 204, renamed.body)
+        const linked = await db.registration.findUniqueOrThrow({
+          where: { id: active.id },
+        })
+        assert.equal(linked.username, username)
+        assert.equal(linked.usernameKey, username.toUpperCase())
+        assert.equal(linked.jellyfinId, active.jellyfinId)
+        const login = await post('/api/auth/password', {
+          username,
+          password: '',
+        })
+        assert.equal(login.statusCode, 200, login.body)
+        assert.equal(login.json<AuthResult>().status, 'authenticated')
+
+        const googleUser = await getJellyfinUser(
+          jellyfinUrl,
+          googleLogin.session,
+        )
+        const googleDetails = await manageUser('GET', googleUser.id)
+        assert.equal(googleDetails.statusCode, 200, googleDetails.body)
+        const googleCapabilities = googleDetails.json<AdminUserDetails>()
+        assert.equal(googleCapabilities.canRename, false)
+        assert.equal(googleCapabilities.canChangePassword, false)
+        assert.equal(googleCapabilities.canChangeProviders, false)
+        assert.equal(googleCapabilities.canDelete, true)
+        const renameGoogle = await manageUser(
+          'PUT',
+          `${googleUser.id}/username`,
+          {
+            username: 'Google Ne Pas Renommer',
+          },
+        )
+        const resetGoogle = await manageUser(
+          'PUT',
+          `${googleUser.id}/password`,
+          {
+            password,
+          },
+        )
+        for (const denied of [renameGoogle, resetGoogle]) {
+          assert.ok([403, 409].includes(denied.statusCode), denied.body)
+        }
+        const providerGoogle = await manageUser(
+          'PUT',
+          `${googleUser.id}/policy`,
+          {
+            policy: {
+              AuthenticationProviderId: 'Do.Not.Replace.Google.Provider',
+            },
+          },
+        )
+        assert.ok(
+          [400, 403, 409].includes(providerGoogle.statusCode),
+          providerGoogle.body,
+        )
+        assert.equal((await googleFlow()).status, 'authenticated')
+
+        const deleted = await manageUser('DELETE', googleUser.id)
+        assert.equal(deleted.statusCode, 204, deleted.body)
+        const tombstone = await db.registration.findUniqueOrThrow({
+          where: { id: google.id },
+        })
+        assert.equal(tombstone.status, 'REJECTED')
+        assert.equal(tombstone.technicalPassword, null)
+        await assert.rejects(getJellyfinUser(jellyfinUrl, googleLogin.session))
+        assert.equal((await googleFlow()).status, 'rejected')
+        assert.equal(
+          (await manageUser('DELETE', googleUser.id)).statusCode,
+          204,
+        )
+        assert.ok(
+          !(await directory()).some((user) => user.id === googleUser.id),
         )
       },
     )

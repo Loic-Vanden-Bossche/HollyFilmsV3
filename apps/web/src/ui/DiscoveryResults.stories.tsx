@@ -56,15 +56,35 @@ const meta = {
 } satisfies Meta<typeof DiscoveryResults>
 export default meta
 type Story = StoryObj<typeof meta>
+type PlayContext = Parameters<NonNullable<Story['play']>>[0]
+
+async function previewAction(
+  { canvas, userEvent }: Pick<PlayContext, 'canvas' | 'userEvent'>,
+  index = 0,
+  action = 'Demander',
+) {
+  const card = await canvas.findByRole('article', {
+    name: discoveryFixtures[index].title,
+  })
+  const trigger = within(card).getByRole('button', {
+    name: discoveryFixtures[index].title,
+  })
+  await userEvent.hover(trigger)
+  return within(card).findByRole('button', { name: action })
+}
+
 export const Discover: Story = {
-  play: async ({ canvas }) => {
-    await expect(await canvas.findByText('ORBITAL')).toBeVisible()
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByRole('button', { name: 'ORBITAL' })
+    await expect(canvas.queryByRole('heading', { name: 'ORBITAL' })).toBeNull()
     await expect(
-      canvas.getByRole('button', { name: 'Déjà demandé' }),
+      await previewAction({ canvas, userEvent }, 4, 'Déjà demandé'),
     ).toBeDisabled()
     await expect(
-      canvas.getByRole('button', { name: 'Service indisponible' }),
+      await previewAction({ canvas, userEvent }, 5, 'Service indisponible'),
     ).toBeDisabled()
+    await expect(await previewAction({ canvas, userEvent })).toBeEnabled()
+    await expect(canvas.getByRole('heading', { name: 'ORBITAL' })).toBeVisible()
   },
 }
 export const RefineSearch: Story = {
@@ -82,27 +102,21 @@ export const RefineSearch: Story = {
     )
   },
   play: async ({ canvas, userEvent }) => {
-    const title = await canvas.findByText('ORBITAL')
+    const title = await canvas.findByRole('button', { name: 'ORBITAL' })
     const field = canvas.getByRole('textbox', { name: 'Recherche' })
     await userEvent.type(field, ' 2')
-    await expect(canvas.getByText('ORBITAL')).toBe(title)
-    await expect(
-      canvas.getAllByRole('button', { name: 'Demander' })[0],
-    ).toBeDisabled()
-    await waitFor(() =>
-      expect(
-        canvas.getAllByRole('button', { name: 'Demander' })[0],
-      ).toBeEnabled(),
+    await expect(canvas.getByRole('button', { name: 'ORBITAL' })).toBe(title)
+    await expect(canvas.getByRole('status')).toHaveTextContent(
+      'Recherche en cours',
     )
-    await expect(canvas.getByText('ORBITAL')).toBe(title)
+    await waitFor(() => expect(canvas.queryByRole('status')).toBeNull())
+    await expect(canvas.getByRole('button', { name: 'ORBITAL' })).toBe(title)
     await expect(field).toHaveFocus()
   },
 }
 export const MemberRequest: Story = {
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await expect(createMediaRequest).not.toHaveBeenCalled()
     const dialog = within(await canvas.findByRole('dialog'))
     await userEvent.click(dialog.getByRole('button', { name: 'Confirmer' }))
@@ -131,9 +145,7 @@ export const FollowUpOnlyOnce: Story = {
         id,
       }),
     )
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await canvas.findByRole('link', { name: 'Voir mes demandes' })
     await userEvent.click(
@@ -143,11 +155,11 @@ export const FollowUpOnlyOnce: Story = {
       expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
     )
     await waitFor(() =>
-      expect(canvas.getByRole('link', { name: 'Mes demandes' })).toHaveFocus(),
+      expect(
+        canvas.getByRole('button', { name: discoveryFixtures[0].title }),
+      ).toHaveFocus(),
     )
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }, 1))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await within(await canvas.findByRole('dialog')).findByRole('status')
     await expect(
@@ -164,9 +176,7 @@ export const ReturningUser: Story = {
     )
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await within(await canvas.findByRole('dialog')).findByRole('status')
     await expect(
@@ -179,10 +189,10 @@ export const PersistedFollowUp: Story = {
 }
 export const CancelConfirmation: Story = {
   play: async ({ canvas, userEvent }) => {
-    const trigger = (
-      await canvas.findAllByRole('button', { name: 'Demander' })
-    )[0]
-    await userEvent.click(trigger)
+    const trigger = await canvas.findByRole('button', {
+      name: discoveryFixtures[0].title,
+    })
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Annuler' }))
     await waitFor(() =>
       expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
@@ -196,9 +206,7 @@ export const PendingSubmission: Story = {
     mocked(createMediaRequest).mockImplementation(() => new Promise(() => {}))
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.dblClick(canvas.getByRole('button', { name: 'Confirmer' }))
     await expect(
       await canvas.findByRole('button', { name: 'Envoi…' }),
@@ -216,9 +224,7 @@ export const SlowRefresh: Story = {
       .mockImplementation(() => new Promise(() => {}))
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await canvas.findByRole('link', { name: 'Voir mes demandes' })
     await userEvent.click(
@@ -227,11 +233,13 @@ export const SlowRefresh: Story = {
     await waitFor(() =>
       expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
     )
-    const next = (await canvas.findAllByRole('button', { name: 'Demander' }))[0]
-    await expect(next).toBeEnabled()
+    await expect(await previewAction({ canvas, userEvent }, 1)).toBeEnabled()
     await expect(
-      canvas.getAllByRole('button', { name: 'Déjà demandé' }).length,
-    ).toBe(2)
+      await previewAction({ canvas, userEvent }, 0, 'Déjà demandé'),
+    ).toBeDisabled()
+    await expect(
+      await previewAction({ canvas, userEvent }, 4, 'Déjà demandé'),
+    ).toBeDisabled()
     await expect(createMediaRequest).toHaveBeenCalledTimes(1)
   },
 }
@@ -244,9 +252,7 @@ export const AdministratorRequest: Story = {
     })
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await expect(await canvas.findByRole('status')).toHaveTextContent(
       'approuvée automatiquement',
@@ -286,9 +292,7 @@ export const RejectedSubmission: Story = {
     )
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await expect(await canvas.findByRole('alert')).toHaveTextContent(
       'La demande n’a pas pu être envoyée.',
@@ -306,9 +310,7 @@ export const RetrySubmission: Story = {
       .mockResolvedValue(requestFixtures[0])
   },
   play: async ({ canvas, userEvent, args }) => {
-    await userEvent.click(
-      (await canvas.findAllByRole('button', { name: 'Demander' }))[0],
-    )
+    await userEvent.click(await previewAction({ canvas, userEvent }))
     await userEvent.click(canvas.getByRole('button', { name: 'Confirmer' }))
     await canvas.findByRole('alert')
     await expect(

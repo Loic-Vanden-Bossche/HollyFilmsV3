@@ -78,7 +78,9 @@ export const ChaptersAndCollection: Story = {
       true,
     )
     await userEvent.click(
-      canvas.getByRole('button', { name: /^\d+ Au-delà des étoiles/ }),
+      canvas.getByRole('button', {
+        name: detailedRelations.collections[0].title,
+      }),
     )
     await userEvent.click(
       await canvas.findByRole('button', { name: 'Lire la collection' }),
@@ -94,7 +96,14 @@ export const PersonAndRelated: Story = {
   ...Complete,
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Distribution' }))
-    await userEvent.click(canvas.getByRole('button', { name: /Maya Laurent/ }))
+    const person = canvas.getByRole('button', { name: 'Maya Laurent' })
+    await expect(canvas.queryByText('Dr. Anna Morel')).not.toBeInTheDocument()
+    person.scrollIntoView({ block: 'center', behavior: 'instant' })
+    await userEvent.hover(person)
+    await expect(await canvas.findByText('Dr. Anna Morel')).toBeVisible()
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Dans votre bibliothèque' }),
+    )
     await expect(
       await canvas.findByRole('heading', { name: 'Avec Maya Laurent' }),
     ).toBeVisible()
@@ -102,9 +111,7 @@ export const PersonAndRelated: Story = {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Fermer cette sélection' }),
     )
-    await expect(
-      canvas.getByRole('button', { name: /Maya Laurent/ }),
-    ).toHaveFocus()
+    await expect(person).toHaveFocus()
     await userEvent.click(
       canvas.getAllByRole('button', { name: 'Ajouter aux favoris' })[0],
     )
@@ -115,8 +122,18 @@ export const CollectionActions: Story = {
   ...Complete,
   play: async ({ canvas, args, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'À découvrir' }))
+    const collection = canvas.getByRole('button', {
+      name: detailedRelations.collections[0].title,
+    })
+    await expect(
+      canvas.queryByRole('button', { name: /^Ajouter aux favoris : Au-delà/ }),
+    ).not.toBeInTheDocument()
+    collection.scrollIntoView({ block: 'center', behavior: 'instant' })
+    await userEvent.hover(collection)
     await userEvent.click(
-      canvas.getByRole('button', { name: /^Ajouter aux favoris : Au-delà/ }),
+      await canvas.findByRole('button', {
+        name: /^Ajouter aux favoris : Au-delà/,
+      }),
     )
     await waitFor(() =>
       expect(args.onFavorite).toHaveBeenCalledWith(
@@ -137,28 +154,33 @@ export const RelatedCards: Story = {
   name: 'Plus de ce genre — titre, menu et lecture',
   play: async ({ canvas, userEvent, args }) => {
     const rail = canvas.getByRole('region', { name: 'Plus de ce genre' })
-    rail.scrollIntoView()
-    const card = within(rail).getAllByRole('article')[0]
-    await userEvent.hover(card)
-    await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
-    const menu = within(card).getByLabelText(
-      'Plus d’actions pour ' + detailedRelations.similar[0].title,
-    )
-    const title = card.querySelector('.media-tile-title')!
-    await expect(title.getBoundingClientRect().right).toBeLessThan(
-      menu.getBoundingClientRect().left,
-    )
+    rail.scrollIntoView({ block: 'center', behavior: 'instant' })
+    const trigger = within(rail).getAllByRole('button', {
+      name: new RegExp(detailedRelations.similar[0].title),
+    })[0]
+    const menuLabel =
+      'Plus d’actions pour ' + detailedRelations.similar[0].title
+    await expect(canvas.queryByLabelText(menuLabel)).not.toBeInTheDocument()
+    await userEvent.hover(trigger)
+    const menu = await canvas.findByLabelText(menuLabel)
     await userEvent.click(menu)
     await expect(menu.parentElement).toHaveAttribute('open')
     await userEvent.click(
-      within(card).getByRole('button', { name: 'Lire depuis le début' }),
+      within(menu.parentElement!).getByRole('button', {
+        name: 'Lire depuis le début',
+      }),
     )
     await expect(args.onPlay).toHaveBeenCalledWith(
       detailedRelations.similar[0],
       false,
     )
+    await userEvent.hover(trigger)
+    const reopenedMenu = await canvas.findByLabelText(menuLabel)
+    await userEvent.click(reopenedMenu)
     await userEvent.click(
-      within(card).getByRole('button', { name: /^Voir la fiche$/ }),
+      within(reopenedMenu.parentElement!).getByRole('button', {
+        name: 'Voir la fiche',
+      }),
     )
     await expect(args.onSelect).toHaveBeenCalledWith(
       detailedRelations.similar[0],

@@ -24,6 +24,7 @@ export const Google: Story = {
   args: {
     profile: {
       ...profileFixture,
+      name: 'Alex Martin',
       google: {
         email: 'alex@example.com',
         picture: 'https://lh3.googleusercontent.com/avatar',
@@ -32,6 +33,11 @@ export const Google: Story = {
     avatarUrl: avatarFixture,
   },
   play: async ({ canvas }) => {
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('heading', { name: 'Alex Martin' }),
+      ).toBeVisible(),
+    )
     await waitFor(() =>
       expect(canvas.getByText('Photo de votre compte Google')).toBeVisible(),
     )

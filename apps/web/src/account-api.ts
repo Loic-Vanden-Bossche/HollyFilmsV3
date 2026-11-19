@@ -1,6 +1,9 @@
 import { apiMessage } from './i18n/api-messages.ts'
 import type {
   AdminUser,
+  AdminUserDetails,
+  AdminUserOptions,
+  AdminUserPolicy,
   AuthOptions,
   AuthResult,
   JellyfinSession,
@@ -132,6 +135,82 @@ export const setAdminUserAccess = (
     method: 'PUT',
     headers: { ...adminHeaders(session), 'Content-Type': 'application/json' },
     body: JSON.stringify({ disabled }),
+  })
+
+const adminUserPath = (id: string) => `/admin/users/${encodeURIComponent(id)}`
+const adminUserJson = (
+  session: JellyfinSession,
+  method: 'POST' | 'PUT',
+  body: object,
+) => ({
+  method,
+  headers: { ...adminHeaders(session), 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
+export const getAdminUser = (
+  session: JellyfinSession,
+  id: string,
+  signal?: AbortSignal,
+) =>
+  request<AdminUserDetails>(adminUserPath(id), {
+    headers: adminHeaders(session),
+    signal,
+  })
+
+export const getAdminUserOptions = (
+  session: JellyfinSession,
+  signal?: AbortSignal,
+) =>
+  request<AdminUserOptions>('/admin/users/options', {
+    headers: adminHeaders(session),
+    signal,
+  })
+
+export const createAdminUser = (
+  session: JellyfinSession,
+  username: string,
+  password: string,
+) =>
+  request<void>(
+    '/admin/users',
+    adminUserJson(session, 'POST', { username, password }),
+  )
+
+export const updateAdminUserPolicy = (
+  session: JellyfinSession,
+  id: string,
+  policy: AdminUserPolicy,
+) =>
+  request<void>(
+    `${adminUserPath(id)}/policy`,
+    adminUserJson(session, 'PUT', { policy }),
+  )
+
+export const updateAdminUserName = (
+  session: JellyfinSession,
+  id: string,
+  username: string,
+) =>
+  request<void>(
+    `${adminUserPath(id)}/username`,
+    adminUserJson(session, 'PUT', { username }),
+  )
+
+export const updateAdminUserPassword = (
+  session: JellyfinSession,
+  id: string,
+  password: string,
+) =>
+  request<void>(
+    `${adminUserPath(id)}/password`,
+    adminUserJson(session, 'PUT', { password }),
+  )
+
+export const deleteAdminUser = (session: JellyfinSession, id: string) =>
+  request<void>(adminUserPath(id), {
+    method: 'DELETE',
+    headers: adminHeaders(session),
   })
 
 export function statusNotice(

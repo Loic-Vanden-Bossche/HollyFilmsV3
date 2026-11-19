@@ -108,3 +108,13 @@ test('route updates preserve unrelated query parameters and anchors', () => {
     '/app',
   )
 })
+
+test('a shelf link survives opening its film and clears when leaving the homepage', () => {
+  const shelf = 'https://example.com/app#home-shelf-adventure'
+  assert.equal(
+    appRouteUrl(shelf, { media: 'film' }),
+    '/app?media=film#home-shelf-adventure',
+  )
+  assert.equal(appRouteUrl(shelf, { filter: 'movies' }), '/app/movies')
+  assert.equal(appRouteUrl(shelf, { search: 'Signal' }), '/app?q=Signal')
+})

@@ -55,24 +55,30 @@ export function addProfileRoutes(
         )
       const registration = await db.registration.findUnique({
         where: { jellyfinId: user.Id.replaceAll('-', '').toLowerCase() },
-        select: { method: true, googleEmail: true, googlePicture: true },
+        select: {
+          method: true,
+          googleEmail: true,
+          googleName: true,
+          googlePicture: true,
+        },
       })
+      const google = registration?.method === 'GOOGLE' ? registration : null
+      const username = user.Name || 'Membre'
       const profile: AccountProfile = {
         id: user.Id,
-        name: user.Name || 'Membre',
+        name: google?.googleName ?? google?.googleEmail ?? username,
         isAdministrator: user.Policy?.IsAdministrator === true,
         canEdit,
         hasPassword: user.HasPassword === true,
         imageTag: user.PrimaryImageTag ?? null,
-        google:
-          registration?.method === 'GOOGLE'
-            ? {
-                email: registration.googleEmail,
-                picture: googlePictureUrl(registration.googlePicture),
-              }
-            : null,
+        google: google
+          ? {
+              email: google.googleEmail,
+              picture: googlePictureUrl(google.googlePicture),
+            }
+          : null,
       }
-      return { api, profile }
+      return { api, profile, username }
     } catch (error) {
       throw failure(error)
     }
@@ -205,7 +211,7 @@ export function addProfileRoutes(
       },
     },
     async (request, reply) => {
-      const { api, profile } = await authorize(request, true)
+      const { api, profile, username } = await authorize(request, true)
       if (profile.google)
         throw new ApiError(
           409,
@@ -224,7 +230,7 @@ export function addProfileRoutes(
           // with a separate short-lived session, then revoke that session.
           const verification = await authenticateJellyfin(
             config.jellyfinUrl,
-            profile.name,
+            username,
             request.body.currentPassword,
             profile.id,
           )

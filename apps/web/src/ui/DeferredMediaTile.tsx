@@ -63,9 +63,7 @@ export const DeferredMediaTile = memo(function DeferredMediaTile({
             setFocused(true)
           }}
           onClick={() => props.onSelect(props.item)}
-        >
-          <span>{props.item.title}</span>
-        </button>
+        />
       )}
     </motion.div>
   )

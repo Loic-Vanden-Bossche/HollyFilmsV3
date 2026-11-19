@@ -1,7 +1,6 @@
-import { Tooltip } from './Tooltip.tsx'
+import { HorizontalRail } from './HorizontalRail.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import { Children, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Children, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { duration, staggerDelay } from '../motion/tokens.ts'
@@ -19,35 +18,7 @@ export function MediaRail({
   count?: number
 }) {
   const { t } = useI18n()
-  const ref = useRef<HTMLDivElement>(null),
-    reduced = useReducedMotion()
-  const [edges, setEdges] = useState({ start: true, end: true })
-  useEffect(() => {
-    const node = ref.current!
-    const update = () => {
-      const start = node.scrollLeft < 2,
-        end = node.scrollLeft + node.clientWidth >= node.scrollWidth - 2
-      setEdges((previous) =>
-        previous.start === start && previous.end === end
-          ? previous
-          : { start, end },
-      )
-    }
-    update()
-    const resize = new ResizeObserver(update)
-    resize.observe(node)
-    for (const child of node.children) resize.observe(child)
-    node.addEventListener('scroll', update, { passive: true })
-    return () => {
-      resize.disconnect()
-      node.removeEventListener('scroll', update)
-    }
-  }, [children])
-  const move = (direction: number) =>
-    ref.current?.scrollBy({
-      left: direction * ref.current.clientWidth * 0.85,
-      behavior: reduced ? 'instant' : 'smooth',
-    })
+  const reduced = useReducedMotion()
   return (
     <section className={`detail-rail detail-rail-${kind}`} aria-label={title}>
       <motion.div
@@ -63,30 +34,12 @@ export function MediaRail({
           {title}
           {count != null && <span>{count}</span>}
         </h3>
-        <div className="detail-rail-controls">
-          <Tooltip>
-            <button
-              className="glass-control"
-              aria-label={t('{title} : précédent', { title })}
-              disabled={edges.start}
-              onClick={() => move(-1)}
-            >
-              <ChevronLeft size={18} />
-            </button>
-          </Tooltip>
-          <Tooltip>
-            <button
-              className="glass-control"
-              aria-label={t('{title} : suivant', { title })}
-              disabled={edges.end}
-              onClick={() => move(1)}
-            >
-              <ChevronRight size={18} />
-            </button>
-          </Tooltip>
-        </div>
       </motion.div>
-      <div ref={ref} className="detail-rail-track">
+      <HorizontalRail
+        trackClassName="detail-rail-track"
+        previousLabel={t('{title} : précédent', { title })}
+        nextLabel={t('{title} : suivant', { title })}
+      >
         {Children.map(
           children,
           (child, index) =>
@@ -119,7 +72,7 @@ export function MediaRail({
               </motion.div>
             ),
         )}
-      </div>
+      </HorizontalRail>
     </section>
   )
 }

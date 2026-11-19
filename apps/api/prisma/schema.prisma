@@ -60,6 +60,7 @@ model Registration {
   googleIssuer      String?
   googleSubject     String?
   googleEmail       String?
+  googleName        String?
   googlePicture     String?
   passwordHash      String?
   technicalPassword String?

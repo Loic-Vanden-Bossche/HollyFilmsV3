@@ -24,6 +24,8 @@ import {
 import type { MediaItem, LibraryPage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { ArtworkPreview } from './ArtworkPreview.tsx'
+import { CardVideoPreview } from './CardVideoPreview.tsx'
 import { formatDuration } from '../format-duration.ts'
 import { AudioLanguages } from './AudioLanguages.tsx'
 import { SubtitlePanel } from './SubtitlePanel.tsx'
@@ -155,14 +157,16 @@ export function MediaDetails({
     id: string
     title: string
     type: 'collection' | 'person'
+    opener: HTMLElement | null
   }>()
-  const browserOpener = useRef<HTMLElement | null>(null)
-  function openBrowser(next: NonNullable<typeof browsing>) {
-    browserOpener.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null
-    setBrowsing(next)
+  function openBrowser(next: Omit<NonNullable<typeof browsing>, 'opener'>) {
+    setBrowsing({
+      ...next,
+      opener:
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null,
+    })
   }
   const browser = useRef<HTMLDivElement>(null)
   const members = useInfiniteQuery({
@@ -724,32 +728,48 @@ export function MediaDetails({
             kind="person"
             count={data?.people.length ?? 0}
           >
-            {data?.people.map((person, index) => (
-              <button
-                key={person.id ?? index}
-                className="detail-person"
-                disabled={!person.id || (!enabled && !loadRelatedPage)}
-                onClick={() =>
-                  person.id &&
-                  openBrowser({
-                    id: person.id,
-                    title: person.name,
-                    type: 'person',
-                  })
-                }
-              >
-                <div className="detail-person-art">
-                  <MediaArtwork
-                    source={person.image}
-                    session={session}
-                    width={300}
-                    fallback={<Users size={36} />}
-                  />
-                </div>
-                <strong>{person.name}</strong>
-                <span>{person.role}</span>
-              </button>
-            ))}
+            {data?.people.map((person, index) => {
+              const personId = person.id
+              const browse =
+                personId && (enabled || loadRelatedPage)
+                  ? () =>
+                      openBrowser({
+                        id: personId,
+                        title: person.name,
+                        type: 'person',
+                      })
+                  : undefined
+              return (
+                <ArtworkPreview
+                  key={personId ?? index}
+                  title={person.name}
+                  wide={false}
+                  onSelect={browse}
+                  artwork={
+                    <MediaArtwork
+                      source={person.image}
+                      session={session}
+                      width={400}
+                      fallback={<Users size={36} />}
+                    />
+                  }
+                >
+                  <h4 className="artwork-preview-title">{person.name}</h4>
+                  {person.role && (
+                    <p className="detail-preview-meta">{person.role}</p>
+                  )}
+                  {browse && (
+                    <button
+                      className="detail-preview-action glass-control"
+                      data-preview-select
+                      onClick={browse}
+                    >
+                      {t('Dans votre bibliothèque')}
+                    </button>
+                  )}
+                </ArtworkPreview>
+              )
+            })}
           </MediaRail>
           {!data?.people.length && (
             <p className="detail-status">{t('Distribution non renseignée.')}</p>
@@ -769,7 +789,7 @@ export function MediaDetails({
                   onClick={() => {
                     collectionRequest.current?.abort()
                     setBrowsing(undefined)
-                    browserOpener.current?.focus()
+                    browsing.opener?.focus()
                   }}
                 >
                   <X size={18} />
@@ -815,6 +835,7 @@ export function MediaDetails({
                       key={entry.id}
                       item={entry}
                       session={session}
+                      userId={userId}
                       onSelect={navigate}
                       onPlay={onPlay}
                       onFavorite={onFavorite}
@@ -848,40 +869,67 @@ export function MediaDetails({
             kind="scene"
             count={data?.chapters.length ?? 0}
           >
-            {data?.chapters.map((chapter, index) => (
-              <motion.button
-                key={index}
-                className="detail-chapter"
-                disabled={!onPlay}
-                whileHover={reduced ? undefined : { y: -3 }}
-                onClick={() =>
-                  onPlay?.(
-                    { ...item, playbackPosition: chapter.position },
-                    true,
-                  )
-                }
-                aria-label={t('Lire {chapter} à {time}', {
-                  chapter: chapter.name,
-                  time: formatTime(chapter.position),
-                })}
-              >
-                <MediaArtwork
-                  source={chapter.image}
-                  session={session}
-                  width={480}
-                />
-                <span className="detail-chapter-play">
-                  <Play size={20} fill="currentColor" />
-                </span>
-                <span className="detail-chapter-caption">
-                  <strong>{chapter.name}</strong>
-                  <span>
-                    <Clock3 size={12} />
-                    {formatTime(chapter.position)}
-                  </span>
-                </span>
-              </motion.button>
-            ))}
+            {data?.chapters.map((chapter, index) => {
+              const time = formatTime(chapter.position)
+              const play = onPlay
+                ? () =>
+                    onPlay(
+                      { ...item, playbackPosition: chapter.position },
+                      true,
+                    )
+                : undefined
+              return (
+                <ArtworkPreview
+                  key={index}
+                  title={chapter.name}
+                  hoverVideo={
+                    session &&
+                    userId && (
+                      <CardVideoPreview
+                        key={item.id + ':' + chapter.position}
+                        item={item}
+                        session={session}
+                        userId={userId}
+                        startSeconds={chapter.position}
+                      />
+                    )
+                  }
+                  wide
+                  selectLabel={
+                    play
+                      ? t('Lire {chapter} à {time}', {
+                          chapter: chapter.name,
+                          time,
+                        })
+                      : undefined
+                  }
+                  onSelect={play}
+                  artwork={
+                    <MediaArtwork
+                      source={chapter.image}
+                      session={session}
+                      width={600}
+                    />
+                  }
+                >
+                  <h4 className="artwork-preview-title">{chapter.name}</h4>
+                  <p className="detail-preview-meta">
+                    <Clock3 size={14} aria-hidden="true" />
+                    {time}
+                  </p>
+                  {play && (
+                    <button
+                      className="detail-preview-action glass-control"
+                      data-preview-select
+                      onClick={play}
+                    >
+                      <Play size={16} aria-hidden="true" />
+                      {t('Lire')}
+                    </button>
+                  )}
+                </ArtworkPreview>
+              )
+            })}
           </MediaRail>
           {!data?.chapters.length && (
             <p className="detail-status">
@@ -894,44 +942,41 @@ export function MediaDetails({
             title={t('Collections')}
             count={related?.collections.length ?? 0}
           >
-            {related?.collections.map((collection) => (
-              <div key={collection.id}>
-                <button
-                  className="detail-collection"
-                  disabled={!enabled && !loadRelatedPage}
-                  onClick={() =>
-                    openBrowser({
-                      id: collection.id,
-                      title: collection.title,
-                      type: 'collection',
-                    })
-                  }
-                >
-                  <div className="detail-collection-art">
+            {related?.collections.map((collection) => {
+              const poster = collection.poster ?? collection.item?.poster
+              const backdrop = collection.item?.backdrop
+              const browse =
+                enabled || loadRelatedPage
+                  ? () =>
+                      openBrowser({
+                        id: collection.id,
+                        title: collection.title,
+                        type: 'collection',
+                      })
+                  : undefined
+              return (
+                <ArtworkPreview
+                  key={collection.id}
+                  title={collection.title}
+                  cinematic
+                  titleLogo={collection.item?.logo}
+                  session={session}
+                  headingLevel={4}
+                  wide={false}
+                  onSelect={browse}
+                  artwork={
                     <MediaArtwork
-                      source={collection.poster}
+                      source={poster}
                       session={session}
-                      width={400}
+                      width={420}
                     />
-                    <span>
-                      <Layers size={14} />
-                      {collection.count ?? t('Collection')}
-                    </span>
-                  </div>
-                  <strong>{collection.title}</strong>
-                </button>
-                {collection.item && (
-                  <>
-                    <div className="detail-collection-meta">
-                      {collection.item.year && (
-                        <span>{collection.item.year}</span>
-                      )}
-                      {!!collection.item.audioLanguages?.length && (
-                        <AudioLanguages
-                          languages={collection.item.audioLanguages}
-                        />
-                      )}
-                    </div>
+                  }
+                  previewImage={{
+                    source: backdrop ?? poster,
+                    compactWidth: backdrop ? 600 : 420,
+                  }}
+                >
+                  {collection.item && (
                     <div className="detail-collection-actions">
                       {(['favorite', 'watched'] as const).map((kind) => {
                         const callback =
@@ -989,35 +1034,59 @@ export function MediaDetails({
                           </button>
                         </Tooltip>
                       )}
-                      <details className="detail-card-menu">
-                        <Tooltip>
-                          <summary
-                            aria-label={t('Plus d’actions : {title}', {
-                              title: collection.title,
-                            })}
-                          >
-                            <MoreHorizontal size={16} />
-                          </summary>
-                        </Tooltip>
-                        <div>
-                          <button
-                            onClick={() =>
-                              openBrowser({
-                                id: collection.id,
+                      {browse && (
+                        <details className="detail-card-menu">
+                          <Tooltip>
+                            <summary
+                              aria-label={t('Plus d’actions : {title}', {
                                 title: collection.title,
-                                type: 'collection',
-                              })
-                            }
-                          >
-                            {t('Parcourir la collection')}
-                          </button>
-                        </div>
-                      </details>
+                              })}
+                            >
+                              <MoreHorizontal size={16} />
+                            </summary>
+                          </Tooltip>
+                          <div>
+                            <button data-preview-select onClick={browse}>
+                              {t('Parcourir la collection')}
+                            </button>
+                          </div>
+                        </details>
+                      )}
                     </div>
-                  </>
-                )}
-              </div>
-            ))}
+                  )}
+                  {!collection.item && browse && (
+                    <button
+                      data-preview-select
+                      className="detail-preview-action glass-control"
+                      onClick={browse}
+                    >
+                      {t('Parcourir la collection')}
+                    </button>
+                  )}
+                  <div className="detail-preview-meta">
+                    <Layers size={14} aria-hidden="true" />
+                    <span>
+                      {collection.count == null
+                        ? t('Collection')
+                        : t(
+                            collection.count === 1
+                              ? '{count} titre'
+                              : '{count} titres',
+                            { count: collection.count },
+                          )}
+                    </span>
+                    {collection.item?.year && (
+                      <span>{collection.item.year}</span>
+                    )}
+                    {!!collection.item?.audioLanguages?.length && (
+                      <AudioLanguages
+                        languages={collection.item.audioLanguages}
+                      />
+                    )}
+                  </div>
+                </ArtworkPreview>
+              )
+            })}
           </MediaRail>
           {!related?.collections.length && (
             <p className="detail-status">
@@ -1034,6 +1103,7 @@ export function MediaDetails({
               <MediaTile
                 item={entry}
                 session={session}
+                userId={userId}
                 onSelect={navigate}
                 onPlay={onPlay}
                 onFavorite={
@@ -1054,11 +1124,17 @@ export function MediaDetails({
                       </summary>
                     </Tooltip>
                     <div>
-                      <button onClick={() => navigate(entry)}>
+                      <button
+                        data-preview-select
+                        onClick={() => navigate(entry)}
+                      >
                         {t('Voir la fiche')}
                       </button>
                       {onPlay && (
-                        <button onClick={() => onPlay(entry, false)}>
+                        <button
+                          data-preview-select
+                          onClick={() => onPlay(entry, false)}
+                        >
                           {t('Lire depuis le début')}
                         </button>
                       )}

@@ -18,6 +18,15 @@ export function jellyfinAccounts(config: ServerConfig) {
       config.jellyfinApiKey,
     ),
   )
+  async function updatePolicy(
+    id: string,
+    policy: NonNullable<UserDto['Policy']>,
+  ) {
+    await management.updateUserPolicy(
+      { userId: id, userPolicy: policy },
+      options,
+    )
+  }
 
   return {
     async admin(token: string, deviceId?: string) {
@@ -99,15 +108,10 @@ export function jellyfinAccounts(config: ServerConfig) {
       return (await management.getUserById({ userId: id }, options)).data
     },
 
-    async setDisabled(
-      id: string,
-      policy: NonNullable<UserDto['Policy']>,
-      disabled: boolean,
-    ) {
-      await management.updateUserPolicy(
-        { userId: id, userPolicy: { ...policy, IsDisabled: disabled } },
-        options,
-      )
+    updatePolicy,
+
+    async remove(id: string) {
+      await management.deleteUser({ userId: id }, options)
     },
 
     async setPolicy(
@@ -123,19 +127,13 @@ export function jellyfinAccounts(config: ServerConfig) {
       ) {
         throw new Error('Politique Jellyfin inattendue')
       }
-      await management.updateUserPolicy(
-        {
-          userId: id,
-          userPolicy: {
-            ...account.Policy,
-            IsAdministrator: false,
-            IsDisabled: disabled,
-            IsHidden: hidden,
-            EnableAllFolders: true,
-          },
-        },
-        options,
-      )
+      await updatePolicy(id, {
+        ...account.Policy,
+        IsAdministrator: false,
+        IsDisabled: disabled,
+        IsHidden: hidden,
+        EnableAllFolders: true,
+      })
     },
 
     async rename(id: string, account: UserDto, username: string) {

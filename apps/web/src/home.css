@@ -380,25 +380,11 @@
   letter-spacing: 0;
   font-weight: 400;
 }
-.home-rail-controls {
-  display: flex;
-  gap: 6px;
-}
-.home-rail-controls button {
-  @apply border border-glass-edge text-muted-foreground;
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  cursor: pointer;
-  background: #0d1726;
-}
-.home-rail-controls button:hover {
-  @apply bg-accent text-foreground;
-}
 .home-resume {
   margin-bottom: 48px;
+}
+.home-resume > .horizontal-rail {
+  margin-inline: -4px;
 }
 .home-resume-rail {
   display: grid;
@@ -406,121 +392,122 @@
   grid-auto-columns: max(min(82%, 320px), 29%);
   gap: 18px;
   overflow-x: auto;
-  padding: 22px 14px 26px;
-  margin: -22px -14px -26px;
-  scroll-padding-inline: 14px;
+  padding: 4px;
+  scroll-padding-inline: 4px;
   scroll-snap-type: x proximity;
 }
-.media-tile {
-  display: block;
-  width: 100%;
+.home-shelves {
+  --shelf-columns: 1;
+  --shelf-gap: clamp(12px, 1.2vw, 24px);
+  --shelf-peek: clamp(70px, 4.8vw, 84px);
+}
+.home-shelves .home-shelf {
   min-width: 0;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 16px;
-  scroll-snap-align: start;
-  background: #0d1726;
-  border: 1px solid #ecf4fb0a;
+  margin-block-end: clamp(30px, 3.2vw, 60px);
 }
-.media-tile-image {
-  position: relative;
-  aspect-ratio: 2/3;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #142235;
-  box-shadow: 0 12px 32px #0003;
-  border: 1px solid #ecf4fb0a;
+.home-shelf .home-section-header {
+  justify-content: flex-start;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem clamp(14px, 1.5vw, 26px);
+  margin-bottom: clamp(8px, 0.85vw, 16px);
 }
-.media-tile-image::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(transparent 65%, #080f1b80);
-  pointer-events: none;
+.home-shelf .home-section-header h2 {
+  scroll-margin-top: 1rem;
+  font-size: clamp(1.2rem, 1.55vw, 1.7rem);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
-.media-tile:hover .media-tile-image,
-.media-tile:focus-visible .media-tile-image {
-  border-color: #7dded877;
-}
-.media-tile-title {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.media-tile-meta {
-  display: flex;
+.home-shelf-link {
+  @apply text-link;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  color: #a4b6cb;
-  margin-top: 7px;
-}
-.media-tile-open {
-  position: absolute;
-  z-index: 1;
-  right: 10px;
-  bottom: 10px;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid #b0f5e83d;
-  border-radius: 50%;
-  background: #080f1b99;
-  color: #b0f5e8;
-  opacity: 0;
-  transform: translateY(5px);
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
-}
-.media-tile:hover .media-tile-open,
-.media-tile:focus-visible .media-tile-open {
-  opacity: 1;
-  transform: none;
-}
-.media-kind {
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  background: #080f1bcc;
-  color: #b0f5e8;
-  border-radius: 4px;
-  padding: 3px 6px;
-  font-size: 8px;
-}
-.media-tile-wide .media-tile-image {
-  aspect-ratio: 16/9;
-}
-.media-tile-wide .media-tile-title {
-  font-size: 13px;
-}
-.media-progress {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: #ecf4fb33;
-  z-index: 2;
-}
-.media-progress > span {
-  @apply bg-brand-gradient;
-  display: block;
-  height: 100%;
-}
-.media-episode {
-  display: block;
-  font-size: 10px;
-  color: #a4b6cb;
-  margin-top: 4px;
+  gap: 0.25rem;
+  min-height: 32px;
+  font-size: 0.9rem;
+  font-weight: 600;
   white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  cursor: pointer;
+}
+.home-shelf-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+/* The row runs to the document edge. Its own padding aligns the first
+   card with its heading and leaves space after the last card on scroll. */
+.home-shelves .home-shelf > .horizontal-rail,
+.home-shelves .home-shelf-skeletons {
+  margin-inline: calc(-1 * var(--spacing-stage));
+}
+.home-shelves .home-shelf-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(
+    (100% + var(--spacing-stage) - var(--shelf-peek)) / var(--shelf-columns) -
+      var(--shelf-gap)
+  );
+  gap: var(--shelf-gap);
+  padding: 4px var(--spacing-stage);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: max(44px, var(--spacing-stage));
+  scroll-snap-type: x proximity;
+}
+.home-shelf-track::-webkit-scrollbar {
+  display: none;
+}
+.home-shelves .home-shelf-track.home-resume-rail {
+  grid-auto-columns: max(min(82%, 320px), 29%);
+}
+.home-shelves .home-shelf-skeletons {
+  overflow: clip;
+}
+.home-shelf-skeletons .home-skeleton {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.65rem;
+}
+.home-shelf .horizontal-rail-arrow {
+  --shade-direction: to right;
+  width: max(44px, var(--spacing-stage));
+  height: calc(100% - 8px);
+  background: linear-gradient(
+    var(--shade-direction),
+    transparent,
+    color-mix(in srgb, theme('colors.background') 85%, transparent)
+  );
+}
+.home-shelf .horizontal-rail-arrow--previous {
+  --shade-direction: to left;
+}
+.home-shelf .horizontal-rail-arrow svg {
+  width: clamp(19px, 1.65vw, 30px);
+  stroke-width: 2.1;
+}
+@media (min-width: 540px) {
+  .home-shelves {
+    --shelf-columns: 2;
+  }
+}
+@media (min-width: 800px) {
+  .home-shelves {
+    --shelf-columns: 3;
+  }
+}
+@media (min-width: 1080px) {
+  .home-shelves {
+    --shelf-columns: 4;
+  }
+}
+@media (min-width: 1360px) {
+  .home-shelves {
+    --shelf-columns: 5;
+  }
+}
+@media (min-width: 1680px) {
+  .home-shelves {
+    --shelf-columns: 6;
+  }
 }
 .home-grid {
   display: grid;
@@ -954,15 +941,11 @@
 }
 @media (forced-colors: active) {
   .home-primary,
-  .media-tile-image,
   .home-nav button {
     border: 1px solid ButtonBorder;
   }
 }
 
-.media-card-information {
-  padding: 4px 14px 16px;
-}
 .media-detail-specs {
   display: flex;
   flex-wrap: wrap;
@@ -1049,9 +1032,6 @@
     padding-inline: var(--spacing-stage);
     padding-top: 32px;
   }
-  .media-card-information {
-    padding: 3px 10px 14px;
-  }
   .media-detail-body {
     margin-top: -40px;
     padding: 0 24px 28px;
@@ -1121,7 +1101,13 @@
       animation-range: 0 80px;
     }
   }
-  .home-page-content :is(.home-resume, [data-grid-item], .collection-card) {
+  .home-page-content
+    :is(
+      .home-shelf .home-section-header h2,
+      .home-resume,
+      [data-grid-item],
+      .collection-card
+    ) {
     scroll-margin-top: 108px;
   }
 }

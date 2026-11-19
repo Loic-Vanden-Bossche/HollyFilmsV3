@@ -244,6 +244,8 @@
 .player-icon svg {
   width: 18px;
   height: 18px;
+  /* Keep hover on the button when muting replaces its icon under the pointer. */
+  pointer-events: none;
 }
 .player-icon:not(:disabled):hover,
 .player-icon[aria-pressed='true'] {

@@ -10,6 +10,12 @@ const cookieName = 'hollyfilms_google'
 const googleIssuer = 'https://accounts.google.com'
 const ttlSeconds = 600
 
+function profileName(value: unknown) {
+  if (typeof value !== 'string') return null
+  const name = value.replace(/\s+/gu, ' ').trim()
+  return name && name.length <= 200 && !/\p{Cc}/u.test(name) ? name : null
+}
+
 export type GoogleProvider = {
   authorizationUrl(params: Record<string, string>): Promise<URL>
   identity(
@@ -45,17 +51,22 @@ function googleProvider(
       return oidc.buildAuthorizationUrl(await configuration(), params)
     },
     async identity(url, checks) {
-      const tokens = await oidc.authorizationCodeGrant(
-        await configuration(),
-        url,
-        checks,
-      )
+      const client = await configuration()
+      const tokens = await oidc.authorizationCodeGrant(client, url, checks)
       const claims = tokens.claims()
       if (claims?.iss !== googleIssuer || !claims.sub)
         throw new Error('Identité Google invalide')
+      let name = profileName(claims.name)
+      if (!name) {
+        const profile = await oidc
+          .fetchUserInfo(client, tokens.access_token, claims.sub)
+          .catch(() => undefined)
+        name = profileName(profile?.name)
+      }
       return {
         issuer: claims.iss,
         subject: claims.sub,
+        name,
         picture: typeof claims.picture === 'string' ? claims.picture : null,
         email:
           claims.email_verified === true && typeof claims.email === 'string'

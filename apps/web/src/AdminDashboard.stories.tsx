@@ -3,8 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, mocked, waitFor, within } from 'storybook/test'
 import type { AdminUser } from '@hollyfilms/shared/accounts'
+import { getJellyfinServerInfo } from '@hollyfilms/shared/jellyfin'
 import { AdminDashboard } from './AdminDashboard.tsx'
 import {
+  getAdminUser,
   listAdminUsers,
   listRegistrations,
   setAdminUserAccess,
@@ -48,6 +50,10 @@ const meta = {
     },
   ],
   beforeEach: () => {
+    mocked(getJellyfinServerInfo).mockResolvedValue({
+      Version: '12.4.0',
+      StartupWizardCompleted: true,
+    })
     let users: AdminUser[] = [
       account,
       {
@@ -62,6 +68,14 @@ const meta = {
         id: 'registered',
         username: 'Morgan',
         registrationMethod: 'PASSWORD',
+      },
+      {
+        ...account,
+        id: 'google-member',
+        username: 'Google-example',
+        displayName: 'Jo Martin',
+        registrationMethod: 'GOOGLE',
+        hidden: true,
       },
       {
         ...account,
@@ -84,6 +98,21 @@ const meta = {
     mocked(listAdminUsers)
       .mockReset()
       .mockImplementation(async () => users)
+    mocked(getAdminUser).mockImplementation(async (_session, id) => {
+      const user = users.find((entry) => entry.id === id)
+      if (!user) throw new Error('Unknown Storybook account')
+      return {
+        ...user,
+        canEdit: !user.setupPending,
+        canRename: user.registrationMethod !== 'GOOGLE',
+        canChangePassword: user.registrationMethod !== 'GOOGLE',
+        canChangeRole: user.canChangeAccess,
+        canChangeProviders: false,
+        canDelete: user.canChangeAccess,
+        isCurrentUser: user.administrator,
+        policy: { IsHidden: user.hidden, IsDisabled: user.disabled },
+      }
+    })
     mocked(setAdminUserAccess)
       .mockReset()
       .mockImplementation(async (_session, id, disabled) => {
@@ -129,6 +158,26 @@ export const ManageAccess: Story = {
     const search = canvas.getByRole('searchbox', {
       name: 'Rechercher un utilisateur',
     })
+    await userEvent.type(search, 'jo mar')
+    await expect(
+      canvas.getByRole('button', { name: 'Suspendre l’accès · Jo Martin' }),
+    ).toBeVisible()
+    await expect(canvas.queryByText('Google-example')).not.toBeInTheDocument()
+    await expect(
+      canvas.getByText('Masqué sur l’écran de connexion'),
+    ).toBeVisible()
+    const manage = canvas.getByRole('button', { name: 'Gérer Jo Martin' })
+    await userEvent.click(manage)
+    const edit = await canvas.findByRole('dialog', { name: 'Jo Martin' })
+    await expect(
+      await within(edit).findByText('Ce compte utilise son profil Google.'),
+    ).toBeVisible()
+    await userEvent.click(within(edit).getByRole('button', { name: 'Fermer' }))
+    await waitFor(() => expect(manage).toHaveFocus())
+    await userEvent.clear(search)
+    await userEvent.type(search, 'google-example')
+    await expect(canvas.getByText('Jo Martin')).toBeVisible()
+    await userEvent.clear(search)
     await userEvent.type(search, 'cam')
     await expect(canvas.queryByText('Morgan')).not.toBeInTheDocument()
     await userEvent.click(
@@ -170,9 +219,16 @@ export const ManageAccess: Story = {
 export const Navigate: Story = {
   name: 'Demandes et inscriptions dans le tableau de bord',
   play: async ({ canvas, userEvent }) => {
-    const nav = within(
-      canvas.getByRole('navigation', { name: 'Administration' }),
-    )
+    const navigation = canvas.getByRole('navigation', {
+      name: 'Administration',
+    })
+    const nav = within(navigation)
+    const service = canvas.getByRole('region', { name: 'État du service' })
+    await expect(navigation.parentElement).toContainElement(service)
+    await expect(navigation).not.toContainElement(service)
+    await expect(
+      await within(service).findByText('Connexion établie'),
+    ).toBeVisible()
     await userEvent.click(nav.getByRole('link', { name: 'Inscriptions' }))
     await expect(
       await canvas.findByText('Aucune demande pour le moment.'),
@@ -190,6 +246,7 @@ export const Navigate: Story = {
     await expect(
       nav.getByRole('link', { name: 'Demandes de sous-titres' }),
     ).toHaveAttribute('aria-current', 'page')
+    await expect(service).toBeVisible()
     await userEvent.click(nav.getByRole('link', { name: 'Utilisateurs' }))
     await expect(await canvas.findByText('Camille')).toBeVisible()
   },

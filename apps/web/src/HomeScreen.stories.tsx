@@ -12,7 +12,7 @@ import {
   setMediaWatched,
 } from '@hollyfilms/shared/library'
 import { HomeScreen } from './HomeScreen.tsx'
-import { homeItems, homeResume } from './home-fixtures.ts'
+import { homeItems, homeResume, homeShelfItems } from './home-fixtures.ts'
 import {
   getMediaDetails,
   getMediaRelations,
@@ -29,6 +29,7 @@ import {
 import { navigateApp } from './use-app-route.ts'
 import { getProfile } from './account-api.ts'
 import { collectionFixtures } from './library-fixtures.ts'
+import { profileFixture } from './profile-fixtures.ts'
 const meta = {
   title: 'HollyFilms/Accueil connecté',
   component: HomeScreen,
@@ -154,11 +155,154 @@ const meta = {
 } satisfies Meta<typeof HomeScreen>
 export default meta
 type Story = StoryObj<typeof meta>
-export const InfiniteCatalogue: Story = {
-  name: 'Catalogue — pagination automatique et reprise après erreur',
+export const FiniteHome: Story = {
+  name: 'Accueil — sélections finies jusqu’au pied de page',
   beforeEach: () => {
+    mocked(getLibraryPage).mockImplementation(
+      async (
+        _url,
+        _session,
+        _user,
+        filter,
+        _search,
+        start,
+        _signal,
+        options,
+      ) => {
+        if (start)
+          throw new Error('Une rangée de l’accueil a demandé une deuxième page')
+        const items = homeShelfItems.filter(
+          (item) =>
+            filter === 'all' ||
+            (filter === 'movies'
+              ? item.kind === 'Film'
+              : item.kind === 'Série'),
+        )
+        if (options?.sort === 'rating') {
+          // An older film on the ratings page also belongs in the home ranking.
+          items.push({
+            ...homeShelfItems[0],
+            id: 'library-classic',
+            title: 'Le Classique',
+            rating: 9.8,
+          })
+          items.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        }
+        return { items, total: 2000 }
+      },
+    )
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await canvas.findByRole('heading', { name: 'Tout juste arrivés' })
+    await waitFor(() => {
+      const calls = mocked(getLibraryPage).mock.calls
+      expect(
+        calls.some(
+          (call) => call[3] === 'movies' && call[7]?.sort === 'rating',
+        ),
+      ).toBe(true)
+      expect(calls.some((call) => call[3] === 'series')).toBe(true)
+    })
+    const ranking = await canvas.findByRole('region', {
+      name: 'Les films les mieux notés',
+    })
+    await expect(within(ranking).getAllByRole('group')).toHaveLength(10)
+    await expect(
+      within(ranking).getByRole('group', { name: 'Rang 1 sur 10' }),
+    ).toContainElement(
+      within(ranking).getByRole('article', { name: 'Le Classique' }),
+    )
+    const count = canvasElement.querySelectorAll('[data-home-shelf]').length
+    const footer = canvasElement.querySelector<HTMLElement>('.home-footer')!
+    footer.scrollIntoView({ block: 'end', behavior: 'instant' })
+    await waitFor(() =>
+      expect(footer.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        window.innerHeight + 1,
+      ),
+    )
+    await expect(
+      canvasElement.querySelector('.virtual-media-grid, .home-more'),
+    ).toBeNull()
+    await expect(
+      canvasElement.querySelectorAll('[data-home-shelf]'),
+    ).toHaveLength(count)
+    await expect(
+      mocked(getLibraryPage).mock.calls.every((call) => !call[5]),
+    ).toBe(true)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Tous les films' }),
+    )
+    await canvas.findByRole('heading', { name: 'Les films.' })
+    await expect(new URLSearchParams(location.search).get('sort')).toBe(
+      'rating',
+    )
+    history.back()
+    await canvas.findByRole('heading', { name: 'Tout juste arrivés' })
+  },
+}
+export const SharedShelfLink: Story = {
+  name: 'Lien vers une sélection pendant le chargement',
+  play: async ({ mount, canvas }) => {
+    const previousUrl = location.href
+    let revealRecent!: () => void
+    let revealRanking!: () => void
+    const recent = new Promise<void>((resolve) => (revealRecent = resolve))
+    const ranking = new Promise<void>((resolve) => (revealRanking = resolve))
+    mocked(getLibraryPage).mockImplementation(
+      async (
+        _url,
+        _session,
+        _user,
+        filter,
+        _search,
+        _start,
+        _signal,
+        options,
+      ) => {
+        await (options?.sort === 'rating' ? ranking : recent)
+        return {
+          items: homeShelfItems.filter((item) =>
+            filter === 'series' ? item.kind === 'Série' : item.kind === 'Film',
+          ),
+          total: 2000,
+        }
+      },
+    )
+    history.replaceState(history.state, '', '#home-shelf-suspense')
+    try {
+      await mount()
+      await expect(
+        canvas.queryByRole('heading', { name: 'Sous tension' }),
+      ).toBeNull()
+      revealRecent()
+      const heading = await canvas.findByRole('heading', {
+        name: 'Sous tension',
+      })
+      await waitFor(() => expect(heading).toHaveFocus())
+      const top = heading.getBoundingClientRect().top
+      await expect(
+        Math.abs(top - parseFloat(getComputedStyle(heading).scrollMarginTop)),
+      ).toBeLessThan(1)
+      revealRanking()
+      await canvas.findByRole('group', { name: 'Rang 1 sur 10' })
+      await expect(heading).toHaveFocus()
+      await expect(
+        Math.abs(heading.getBoundingClientRect().top - top),
+      ).toBeLessThan(1)
+    } finally {
+      revealRecent()
+      revealRanking()
+      history.replaceState(history.state, '', previousUrl)
+    }
+  },
+}
+export const MoviesPagination: Story = {
+  name: 'Films — pagination automatique et reprise après erreur',
+  beforeEach: () => {
+    navigateApp({ filter: 'movies' }, 'replace')
     const items = Array.from({ length: 108 }, (_, index) => ({
       ...homeItems[index % homeItems.length],
+      kind: 'Film' as const,
       id: 'page-' + index,
       title: 'Catalogue ' + (index + 1),
     }))
@@ -219,7 +363,21 @@ export const InfiniteCatalogue: Story = {
   },
 }
 export const Connected: Story = {
+  args: {
+    user: { id: 'test-user', name: 'Google-example', isAdministrator: false },
+  },
+  beforeEach: () => {
+    mocked(getProfile).mockResolvedValue({
+      ...profileFixture,
+      id: 'test-user',
+      name: 'Jo Martin',
+      google: { email: 'jo@example.com', picture: null },
+    })
+  },
   play: async ({ canvas, userEvent }) => {
+    await expect(
+      await canvas.findByRole('button', { name: 'Menu du compte : Jo Martin' }),
+    ).toBeVisible()
     await userEvent.type(canvas.getByRole('searchbox'), 'Signal')
     await waitFor(() =>
       expect(mocked(getLibraryPage)).toHaveBeenLastCalledWith(
@@ -417,14 +575,17 @@ export const SearchPagination: Story = {
         canvas.getByRole('button', { name: 'Voir la fiche de Signal 1' }),
       ).toBeVisible(),
     )
-    window.scrollTo(0, document.documentElement.scrollHeight)
-    await waitFor(() =>
+    await waitFor(() => {
+      canvasElement.querySelector('.catalogue-load-trigger')?.scrollIntoView({
+        behavior: 'instant',
+        block: 'center',
+      })
       expect(
         mocked(getLibraryPage).mock.calls.some(
           (call) => call[4] === 'Signal' && call[5] === 36,
         ),
-      ).toBe(true),
-    )
+      ).toBe(true)
+    })
     await waitFor(() =>
       expect(canvasElement.querySelector('.home-more')).not.toBeInTheDocument(),
     )
@@ -622,11 +783,14 @@ export const UnavailableRoute: Story = {
 }
 export const CardActions: Story = {
   play: async ({ canvas, userEvent }) => {
-    const tile = await canvas.findByRole('button', {
+    const recent = within(
+      await canvas.findByRole('region', { name: 'Tout juste arrivés' }),
+    )
+    const tile = recent.getByRole('button', {
       name: 'Voir la fiche de ' + homeItems[0].title,
     })
     tile.scrollIntoView()
-    const first = await canvas.findByRole('article', {
+    const first = recent.getByRole('article', {
       name: homeItems[0].title,
     })
     await userEvent.hover(first)
@@ -643,9 +807,13 @@ export const CardActions: Story = {
     await expect(
       hero.getByRole('button', { name: 'Retirer des favoris' }),
     ).toHaveAttribute('aria-pressed', 'true')
-    const resume = canvas.getAllByRole('article', {
+    const continueWatching = within(
+      canvas.getByRole('region', { name: 'En cours de lecture' }),
+    )
+    const resume = continueWatching.getByRole('article', {
       name: homeResume[0].title,
-    })[0]
+    })
+    resume.scrollIntoView({ block: 'center', behavior: 'instant' })
     await userEvent.hover(resume)
     await waitFor(() => expect(resume).toHaveAttribute('data-active', 'true'))
     await userEvent.click(
@@ -653,15 +821,16 @@ export const CardActions: Story = {
     )
     await waitFor(() =>
       expect(
-        canvas.getAllByRole('article', {
+        continueWatching.queryByRole('article', {
           name: homeResume[0].title,
         }),
-      ).toHaveLength(1),
+      ).not.toBeInTheDocument(),
     )
-    await expect(
-      within(
-        canvas.getByRole('article', { name: homeResume[0].title }),
-      ).getByLabelText('Déjà vu'),
-    ).toBeVisible()
+    const watched = recent.getByRole('article', { name: homeResume[0].title })
+    watched.scrollIntoView({ block: 'center' })
+    await userEvent.hover(watched)
+    await waitFor(() =>
+      expect(within(watched).getByLabelText('Déjà vu')).toBeVisible(),
+    )
   },
 }

@@ -1,3 +1,5 @@
+@reference './index.css';
+
 .discovery-results {
   margin-top: 48px;
   padding-top: 28px;
@@ -8,54 +10,24 @@
   grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
   gap: clamp(12px, 2vw, 24px);
 }
-.discovery-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid #7dded825;
-  border-radius: 18px;
-  background: linear-gradient(160deg, #1b2b40, #0b1421);
-}
-.discovery-artwork {
-  position: relative;
-  aspect-ratio: 2 / 3;
-  background: #142235;
-  display: grid;
-  place-items: center;
-}
-.discovery-artwork img {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.discovery-artwork span {
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  padding: 4px 9px;
-  border-radius: 8px;
-  background: #080f1bdb;
-  font-size: 11px;
-}
 .discovery-copy {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  gap: 9px;
-  padding: 12px;
+  display: grid;
+  gap: 8px;
 }
 .discovery-copy > p,
 .request-date,
 .request-heading p {
-  color: #a2b1c4;
+  @apply text-muted-foreground;
   font-size: 12px;
 }
-.discovery-copy h3 {
-  font-size: 15px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+.discovery-copy > .discovery-overview {
+  @apply text-foreground/85;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 .request-button {
   display: flex;
@@ -388,7 +360,7 @@
 .request-poster {
   width: clamp(72px, 10vw, 130px);
   height: auto;
-  max-height: 195px;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   align-self: start;
   border-radius: 12px;

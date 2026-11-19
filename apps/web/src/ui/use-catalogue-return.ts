@@ -1,6 +1,11 @@
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react'
 
-type Place = { y: number; rail: number; focus?: string }
+type Place = { y: number; rails: Map<string, number>; focus?: string }
+
+const tracks = '[data-home-shelf] .horizontal-rail-track, .library-episode-rail'
+const railKey = (track: HTMLElement) =>
+  track.closest<HTMLElement>('[data-home-shelf]')?.dataset.homeShelf ??
+  'episodes'
 
 export function useCatalogueReturn(
   content: RefObject<HTMLElement | null>,
@@ -12,24 +17,39 @@ export function useCatalogueReturn(
   const save = useCallback(
     (returning = false) => {
       const surface = content.current?.querySelector('[data-present="true"]')
-      const control = document.activeElement?.closest<HTMLElement>(
+      const active = document.activeElement
+      const control = active?.closest<HTMLElement>(
         '[data-media-id], [data-collection-id]',
       )
+      const shelf =
+        active?.closest<HTMLElement>('[data-home-shelf]')?.dataset.homeShelf
+      const shelfScope = shelf
+        ? '[data-home-shelf="' + CSS.escape(shelf) + '"] '
+        : ''
+      const mediaScope = control?.closest('header')
+        ? 'header '
+        : control?.closest('[data-grid-item]')
+          ? '[data-grid-item] '
+          : shelfScope
       const focus = control?.dataset.collectionId
         ? '[data-collection-id="' +
           CSS.escape(control.dataset.collectionId) +
-          '"]'
+          '"] .collection-trigger'
         : control?.dataset.mediaId
-          ? '[data-media-id="' +
+          ? mediaScope +
+            '[data-media-id="' +
             CSS.escape(control.dataset.mediaId) +
             '"] .media-tile-select'
-          : undefined
-      const rail = surface?.querySelector(
-        '.home-resume-rail, .library-episode-rail',
-      )
+          : active?.matches('.home-shelf-link')
+            ? shelfScope + '.home-shelf-link'
+            : undefined
+      const rails = new Map<string, number>()
+      surface?.querySelectorAll<HTMLElement>(tracks).forEach((track) => {
+        if (track.scrollLeft > 0) rails.set(railKey(track), track.scrollLeft)
+      })
       places.current.set(previous.current, {
         y: window.scrollY,
-        rail: rail?.scrollLeft ?? 0,
+        rails,
         focus,
       })
       restore.current = returning
@@ -59,14 +79,22 @@ export function useCatalogueReturn(
     const position = () => {
       window.scrollTo({ top: place.y, behavior: 'instant' })
       const surface = root.querySelector('[data-present="true"]')
-      const rail = surface?.querySelector(
-        '.home-resume-rail, .library-episode-rail',
-      )
-      if (rail && place.rail) rail.scrollLeft = place.rail
+      let restoredRails = 0
+      surface?.querySelectorAll<HTMLElement>(tracks).forEach((track) => {
+        const offset = place.rails.get(railKey(track))
+        if (offset != null) {
+          track.scrollLeft = offset
+          if (Math.abs(track.scrollLeft - offset) < 2) restoredRails++
+        }
+      })
       const trigger =
         place.focus && surface?.querySelector<HTMLElement>(place.focus)
       if (trigger) trigger.focus({ preventScroll: true })
-      if (Math.abs(window.scrollY - place.y) < 2 && (!place.focus || trigger))
+      if (
+        Math.abs(window.scrollY - place.y) < 2 &&
+        restoredRails === place.rails.size &&
+        (!place.focus || trigger)
+      )
         stop()
     }
     const schedule = () => {

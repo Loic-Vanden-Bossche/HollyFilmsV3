@@ -1,0 +1,20 @@
+.artwork-watermark {
+  position: absolute;
+  inset-inline-end: var(--artwork-watermark-inset, clamp(10px, 4%, 26px));
+  inset-block-end: clamp(9px, 6%, 22px);
+  width: var(--artwork-watermark-width, clamp(48px, 20%, 82px));
+  aspect-ratio: 236 / 40;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 75%))
+    drop-shadow(0 0 3px rgb(0 0 0 / 45%));
+}
+
+.artwork-watermark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: white;
+  mask: url('../assets/logos/logo-full.svg') center / contain no-repeat;
+}

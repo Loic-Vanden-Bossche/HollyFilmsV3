@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { expect, fn, mocked, waitFor } from 'storybook/test'
+import { expect, fireEvent, fn, mocked, waitFor } from 'storybook/test'
 import { getHeroPreview } from '@hollyfilms/shared/library'
 import type { MediaItem } from '@hollyfilms/shared/library'
 import { HomeCarousel } from './HomeCarousel.tsx'
 import { homeItems } from '../home-fixtures.ts'
+import { PerformanceProvider } from '../performance/PerformanceProvider.tsx'
+import { PerformanceController } from '../performance/profiles.ts'
 import previewVideo from '../assets/hero-preview.webm?url'
 import '../home.css'
 
@@ -22,13 +24,21 @@ const meta = {
     ),
   },
   decorators: [
-    (Story) => {
+    (Story, { args }) => {
       const [client] = useState(() => new QueryClient())
+      const [performance] = useState(() => {
+        const controller = new PerformanceController()
+        controller.setAdmin(true)
+        controller.select(args.session ? 'high' : 'balanced', 0)
+        return controller
+      })
       return (
         <QueryClientProvider client={client}>
-          <div className="home-page">
-            <Story />
-          </div>
+          <PerformanceProvider controller={performance} measure={false}>
+            <div className="home-page">
+              <Story />
+            </div>
+          </PerformanceProvider>
         </QueryClientProvider>
       )
     },
@@ -97,6 +107,64 @@ export const VideoPreview: Story = {
       kind: 'video',
       url: previewVideo,
     })
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const unmute = await canvas.findByRole('button', {
+      name: 'Activer le son de l’aperçu',
+    })
+    const video = canvasElement.querySelector('video')!
+    await expect(video).toHaveProperty('muted', true)
+    await expect(video).toHaveProperty('controls', false)
+    await userEvent.click(unmute)
+    await waitFor(() => expect(video).toHaveProperty('muted', false))
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Couper le son de l’aperçu' }),
+    )
+  },
+}
+export const ExternalTrailerOnly: Story = {
+  name: 'Décor pour une bande-annonce externe',
+  args: {
+    ...VideoPreview.args,
+    items: [
+      {
+        ...homeItems[0],
+        trailers: [
+          { url: 'https://www.youtube.com/watch?v=abcdefghijk', name: 'VF' },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await waitFor(() => expect(getHeroPreview).toHaveBeenCalledTimes(1))
+    await expect(
+      canvas.getByText('LA SÉLECTION HOLLYFILMS'),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+    )
+    await expect(canvasElement.querySelector('video, iframe')).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /son de l’aperçu/ }),
+    ).toBeNull()
+  },
+}
+export const FailedNativePreview: Story = {
+  name: 'Retour au décor si la vidéo locale échoue',
+  args: VideoPreview.args,
+  beforeEach: VideoPreview.beforeEach,
+  play: async ({ canvas, canvasElement }) => {
+    const audio = await canvas.findByRole('button', {
+      name: 'Activer le son de l’aperçu',
+    })
+    fireEvent.error(canvasElement.querySelector('video')!)
+    await waitFor(() => expect(audio).not.toBeInTheDocument())
+    await expect(
+      canvas.getByText('LA SÉLECTION HOLLYFILMS'),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+    )
   },
 }
 export const PreviewUnavailable: Story = {

@@ -1,19 +1,10 @@
 import { usePerformanceReducedMotion as useReducedMotion } from './performance/PerformanceProvider.tsx'
 import { useI18n } from './i18n/I18nProvider.tsx'
+import { localizeText } from './i18n/messages.ts'
 import { Tooltip } from './ui/Tooltip.tsx'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, useAnimate } from 'motion/react'
-import {
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
-  Film,
-  LogOut,
-  Pause,
-  Play,
-  RotateCcw,
-  Search,
-} from 'lucide-react'
+import { Film, LogOut, Pause, Play, RotateCcw, Search } from 'lucide-react'
 import type {
   CollectionItem,
   LibraryFilter,
@@ -23,11 +14,9 @@ import type {
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { AccountMenu } from './ui/AccountMenu.tsx'
-import { MediaTile } from './ui/MediaTile.tsx'
-import {
-  VirtualMediaGrid,
-  CatalogueLoadTrigger,
-} from './ui/VirtualMediaGrid.tsx'
+import { HomeMediaShelf } from './ui/HomeMediaShelf.tsx'
+import { HomeExploreRow } from './ui/HomeExploreRow.tsx'
+import { buildHomeShelves, type HomeShelf } from './home-shelves.ts'
 import { MediaDetails } from './ui/MediaDetails.tsx'
 import { HomeCarousel } from './ui/HomeCarousel.tsx'
 import { CatalogueBackdrop } from './ui/CatalogueBackdrop.tsx'
@@ -36,12 +25,7 @@ import { SearchResults, type SearchPageData } from './ui/SearchResults.tsx'
 import { useCatalogueReturn } from './ui/use-catalogue-return.ts'
 import { LibraryTransition } from './ui/LibraryTransition.tsx'
 import { LibraryView } from './ui/LibraryView.tsx'
-import {
-  AnimatedContent,
-  GooeyNav,
-  ShinyText,
-  CountUp,
-} from './components/reactbits/Effects.tsx'
+import { GooeyNav, ShinyText } from './components/reactbits/Effects.tsx'
 import { MotionEnvironment } from './components/reactbits/MotionEnvironment.tsx'
 import { ease as curves } from './motion/tokens.ts'
 import './home.css'
@@ -61,6 +45,10 @@ export type HomePageProps = {
   onFavorite?: (item: MediaItem, favorite: boolean) => Promise<boolean>
   onWatched?: (item: MediaItem, watched: boolean) => Promise<boolean>
   items: MediaItem[]
+  ratedMovies?: MediaItem[]
+  loadingRatings?: boolean
+  recentSeries?: MediaItem[]
+  loadingSeries?: boolean
   resumeItems: MediaItem[]
   state: 'loading' | 'ready' | 'error'
   resumeError?: boolean
@@ -80,7 +68,7 @@ export type HomePageProps = {
   loadingMore?: boolean
   loadMoreError?: boolean
   signingOut?: boolean
-  onFilter: (filter: LibraryFilter) => void
+  onFilter: (filter: LibraryFilter, sort?: LibrarySort) => void
   onSearch: (query: string) => void
   onLoadMore: () => void
   onRetry: () => void
@@ -101,6 +89,10 @@ export function HomePage({
   onFavorite,
   onWatched,
   items,
+  ratedMovies,
+  loadingRatings,
+  recentSeries,
+  loadingSeries,
   resumeItems,
   state,
   resumeError,
@@ -169,19 +161,6 @@ export function HomePage({
     setSearchFocused(false)
     onSearch('')
     window.scrollTo({ top: 0, behavior: 'instant' })
-  }
-  const resumeRail = useRef<HTMLDivElement>(null)
-  const scrollResumeRail = (direction: -1 | 1) => {
-    const rail = resumeRail.current
-    if (!rail) return
-    const first = rail.firstElementChild
-    const second = first?.nextElementSibling
-    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement))
-      return
-    rail.scrollBy({
-      left: direction * (second.offsetLeft - first.offsetLeft),
-      behavior: reduced ? 'instant' : 'smooth',
-    })
   }
   const content = useRef<HTMLElement>(null)
   const rememberPlace = useCatalogueReturn(
@@ -288,12 +267,13 @@ export function HomePage({
     }
   }, [opening, introElapsed, animate])
 
-  function changeFilter(next: LibraryFilter) {
+  function changeFilter(next: LibraryFilter, nextSort?: LibrarySort) {
     if (next === filter && !searchActive && !collectionId) return
     finishOpening()
     setSearchFocused(false)
     rememberPlace()
-    onFilter(next)
+    if (nextSort) onFilter(next, nextSort)
+    else onFilter(next)
     onSearch('')
   }
 
@@ -309,6 +289,88 @@ export function HomePage({
     // oxlint-disable-next-line react/set-state-in-effect
     setSearchFocused(false)
   }, [filter, collectionId])
+
+  const selections = useMemo(() => {
+    if (browsing || searchActive || state !== 'ready') return []
+    // An incomplete recent page cannot establish a library-wide ranking.
+    const ratings = ratedMovies ?? (items.length >= total ? items : [])
+    return buildHomeShelves(items, ratings, recentSeries)
+  }, [browsing, searchActive, state, items, ratedMovies, recentSeries, total])
+  const entryShelf = useRef(window.location.hash)
+  useLayoutEffect(() => {
+    // The browser's initial fragment lookup can precede Jellyfin's response.
+    const hash = entryShelf.current
+    if (!hash.startsWith('#home-shelf-')) return
+    const cancel = () => {
+      entryShelf.current = ''
+    }
+    if (
+      hash !== window.location.hash ||
+      browsing ||
+      searchActive ||
+      selected ||
+      playbackOpen
+    ) {
+      cancel()
+      return
+    }
+    const heading = document.getElementById(hash.slice(1))
+    if (heading && content.current?.contains(heading)) {
+      heading.scrollIntoView({ block: 'start', behavior: 'instant' })
+      heading.focus({ preventScroll: true })
+      if (!loadingRatings && !loadingSeries) {
+        cancel()
+        return
+      }
+    }
+    // A slow library response must never pull someone back after they've moved on.
+    const listeners = new AbortController()
+    for (const event of ['wheel', 'pointerdown', 'keydown', 'hashchange'])
+      window.addEventListener(event, cancel, {
+        passive: true,
+        signal: listeners.signal,
+      })
+    return () => listeners.abort()
+  }, [
+    selections,
+    resumeItems,
+    loadingRatings,
+    loadingSeries,
+    browsing,
+    searchActive,
+    selected,
+    playbackOpen,
+  ])
+  const themes = selections.filter(
+    ({ id }) => id !== 'recent' && id !== 'acclaimed',
+  )
+  const tileActions = {
+    session,
+    userId,
+    onSelect: setSelected,
+    onPlay: onPlay ? playItem : undefined,
+    onFavorite,
+    onWatched,
+  }
+
+  function renderShelf({ id, title, items, genre, browse }: HomeShelf) {
+    return (
+      <HomeMediaShelf
+        key={id}
+        id={id}
+        title={t(title, genre ? { genre: localizeText(t, genre) } : undefined)}
+        items={items}
+        browse={browse}
+        onBrowse={
+          browse
+            ? () =>
+                changeFilter(browse, browse === 'movies' ? 'rating' : undefined)
+            : undefined
+        }
+        {...tileActions}
+      />
+    )
+  }
 
   const pageOrder = [
     'all',
@@ -332,6 +394,7 @@ export function HomePage({
         updatingOrder={updatingOrder}
         search={search}
         session={session}
+        userId={userId}
         hasMore={hasMore}
         loadingMore={loadingMore}
         loadMoreError={loadMoreError}
@@ -506,6 +569,7 @@ export function HomePage({
                   }
                   paused={!!selected || !!playbackOpen}
                   session={session}
+                  userId={userId}
                   onSelect={setSelected}
                   onPlay={onPlay ? playItem : undefined}
                   onFavorite={onFavorite}
@@ -579,60 +643,14 @@ export function HomePage({
                     </section>
                   )}
 
-                  <div className="home-content">
+                  <div className="home-content home-shelves">
                     {resumeItems.length > 0 && (
-                      <AnimatedContent>
-                        <section
-                          className="home-resume"
-                          aria-labelledby="resume-title"
-                        >
-                          <div className="home-section-header">
-                            <div>
-                              <p className="home-section-kicker">
-                                {t('LA SUITE VOUS ATTEND')}
-                              </p>
-                              <h2 id="resume-title">
-                                {t('En cours de lecture')}
-                                <span>{resumeItems.length}</span>
-                              </h2>
-                            </div>
-                            <div className="home-rail-controls">
-                              <Tooltip>
-                                <button
-                                  type="button"
-                                  aria-label={t('Titres en cours précédents')}
-                                  onClick={() => scrollResumeRail(-1)}
-                                >
-                                  <ChevronLeft size={19} />
-                                </button>
-                              </Tooltip>
-                              <Tooltip>
-                                <button
-                                  type="button"
-                                  aria-label={t('Titres en cours suivants')}
-                                  onClick={() => scrollResumeRail(1)}
-                                >
-                                  <ChevronRight size={19} />
-                                </button>
-                              </Tooltip>
-                            </div>
-                          </div>
-                          <div className="home-resume-rail" ref={resumeRail}>
-                            {resumeItems.map((item) => (
-                              <MediaTile
-                                key={item.id}
-                                item={item}
-                                session={session}
-                                wide
-                                onSelect={setSelected}
-                                onPlay={onPlay ? playItem : undefined}
-                                onFavorite={onFavorite}
-                                onWatched={onWatched}
-                              />
-                            ))}
-                          </div>
-                        </section>
-                      </AnimatedContent>
+                      <HomeMediaShelf
+                        id="resume"
+                        title={t('En cours de lecture')}
+                        items={resumeItems}
+                        {...tileActions}
+                      />
                     )}
                     {resumeError && (
                       <div className="home-inline-error" role="status">
@@ -642,109 +660,67 @@ export function HomePage({
                         </button>
                       </div>
                     )}
-                    <section
-                      className="home-catalogue"
-                      id="home-catalogue"
-                      aria-labelledby="catalogue-title"
-                      aria-busy={state === 'loading'}
-                    >
-                      <div className="home-section-header">
-                        <div>
-                          <p className="home-section-kicker">
-                            {t('À DÉCOUVRIR')}
-                          </p>
-                          <h2 id="catalogue-title">
-                            {t('Ajouts récents')}
-                            {state === 'ready' && (
-                              <span>
-                                <CountUp value={total} />
-                              </span>
-                            )}
-                          </h2>
+                    {state === 'loading' ? (
+                      <div
+                        className="home-loading"
+                        role="status"
+                        data-shelf-format="poster"
+                      >
+                        <span>{t('Chargement du catalogue…')}</span>
+                        <div
+                          className="home-shelf-track home-shelf-skeletons"
+                          aria-hidden="true"
+                        >
+                          {Array.from({ length: 6 }, (_, i) => (
+                            <div key={i} className="home-skeleton" />
+                          ))}
                         </div>
-                        <span className="home-sort">
-                          {t('Les plus récents d’abord')}
-                        </span>
                       </div>
-                      {state === 'loading' ? (
-                        <div className="home-loading" role="status">
-                          <span>{t('Chargement du catalogue…')}</span>
-                          <div className="home-grid" aria-hidden="true">
-                            {Array.from({ length: 6 }, (_, i) => (
-                              <div key={i} className="home-skeleton" />
-                            ))}
-                          </div>
-                        </div>
-                      ) : state === 'error' ? (
-                        <div className="home-empty" role="alert">
-                          <Film size={30} />
-                          <h3>{t('Impossible de charger le catalogue.')}</h3>
-                          <p>{t('Réessayez dans un instant.')}</p>
-                          <button
-                            type="button"
-                            className="home-primary"
-                            onClick={onRetry}
-                          >
-                            {t('Réessayer')}
-                            <RotateCcw size={16} />
-                          </button>
-                        </div>
-                      ) : items.length === 0 ? (
-                        <div className="home-empty" role="status">
-                          <Search size={30} />
-                          <h3>{t('La bibliothèque est encore vide.')}</h3>
-                          <p>
-                            {t(
-                              'Les films et séries accessibles à votre compte apparaîtront ici.',
-                            )}
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <VirtualMediaGrid
-                            key={filter}
-                            items={items}
-                            total={total}
-                            session={session}
-                            onSelect={setSelected}
-                            onPlay={onPlay ? playItem : undefined}
-                            onFavorite={onFavorite}
-                            onWatched={onWatched}
-                          />
-                          <CatalogueLoadTrigger
-                            key={'load-' + filter}
-                            count={items.length}
-                            hasMore={hasMore}
-                            loading={loadingMore}
-                            error={loadMoreError}
-                            paused={!!selected || !!playbackOpen}
-                            onLoadMore={onLoadMore}
-                          />
-                          {loadMoreError && (
-                            <p className="home-inline-error" role="alert">
-                              {t(
-                                'La suite du catalogue n’a pas pu être chargée.',
-                              )}
-                            </p>
+                    ) : state === 'error' ? (
+                      <div className="home-empty" role="alert">
+                        <Film size={30} />
+                        <h3>{t('Impossible de charger le catalogue.')}</h3>
+                        <p>{t('Réessayez dans un instant.')}</p>
+                        <button
+                          type="button"
+                          className="home-primary"
+                          onClick={onRetry}
+                        >
+                          {t('Réessayer')}
+                          <RotateCcw size={16} />
+                        </button>
+                      </div>
+                    ) : items.length === 0 ? (
+                      <div className="home-empty" role="status">
+                        <Search size={30} />
+                        <h3>{t('La bibliothèque est encore vide.')}</h3>
+                        <p>
+                          {t(
+                            'Les films et séries accessibles à votre compte apparaîtront ici.',
                           )}
-                          {hasMore && (
-                            <button
-                              type="button"
-                              className="home-more glass-control"
-                              disabled={loadingMore}
-                              onClick={onLoadMore}
-                            >
-                              {loadingMore
-                                ? t('Chargement…')
-                                : loadMoreError
-                                  ? t('Réessayer')
-                                  : t('Afficher plus de titres')}
-                              <ArrowRight size={16} />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </section>
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {selections
+                          .filter(
+                            ({ id }) => id === 'recent' || id === 'acclaimed',
+                          )
+                          .map(renderShelf)}
+                        {loadingRatings && !ratedMovies && (
+                          <HomeMediaShelf
+                            id="acclaimed"
+                            title={t('Les films les mieux notés')}
+                            browse="movies"
+                            items={[]}
+                            loading
+                            {...tileActions}
+                          />
+                        )}
+                        <HomeExploreRow shelves={themes} />
+                        {themes.map(renderShelf)}
+                      </>
+                    )}
                     <footer className="home-footer">
                       <span>
                         HOLLYFILMS <strong>3.0</strong>

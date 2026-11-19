@@ -124,7 +124,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
     enabled: layout.width > 0,
     useAnimationFrameWithResizeObserver: true,
     count: Math.ceil(items.length / layout.columns),
-    estimateSize: () => (layout.cardWidth - 2) * 1.5 + 76,
+    estimateSize: () => (layout.cardWidth * 3) / 2,
     gap: layout.gap,
     overscan: profile.overscan,
     scrollMargin: layout.top,

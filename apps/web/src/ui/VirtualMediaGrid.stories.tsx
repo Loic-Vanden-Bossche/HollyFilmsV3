@@ -42,6 +42,15 @@ export const ThousandTitles: Story = {
       ).toBeVisible(),
     )
     const initialHeight = document.documentElement.scrollHeight
+    const grid = canvas.getByRole('list')
+    const row = grid.querySelector('.virtual-media-row')!
+    const cover = row.querySelector('button')!.getBoundingClientRect()
+    const rowCount = Math.ceil(items.length / row.children.length)
+    const gap = parseFloat(getComputedStyle(row).rowGap)
+    const estimatedHeight =
+      (grid.getBoundingClientRect().height - (rowCount - 1) * gap) / rowCount
+    await expect(cover.width / cover.height).toBeCloseTo(2 / 3, 2)
+    await expect(Math.abs(estimatedHeight - cover.height)).toBeLessThan(1)
     await expect(canvas.getAllByRole('listitem').length).toBeLessThan(90)
     window.scrollTo(0, initialHeight / 2)
     await waitFor(() =>

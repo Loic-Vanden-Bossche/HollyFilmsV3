@@ -40,6 +40,7 @@ import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
 import { formatDuration } from '../format-duration.ts'
 import { HeroVideo } from './HeroVideo.tsx'
+import { useCardVideoActive } from './card-video-activity.ts'
 import {
   BlurText,
   Magnet,
@@ -154,10 +155,12 @@ export function HomeCarousel({
     if (item && backdropReady === assetKey && logoReady === assetKey)
       onReady?.(item.id)
   }, [item, assetKey, backdropReady, logoReady, onReady])
-  const enabled = active && reveal && visible && inView && !reduced
+  const cardVideoActive = useCardVideoActive()
+  const enabled =
+    active && reveal && visible && inView && !reduced && !cardVideoActive
   const running = enabled && !paused
   const preview = useQuery({
-    queryKey: ['hero-preview', session?.deviceId, userId, item?.id],
+    queryKey: ['native-preview', session?.deviceId, userId, item?.id],
     queryFn: ({ signal }) =>
       getHeroPreview(
         new URL('/jellyfin', window.location.origin).href,
@@ -172,9 +175,10 @@ export function HomeCarousel({
     gcTime: 0,
     refetchOnWindowFocus: false,
   })
+  const previewSource = enabled && profile.trailers ? preview.data : null
   const playingPreview =
-    profile.trailers && previewStatus?.id === item?.id && previewStatus.playing
-  const duration = preview.data ? 30 : 10
+    previewSource && previewStatus?.id === item?.id && previewStatus.playing
+  const duration = playingPreview ? 30 : 10
 
   useEffect(() => {
     const changed = () => setVisible(!document.hidden)
@@ -283,11 +287,11 @@ export function HomeCarousel({
             />
           </motion.div>
         </AnimatePresence>
-        {enabled && preview.data && (
+        {previewSource && (
           <HeroVideo
             key={item.id}
-            source={preview.data}
-            running={running && profile.trailers}
+            source={previewSource}
+            running={running}
             muted={muted}
             onStatus={(status) =>
               setPreviewStatus({ id: item.id, playing: status === 'playing' })
@@ -429,11 +433,9 @@ export function HomeCarousel({
         transition={{ duration: 0.45, delay: 0.2, ease }}
       >
         <span className="hero-preview-label">
-          {playingPreview && enabled
-            ? t('BANDE-ANNONCE')
-            : t('LA SÉLECTION HOLLYFILMS')}
+          {playingPreview ? t('BANDE-ANNONCE') : t('LA SÉLECTION HOLLYFILMS')}
         </span>
-        {preview.data && profile.trailers && (
+        {playingPreview && (
           <Tooltip>
             <button
               type="button"
@@ -443,7 +445,6 @@ export function HomeCarousel({
                   ? t('Activer le son de l’aperçu')
                   : t('Couper le son de l’aperçu')
               }
-              disabled={!playingPreview || !enabled}
               onClick={() => setMuted((value) => !value)}
             >
               {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}

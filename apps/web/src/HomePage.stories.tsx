@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, fn, mocked, waitFor, within } from 'storybook/test'
 import { getLibraryImage } from '@hollyfilms/shared/library'
 import { HomePage } from './HomePage.tsx'
-import { homeItems, homeResume } from './home-fixtures.ts'
+import { homeItems, homeResume, homeShelfItems } from './home-fixtures.ts'
 import type { LibraryFilter } from '@hollyfilms/shared/library'
 import { avatarFixture } from './profile-fixtures.ts'
 import { collectionFixtures, episodeFixtures } from './library-fixtures.ts'
@@ -43,6 +43,7 @@ const meta = {
     const [filter, setFilter] = useState<LibraryFilter>(args.filter)
     const [search, setSearch] = useState(args.search)
     const [collectionId, setCollectionId] = useState(args.collectionId)
+    const [sort, setSort] = useState(args.sort)
     const items = args.items.filter(
       (item) =>
         filter === 'all' ||
@@ -72,6 +73,7 @@ const meta = {
           setCollectionId(id)
         }}
         filter={filter}
+        sort={sort}
         search={search}
         searchResults={{
           items: results,
@@ -80,9 +82,11 @@ const meta = {
           onLoadMore: args.onLoadMore,
           onRetry: args.onRetry,
         }}
-        onFilter={(value) => {
-          args.onFilter(value)
+        onFilter={(value, order) => {
+          if (order) args.onFilter(value, order)
+          else args.onFilter(value)
           setFilter(value)
+          setSort(order)
           setCollectionId(undefined)
         }}
         onSearch={(value) => {
@@ -95,6 +99,64 @@ const meta = {
 } satisfies Meta<typeof HomePage>
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const ThematicShelves: Story = {
+  name: 'Affiches, classement et sélections',
+  args: { items: homeShelfItems, onPlay: fn() },
+  play: async ({ canvas, canvasElement, userEvent, args }) => {
+    const recent = await canvas.findByRole('region', {
+      name: 'Tout juste arrivés',
+    })
+    await expect(
+      canvas.getByRole('heading', { name: 'Sous tension' }),
+    ).toBeInTheDocument()
+    await expect(canvasElement.querySelector('.virtual-media-grid')).toBeNull()
+    const explore = await canvas.findByRole('link', { name: 'Sous tension' })
+    explore.focus({ preventScroll: true })
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('heading', { name: 'Sous tension' }),
+      ).toHaveFocus(),
+    )
+    await expect(
+      canvas.getByRole('region', { name: 'Les films les mieux notés' }),
+    ).toHaveAttribute('data-shelf-format', 'ranked')
+    recent.scrollIntoView({ behavior: 'instant', block: 'center' })
+    const rail = recent.querySelector<HTMLElement>('.home-shelf-track')!
+    await waitFor(() =>
+      expect(rail.scrollWidth).toBeGreaterThan(rail.clientWidth),
+    )
+    const viewport = document.documentElement.clientWidth
+    await waitFor(() =>
+      expect(rail.getBoundingClientRect().right).toBeCloseTo(viewport, 0),
+    )
+    const next = recent.querySelector<HTMLButtonElement>(
+      '.horizontal-rail-arrow--next',
+    )!
+    await expect(next).toHaveAccessibleName()
+    await userEvent.click(next)
+    await waitFor(() => expect(rail.scrollLeft).toBeGreaterThan(0))
+    rail.scrollTo({ left: rail.scrollWidth, behavior: 'instant' })
+    await waitFor(() => expect(next).toBeDisabled())
+    const last = within(recent).getAllByRole('article').at(-1)!
+    const bounds = last.getBoundingClientRect()
+    await expect(bounds.right).toBeLessThanOrEqual(
+      document.documentElement.clientWidth + 1,
+    )
+    await expect(bounds.left).toBeGreaterThanOrEqual(0)
+    await expect(bounds.width / bounds.height).toBeCloseTo(2 / 3, 1)
+    await userEvent.hover(last)
+    await userEvent.click(
+      await within(last).findByRole('button', { name: /^Lire / }),
+    )
+    await expect(args.onPlay).toHaveBeenCalledWith(
+      expect.objectContaining({ title: last.getAttribute('aria-label') }),
+      true,
+    )
+    rail.scrollTo({ left: 0, behavior: 'instant' })
+  },
+}
 
 export const UltraPerformance: Story = {
   name: 'Ultra — catalogue de 96 titres',
@@ -255,7 +317,12 @@ export const PreloadedHero: Story = {
   play: async ({ canvasElement }) => {
     const page = canvasElement.querySelector('.home-page')!
     const hero = canvasElement.querySelector('.home-carousel')!
-    await waitFor(() => expect(getLibraryImage).toHaveBeenCalledTimes(2))
+    const imageRequests = () =>
+      mocked(getLibraryImage).mock.calls.map(([, , image]) => image.type)
+    await waitFor(() => {
+      expect(imageRequests()).toContain('Backdrop')
+      expect(imageRequests()).toContain('Logo')
+    })
     await expect(hero).toHaveAttribute('data-revealed', 'true')
     await expect(hero).not.toHaveAttribute('inert')
     await expect(hero.querySelector('.hero-details')).toBeEnabled()
@@ -281,7 +348,11 @@ export const PreloadedHero: Story = {
         opacity: '1',
       }),
     )
-    await expect(getLibraryImage).toHaveBeenCalledTimes(2)
+    // A visible shelf can request a smaller rendition of the same backdrop.
+    const renditions = mocked(getLibraryImage).mock.calls.map(
+      ([, , image, width]) => image.type + '/' + width,
+    )
+    await expect(new Set(renditions).size).toBe(renditions.length)
   },
 }
 export const FailedHeroArtwork: Story = {
@@ -351,7 +422,7 @@ export const CardPlayback: Story = {
     onPlay: fn(),
     resumeItems: [
       ...homeResume,
-      ...homeItems.slice(4, 6).map((item) => ({
+      ...homeItems.slice(4).map((item) => ({
         ...item,
         progress: 0.28,
         remainingMinutes: 85,
@@ -359,11 +430,14 @@ export const CardPlayback: Story = {
     ],
   },
   play: async ({ canvas, userEvent, args }) => {
-    const trigger = await canvas.findByRole('button', {
+    const recentSection = await canvas.findByRole('region', {
+      name: 'Tout juste arrivés',
+    })
+    const trigger = within(recentSection).getByRole('button', {
       name: 'Voir la fiche de ' + args.items[0].title,
     })
     trigger.scrollIntoView({ behavior: 'instant', block: 'center' })
-    const card = await canvas.findByRole('article', {
+    const card = within(recentSection).getByRole('article', {
       name: args.items[0].title,
     })
     await userEvent.hover(card)
@@ -376,18 +450,18 @@ export const CardPlayback: Story = {
     const resumeSection = canvas.getByRole('region', {
       name: /En cours de lecture/,
     })
-    const rail =
-      resumeSection.querySelector<HTMLDivElement>('.home-resume-rail')!
-    const [resume, next] = within(resumeSection).getAllByRole('article')
-    const step = next.offsetLeft - resume.offsetLeft
+    const rail = resumeSection.querySelector<HTMLDivElement>(
+      '.horizontal-rail-track',
+    )!
+    const [resume] = within(resumeSection).getAllByRole('article')
     await userEvent.click(
       within(resumeSection).getByRole('button', {
         name: 'Titres en cours suivants',
       }),
     )
-    await waitFor(() => expect(rail.scrollLeft).toBeCloseTo(step, -1))
+    await waitFor(() => expect(rail.scrollLeft).toBeGreaterThan(0))
     await userEvent.click(
-      within(resumeSection).getByRole('button', {
+      await within(resumeSection).findByRole('button', {
         name: 'Titres en cours précédents',
       }),
     )
@@ -478,8 +552,8 @@ export const Administrator: Story = {
   },
 }
 export const MoreTitles: Story = {
-  name: 'Pagination — reprise manuelle',
-  args: { hasMore: true, loadMoreError: true },
+  name: 'Films — reprise manuelle de la pagination',
+  args: { filter: 'movies', hasMore: true, loadMoreError: true },
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
     await expect(args.onLoadMore).toHaveBeenCalledOnce()

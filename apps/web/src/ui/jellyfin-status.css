@@ -1,0 +1,63 @@
+@reference '../index.css';
+
+.jellyfin-status-details {
+  @apply text-muted-foreground;
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+.jellyfin-status-details[data-state='connected'] .jellyfin-status-message {
+  @apply text-success;
+  font-weight: 600;
+}
+.jellyfin-status-details[data-state='unavailable'] .jellyfin-status-message {
+  @apply text-destructive;
+}
+.jellyfin-status-compact {
+  @apply border-t border-border/70;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px 6px 0 12px;
+}
+.jellyfin-status-compact h2 {
+  @apply text-muted-foreground;
+  font-size: 12px;
+  font-weight: 600;
+}
+.jellyfin-status-compact .jellyfin-status-details {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.jellyfin-status-message {
+  display: flex;
+  gap: 7px;
+}
+.jellyfin-status-message > span {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 0.48em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.jellyfin-status-refresh {
+  @apply text-muted-foreground;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.jellyfin-status-refresh:enabled:hover {
+  @apply bg-card text-link;
+}
+.jellyfin-status-refresh:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}

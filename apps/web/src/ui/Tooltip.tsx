@@ -80,7 +80,8 @@ export function Tooltip({
             return
           }
           setContainer(
-            (document.fullscreenElement ??
+            (element?.closest('.artwork-preview-panel') ??
+              document.fullscreenElement ??
               element?.closest('dialog[open], [role="dialog"]') ??
               document.body) as HTMLElement,
           )

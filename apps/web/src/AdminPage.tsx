@@ -28,6 +28,12 @@ const statuses = {
   REJECTED: 'Refusée',
 } as const satisfies Record<RegistrationSummary['status'], string>
 
+function registrationName(registration: RegistrationSummary) {
+  return (
+    registration.googleName ?? registration.googleEmail ?? registration.username
+  )
+}
+
 export function AdminPage({ session }: { session: JellyfinSession }) {
   const { t, locale } = useI18n()
   const date = new Intl.DateTimeFormat(locale, {
@@ -200,13 +206,11 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                     {success.id === registration.id && (
                       <ClickSpark burst={success.burst} />
                     )}
-                    {(registration.googleEmail ?? registration.username)
-                      .slice(0, 1)
-                      .toUpperCase()}
+                    {registrationName(registration).slice(0, 1).toUpperCase()}
                   </div>
                   <div className="admin-request-copy">
                     <p className="admin-request-name">
-                      {registration.googleEmail ?? registration.username}
+                      {registrationName(registration)}
                     </p>
                     <p className="admin-request-meta">
                       {registration.method === 'GOOGLE'
@@ -214,6 +218,11 @@ export function AdminPage({ session }: { session: JellyfinSession }) {
                         : t('Mot de passe')}{' '}
                       · {date.format(new Date(registration.createdAt))}
                     </p>
+                    {registration.googleName && registration.googleEmail && (
+                      <p className="admin-request-meta break-words">
+                        {registration.googleEmail}
+                      </p>
+                    )}
                     {registration.decidedAt && registration.decidedBy && (
                       <p className="text-xs break-words text-muted-foreground">
                         {t('Décision du {date} · Admin {name}', {

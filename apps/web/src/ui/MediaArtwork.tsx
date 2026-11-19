@@ -7,7 +7,7 @@ import { Film } from 'lucide-react'
 import { getLibraryImage } from '@hollyfilms/shared/library'
 import type { LibraryImage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
-import { duration } from '../motion/tokens.ts'
+import { distance, duration, ease } from '../motion/tokens.ts'
 import { useArtworkHero } from './artwork-hero-context.ts'
 
 export const MediaArtwork = memo(function MediaArtwork({
@@ -17,7 +17,9 @@ export const MediaArtwork = memo(function MediaArtwork({
   eager = false,
   className = '',
   fallback,
+  reveal = 'fade',
   onReady,
+  onUnavailable,
 }: {
   source?: LibraryImage | string
   session?: JellyfinSession
@@ -25,8 +27,12 @@ export const MediaArtwork = memo(function MediaArtwork({
   eager?: boolean
   className?: string
   fallback?: ReactNode
+  /** A title logo reserves its space until decoded, using its fallback only on failure. */
+  reveal?: 'fade' | 'logo'
   /** Called once this source is decoded, or its fallback is ready. */
   onReady?: () => void
+  /** Called when the requested image cannot be fetched or displayed. */
+  onUnavailable?: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
@@ -101,9 +107,19 @@ export const MediaArtwork = memo(function MediaArtwork({
   useEffect(() => {
     if (settled) onReady?.()
   }, [settled, onReady])
+  const unavailable = Boolean(
+    (remote && !session) || image.isError || (src && failedSource === src),
+  )
+  useEffect(() => {
+    if (unavailable) onUnavailable?.()
+  }, [unavailable, onUnavailable])
+
+  const decoded = Boolean(src && loadedSource === src && !unavailable)
+  const showFallback = !decoded && (reveal === 'fade' || !source || unavailable)
+  const logoMotion = reveal === 'logo' && !reduced
   return (
     <div ref={ref} className={'media-artwork ' + className}>
-      {(!src || loadedSource !== src || failedSource === src) && (
+      {showFallback && (
         <div className="media-artwork-fallback" aria-hidden="true">
           {fallback ?? <Film strokeWidth={1} />}
         </div>
@@ -114,9 +130,19 @@ export const MediaArtwork = memo(function MediaArtwork({
           alt=""
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: loadedSource === src ? 1 : 0 }}
-          transition={{ duration: reduced ? 0 : duration.panel }}
+          initial={false}
+          animate={{
+            opacity: decoded ? 1 : 0,
+            ...(logoMotion && {
+              y: decoded ? 0 : distance.panel,
+              scale: decoded ? 1 : 0.96,
+            }),
+          }}
+          transition={
+            logoMotion
+              ? { duration: duration.scene, ease: ease.out }
+              : { duration: reduced ? 0 : duration.panel }
+          }
           onLoad={(event) => {
             const element = event.currentTarget
             // Decode before declaring the hero ready, including cached images.

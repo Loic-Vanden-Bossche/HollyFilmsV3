@@ -1,12 +1,19 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RotateCcw, Search, UserRound } from 'lucide-react'
+import {
+  RotateCcw,
+  Search,
+  Settings2,
+  UserRound,
+  UserRoundPlus,
+} from 'lucide-react'
 import type { AdminUser, JellyfinSession } from '@hollyfilms/shared/accounts'
 import { listAdminUsers, setAdminUserAccess } from './account-api.ts'
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { localizeText } from './i18n/messages.ts'
 import { Button } from './ui/Button.tsx'
 import { lockBodyScroll } from './ui/body-scroll-lock.ts'
+import { AdminUserEditor } from './AdminUserEditor.tsx'
 import './admin.css'
 
 const filters = {
@@ -24,6 +31,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
   const [selected, setSelected] = useState<AdminUser>()
+  const [editor, setEditor] = useState<AdminUser | 'create'>()
   const [notice, setNotice] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
   const dialogTrigger = useRef<HTMLButtonElement>(null)
@@ -50,7 +58,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
           user.disabled
             ? 'Accès rétabli pour {name}.'
             : 'Accès suspendu pour {name}.',
-          { name: user.username },
+          { name: user.displayName ?? user.username },
         ),
       )
       setSelected(undefined)
@@ -73,12 +81,16 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
   }, [selected])
 
   const directory = [...(users.data ?? [])].sort((a, b) =>
-    a.username.localeCompare(b.username, locale),
+    (a.displayName ?? a.username).localeCompare(
+      b.displayName ?? b.username,
+      locale,
+    ),
   )
   const needle = search.trim().toLocaleLowerCase(locale)
   const visible = directory.filter(
     (user) =>
-      user.username.toLocaleLowerCase(locale).includes(needle) &&
+      (user.username.toLocaleLowerCase(locale).includes(needle) ||
+        user.displayName?.toLocaleLowerCase(locale).includes(needle)) &&
       (filter === 'all' ||
         (filter === 'administrator' && user.administrator) ||
         (filter === 'disabled' && user.disabled && !user.setupPending) ||
@@ -90,7 +102,6 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
     <section aria-labelledby="admin-users-heading">
       <header className="admin-section-heading">
         <h2 id="admin-users-heading">{t('Utilisateurs')}</h2>
-        <p>{t('Consultez tous les comptes Jellyfin et gérez leurs accès.')}</p>
       </header>
       <div className="admin-inbox">
         <div className="admin-user-toolbar">
@@ -112,6 +123,14 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
           >
             <RotateCcw size={15} aria-hidden="true" />
             {t('Actualiser')}
+          </Button>
+          <Button
+            variant="primary"
+            className="admin-refresh"
+            onClick={() => setEditor('create')}
+          >
+            <UserRoundPlus size={16} aria-hidden="true" />
+            {t('Ajouter un utilisateur')}
           </Button>
         </div>
         <div
@@ -162,6 +181,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
             ) : (
               <ul className="admin-requests" aria-label={t('Utilisateurs')}>
                 {visible.map((user) => {
+                  const name = user.displayName ?? user.username
                   const origin =
                     user.registrationMethod === 'GOOGLE'
                       ? 'Google'
@@ -185,7 +205,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
                         <UserRound size={19} />
                       </span>
                       <div className="admin-request-copy">
-                        <p className="admin-request-name">{user.username}</p>
+                        <p className="admin-request-name">{name}</p>
                         <p className="admin-request-meta">
                           {origin} ·{' '}
                           {t(user.administrator ? 'Administrateur' : 'Membre')}
@@ -211,24 +231,39 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
                           )}
                         </span>
                         {user.hidden && (
-                          <span className="admin-status">
-                            {t('Compte masqué')}
+                          <span
+                            className="admin-status"
+                            title={t(
+                              'Le masquage concerne le sélecteur de comptes Jellyfin. Les autorisations de connexion sont indépendantes.',
+                            )}
+                          >
+                            {t('Masqué sur l’écran de connexion')}
                           </span>
                         )}
                       </div>
-                      {user.canChangeAccess && (
+                      <div className="admin-user-row-actions">
+                        {user.canChangeAccess && (
+                          <Button
+                            aria-label={`${action} · ${name}`}
+                            onClick={(event) => {
+                              dialogTrigger.current = event.currentTarget
+                              update.reset()
+                              setNotice('')
+                              setSelected(user)
+                            }}
+                          >
+                            {action}
+                          </Button>
+                        )}
                         <Button
-                          aria-label={`${action} · ${user.username}`}
-                          onClick={(event) => {
-                            dialogTrigger.current = event.currentTarget
-                            update.reset()
-                            setNotice('')
-                            setSelected(user)
-                          }}
+                          aria-label={t('Gérer {name}', { name })}
+                          onClick={() => setEditor(user)}
+                          className="admin-refresh"
                         >
-                          {action}
+                          <Settings2 size={16} aria-hidden="true" />
+                          {t('Gérer')}
                         </Button>
-                      )}
+                      </div>
                     </li>
                   )
                 })}
@@ -256,7 +291,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
               selected.disabled
                 ? '{name} pourra à nouveau se connecter.'
                 : '{name} sera déconnecté et ne pourra plus se connecter jusqu’au rétablissement de son accès.',
-              { name: selected.username },
+              { name: selected.displayName ?? selected.username },
             )}
           </p>
           {update.isError && (
@@ -290,6 +325,14 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
             </Button>
           </div>
         </dialog>
+      )}
+      {editor && (
+        <AdminUserEditor
+          session={session}
+          account={editor === 'create' ? undefined : editor}
+          onClose={() => setEditor(undefined)}
+          onChanged={() => void cache.invalidateQueries({ queryKey })}
+        />
       )}
     </section>
   )

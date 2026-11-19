@@ -15,7 +15,11 @@ import {
   setMediaFavorite,
   setMediaWatched,
 } from '@hollyfilms/shared/library'
-import type { LibraryPage, MediaItem } from '@hollyfilms/shared/library'
+import type {
+  LibraryPage,
+  LibrarySort,
+  MediaItem,
+} from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { getMediaDetails } from '@hollyfilms/shared/media-details'
 import { PlaybackPlayer } from './PlaybackPlayer.tsx'
@@ -43,6 +47,25 @@ function toTarget(item: MediaItem): PlaybackTarget {
     seriesId: item.seriesId,
     start: item.playbackPosition ?? 0,
   }
+}
+
+function useHomeShelfPage(
+  baseUrl: string,
+  session: JellyfinSession,
+  userId: string,
+  filter: 'all' | 'movies' | 'series',
+  sort: LibrarySort,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['home-shelf', session.deviceId, userId, filter, sort],
+    queryFn: ({ signal }) =>
+      getLibraryPage(baseUrl, session, userId, filter, '', 0, signal, { sort }),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
 }
 
 export function HomeScreen({
@@ -180,6 +203,37 @@ export function HomeScreen({
   const { filter, search } = route
   const collectionsIndex = filter === 'collections' && !route.collection
   const sort = route.sort ?? 'recent'
+  const home = filter === 'all'
+  const homeActive = home && libraryMounted && !route.play && !search.trim()
+  const recent = useHomeShelfPage(
+    baseUrl,
+    session,
+    user.id,
+    'all',
+    'recent',
+    homeActive,
+  )
+  // A small library already fits in the first page. Larger libraries supply
+  // two more first pages so older films and series can make the selection.
+  const supplement = Boolean(
+    recent.data && recent.data.total > recent.data.items.length,
+  )
+  const ratedMovies = useHomeShelfPage(
+    baseUrl,
+    session,
+    user.id,
+    'movies',
+    'rating',
+    homeActive && supplement,
+  )
+  const recentSeries = useHomeShelfPage(
+    baseUrl,
+    session,
+    user.id,
+    'series',
+    'recent',
+    homeActive && supplement,
+  )
   const collection = useQuery({
     queryKey: ['collection', session.deviceId, user.id, route.collection],
     queryFn: ({ signal }) =>
@@ -242,6 +296,7 @@ export function HomeScreen({
     gcTime: 300_000,
     enabled:
       libraryMounted &&
+      !home &&
       !collectionsIndex &&
       (!route.collection || collection.isSuccess),
     staleTime: 60_000,
@@ -306,30 +361,37 @@ export function HomeScreen({
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   })
-  const items = [
-    ...new Map(
-      library.data?.pages
-        .flatMap((page) => page.items)
-        .map((item) => [item.id, item]),
-    ).values(),
-  ].filter((item) => filter !== 'favorites' || item.favorite)
+  const items = home
+    ? (recent.data?.items ?? [])
+    : [
+        ...new Map(
+          library.data?.pages
+            .flatMap((page) => page.items)
+            .map((item) => [item.id, item]),
+        ).values(),
+      ].filter((item) => filter !== 'favorites' || item.favorite)
   function patchItem(
     id: string,
     patch: Partial<MediaItem>,
     removeResume = false,
   ) {
+    const patchPage = (page: LibraryPage) => ({
+      ...page,
+      items: page.items.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    })
+    client.setQueriesData<LibraryPage>(
+      { queryKey: ['home-shelf', session.deviceId, user.id] },
+      (data) => data && patchPage(data),
+    )
     client.setQueriesData<InfiniteData<LibraryPage>>(
       { queryKey: ['library', session.deviceId, user.id] },
       (data) =>
         data
           ? {
               ...data,
-              pages: data.pages.map((page) => ({
-                ...page,
-                items: page.items.map((item) =>
-                  item.id === id ? { ...item, ...patch } : item,
-                ),
-              })),
+              pages: data.pages.map(patchPage),
             }
           : data,
     )
@@ -347,14 +409,15 @@ export function HomeScreen({
   }
   const searching = search.trim() !== debouncedSearch
   const pageData = collectionsIndex ? collections : library
+  const visibleQuery = home ? recent : pageData
   const pageState =
     route.collection && collection.isError
       ? 'error'
       : (collectionsIndex && searching) ||
-          pageData.isPending ||
+          visibleQuery.isPending ||
           (route.collection && collection.isPending)
         ? 'loading'
-        : pageData.isError && !pageData.data
+        : visibleQuery.isError && !visibleQuery.data
           ? 'error'
           : 'ready'
   const player = playback ? (
@@ -388,6 +451,9 @@ export function HomeScreen({
         navigateApp({ play: undefined })
         void client.invalidateQueries({ queryKey: ['library'] })
         void client.invalidateQueries({ queryKey: ['library-resume'] })
+        void client.invalidateQueries({
+          queryKey: ['home-shelf', session.deviceId, user.id],
+        })
         void client.invalidateQueries({
           queryKey: ['jellyfin', 'current-user'],
         })
@@ -453,7 +519,7 @@ export function HomeScreen({
             paused: false,
           })
         }}
-        username={user.name}
+        username={profile.data?.name ?? user.name}
         unreadNotifications={inbox.data?.pages[0]?.unread}
         isAdmin={user.isAdministrator}
         session={session}
@@ -502,6 +568,10 @@ export function HomeScreen({
           return saved
         }}
         items={items}
+        ratedMovies={supplement ? ratedMovies.data?.items : undefined}
+        loadingRatings={supplement && ratedMovies.isLoading}
+        recentSeries={supplement ? recentSeries.data?.items : undefined}
+        loadingSeries={supplement && recentSeries.isLoading}
         searchResults={{
           items: !debouncedSearch
             ? []
@@ -553,24 +623,25 @@ export function HomeScreen({
         resumeItems={resume.data ?? []}
         resumeError={resume.isError}
         state={pageState}
-        total={pageData.data?.pages[0].total ?? 0}
+        total={(home ? recent.data?.total : pageData.data?.pages[0].total) ?? 0}
         filter={filter}
         search={search}
         hasMore={!pageData.isPlaceholderData && pageData.hasNextPage}
         loadingMore={pageData.isFetchingNextPage}
         loadMoreError={pageData.isFetchNextPageError}
-        onFilter={(filter) =>
+        onFilter={(filter, nextSort) =>
           navigateApp({
             filter,
             search: '',
             collection: undefined,
-            sort: undefined,
+            sort: nextSort,
           })
         }
         onSearch={(search) => navigateApp({ search }, 'replace')}
         onLoadMore={() => void pageData.fetchNextPage({ cancelRefetch: false })}
         onRetry={() => {
-          void pageData.refetch()
+          if (home) void recent.refetch()
+          else void pageData.refetch()
           if (route.collection) void collection.refetch()
           if (filter === 'all' || filter === 'series') void resume.refetch()
         }}

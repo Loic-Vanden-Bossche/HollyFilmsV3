@@ -12,6 +12,7 @@ import type { GoogleProvider } from './google.ts'
 import { addShowcaseRoutes } from './showcase.ts'
 import { addMediaRoutes } from './media.ts'
 import { addProfileRoutes } from './profile.ts'
+import { addAdminUserRoutes } from './admin-user-routes.ts'
 import { addRequestRoutes } from './requests.ts'
 import { addSubtitleRoutes } from './subtitles.ts'
 import { addNotificationRoutes, type PushSender } from './notifications.ts'
@@ -202,42 +203,7 @@ export async function createApp(
     return accounts.list()
   })
 
-  app.get('/api/admin/users', async (request) => {
-    await requireAdmin(request)
-    return accounts.listUsers()
-  })
-
-  app.put<{ Params: { id: string }; Body: { disabled: boolean } }>(
-    '/api/admin/users/:id/access',
-    {
-      schema: {
-        params: {
-          type: 'object',
-          required: ['id'],
-          properties: {
-            id: {
-              type: 'string',
-              pattern:
-                '^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{8}-(?:[a-fA-F0-9]{4}-){3}[a-fA-F0-9]{12})$',
-            },
-          },
-        },
-        body: {
-          type: 'object',
-          required: ['disabled'],
-          properties: { disabled: { type: 'boolean' } },
-        },
-      },
-    },
-    async (request, reply) => {
-      await accounts.setUserDisabled(
-        request.params.id,
-        await requireAdmin(request),
-        request.body.disabled,
-      )
-      return reply.code(204).send()
-    },
-  )
+  addAdminUserRoutes(app, config, accounts.adminUsers, requireAdmin)
 
   app.post<{ Params: RegistrationParams }>(
     '/api/admin/registrations/:id/approve',

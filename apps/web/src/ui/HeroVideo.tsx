@@ -1,11 +1,11 @@
-import { useI18n } from '../i18n/I18nProvider.tsx'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import type { HeroPreview } from '@hollyfilms/shared/library'
-import { loadYouTube } from '../lib/youtube.ts'
-import type { YouTubePlayer } from '../lib/youtube.ts'
+import './hero-video.css'
 
-/** Preview-only playback: never reports progress or opens a full-film session. */
+type PreviewStatus = 'playing' | 'unavailable'
+
+/** Decorative inline playback, separate from the full player's session and preferences. */
 export function HeroVideo({
   source,
   running,
@@ -15,163 +15,89 @@ export function HeroVideo({
   source: HeroPreview
   running: boolean
   muted: boolean
-  onStatus: (status: 'playing' | 'unavailable') => void
+  onStatus: (status: PreviewStatus) => void
 }) {
-  const { t } = useI18n()
-  const host = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
-  const youtube = useRef<YouTubePlayer | null>(null)
-  const [ready, setReady] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const notify = useEffectEvent(onStatus)
-  const start = useEffectEvent((player: YouTubePlayer) => {
-    youtube.current = player
-    player.getIframe().title = t('Bande-annonce en arrière-plan')
-    if (muted) player.mute()
-    else player.unMute()
-    if (running) player.playVideo()
-    else player.pauseVideo()
-  })
+  const { url } = source
+  const [result, setResult] = useState<{ url: string; status: PreviewStatus }>()
+  const status = result?.url === url ? result.status : undefined
+  const unavailable = status === 'unavailable'
+
+  function report(next: PreviewStatus) {
+    setResult({ url, status: next })
+    onStatus(next)
+  }
+  const fail = useEffectEvent(() => report('unavailable'))
 
   useEffect(() => {
-    if (source.kind !== 'youtube') return
-    let disposed = false
-    let player: YouTubePlayer | undefined
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    function fail() {
-      if (disposed) return
-      clearTimeout(timeout)
-      setFailed(true)
-      notify('unavailable')
-      player?.destroy()
-      player = undefined
-      youtube.current = null
-    }
-    void loadYouTube()
-      .then((api) => {
-        if (disposed || !host.current) return
-        const element = document.createElement('div')
-        host.current.replaceChildren(element)
-        timeout = setTimeout(fail, 15000)
-        player = new api.Player(element, {
-          host: 'https://www.youtube-nocookie.com',
-          videoId: source.id,
-          playerVars: {
-            autoplay: 0,
-            controls: 0,
-            playsinline: 1,
-            disablekb: 1,
-            rel: 0,
-            origin: window.location.origin,
-          },
-          events: {
-            onReady: ({ target }) => {
-              if (disposed) return
-              target.getIframe().tabIndex = -1
-              start(target)
-            },
-            onStateChange: ({ data }) => {
-              if (disposed) return
-              if (data === 1) {
-                clearTimeout(timeout)
-                setReady(true)
-                notify('playing')
-              } else if (data === 0) fail()
-            },
-            onError: fail,
-            onAutoplayBlocked: fail,
-          },
-        })
-      })
-      .catch(fail)
-    return () => {
-      disposed = true
-      clearTimeout(timeout)
-      youtube.current = null
-      player?.destroy()
-    }
-  }, [source])
-
-  useEffect(() => {
-    const player = youtube.current
-    if (player) {
-      player.getIframe().title = t('Bande-annonce en arrière-plan')
-      if (muted) player.mute()
-      else player.unMute()
-      if (running) player.playVideo()
-      else player.pauseVideo()
-    }
     const element = video.current
     if (!element) return
-    let current = true
-    if (source.kind === 'video' && element.getAttribute('src') !== source.url)
-      element.src = source.url
-    element.muted = muted
-    if (running)
-      void element.play().catch(() => {
-        if (!current) return
-        setFailed(true)
-        notify('unavailable')
-      })
-    else element.pause()
-    return () => {
-      current = false
-      element.pause()
+    // Browsers may select a default in-band caption track after playback starts.
+    const tracks = element.textTracks
+    function hideCaptions() {
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i]
+        if (track.mode !== 'disabled') track.mode = 'disabled'
+      }
     }
-  }, [running, muted, source, t])
-
-  useEffect(() => {
-    const element = video.current
+    tracks.addEventListener('addtrack', hideCaptions)
+    tracks.addEventListener('change', hideCaptions)
+    element.addEventListener('loadedmetadata', hideCaptions)
+    element.src = url
+    hideCaptions()
     return () => {
-      if (!element) return
+      tracks.removeEventListener('addtrack', hideCaptions)
+      tracks.removeEventListener('change', hideCaptions)
+      element.removeEventListener('loadedmetadata', hideCaptions)
       element.pause()
       element.removeAttribute('src')
       element.load()
     }
-  }, [source])
+  }, [url, unavailable])
 
   useEffect(() => {
-    if (source.kind !== 'video' || ready || failed || !running) return
-    const timeout = setTimeout(() => {
-      setFailed(true)
-      notify('unavailable')
-    }, 15000)
-    return () => clearTimeout(timeout)
-  }, [source, ready, failed, running])
+    const element = video.current
+    if (!element) return
+    let current = true
+    if (running) {
+      void element.play().catch(() => {
+        if (current) fail()
+      })
+    } else element.pause()
+    return () => {
+      current = false
+    }
+  }, [url, running, unavailable])
 
-  return failed ? null : (
+  useEffect(() => {
+    if (!running || status) return
+    const timeout = setTimeout(fail, 15_000)
+    return () => clearTimeout(timeout)
+  }, [url, running, status])
+
+  if (unavailable) return null
+  return (
     <motion.div
+      key={url}
       className="hero-video"
       aria-hidden="true"
       initial={{ opacity: 0 }}
-      animate={{ opacity: ready ? 1 : 0 }}
+      animate={{ opacity: status === 'playing' ? 1 : 0 }}
       transition={{ duration: 0.9 }}
     >
-      {source.kind === 'youtube' ? (
-        <div ref={host} className="hero-youtube" />
-      ) : (
-        <video
-          ref={video}
-          src={source.url}
-          muted={muted}
-          loop
-          playsInline
-          preload="metadata"
-          tabIndex={-1}
-          onPlaying={() => {
-            setReady(true)
-            onStatus('playing')
-          }}
-          onEnded={() => {
-            setFailed(true)
-            onStatus('unavailable')
-          }}
-          onError={() => {
-            setFailed(true)
-            onStatus('unavailable')
-          }}
-        />
-      )}
+      <video
+        ref={video}
+        muted={muted}
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        loop
+        playsInline
+        preload="metadata"
+        tabIndex={-1}
+        onPlaying={() => report('playing')}
+        onError={() => report('unavailable')}
+      />
     </motion.div>
   )
 }

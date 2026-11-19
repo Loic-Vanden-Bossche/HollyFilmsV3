@@ -22,7 +22,11 @@ import type {
 } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { ArtworkPreview } from './ArtworkPreview.tsx'
+import { ArtworkWatermark } from './ArtworkWatermark.tsx'
+import { CardVideoPreview } from './CardVideoPreview.tsx'
 import { MediaTile } from './MediaTile.tsx'
+import { HorizontalRail } from './HorizontalRail.tsx'
 import { VirtualMediaGrid, CatalogueLoadTrigger } from './VirtualMediaGrid.tsx'
 import { distance, duration, ease, staggerDelay } from '../motion/tokens.ts'
 import './library-pages.css'
@@ -40,6 +44,7 @@ export type LibraryViewProps = {
   updatingOrder?: boolean
   search?: string
   session?: JellyfinSession
+  userId?: string
   hasMore?: boolean
   loadingMore?: boolean
   loadMoreError?: boolean
@@ -68,6 +73,7 @@ export function LibraryView({
   updatingOrder = false,
   search = '',
   session,
+  userId,
   hasMore,
   loadingMore,
   loadMoreError,
@@ -100,6 +106,80 @@ export function LibraryView({
       ease: ease.out,
     },
   })
+  const featuredCard = featured && (page === 'movies' || page === 'series') && (
+    <motion.div
+      className={
+        page === 'movies' ? 'library-film-feature' : 'library-series-feature'
+      }
+      {...reveal(0.12)}
+    >
+      <ArtworkPreview
+        title={featured.title}
+        presentation="cinema"
+        watermark={<ArtworkWatermark />}
+        titleLogo={featured.logo}
+        session={session}
+        headingLevel={2}
+        selectLabel={featured.title}
+        mediaId={featured.id}
+        hoverVideo={
+          session &&
+          userId && (
+            <CardVideoPreview
+              key={featured.id}
+              item={featured}
+              session={session}
+              userId={userId}
+            />
+          )
+        }
+        triggerClassName="media-tile-select"
+        wide
+        onSelect={() => onSelect(featured)}
+        artwork={
+          <MediaArtwork
+            source={featured.backdrop ?? featured.poster}
+            session={session}
+            width={960}
+            eager
+          />
+        }
+        previewImage={{
+          source: featured.backdrop ?? featured.poster,
+          compactWidth: 960,
+        }}
+      >
+        <div className="library-featured-copy">
+          <div className="library-feature-actions">
+            {page === 'movies' && onPlay && (
+              <button
+                type="button"
+                className="home-primary"
+                data-artwork-open="player"
+                onClick={() => onPlay(featured, featured.progress > 0)}
+              >
+                <Play size={16} fill="currentColor" />{' '}
+                {featured.progress > 0 ? t('Reprendre') : t('Lire')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="library-outline-button"
+              data-artwork-open="details"
+              onClick={() => onSelect(featured)}
+            >
+              {t('Voir la fiche')} <ArrowUpRight size={16} />
+            </button>
+          </div>
+          <small>
+            {t(featured.kind)}
+            {featured.year && ` · ${featured.year}`}
+          </small>
+          {featured.overview && <p>{featured.overview}</p>}
+        </div>
+      </ArtworkPreview>
+    </motion.div>
+  )
   const gridTitle = collectionId
     ? t('Dans cette collection')
     : page === 'favorites'
@@ -173,43 +253,7 @@ export function LibraryView({
               </motion.span>
             )}
           </div>
-          {featured && (
-            <motion.div className="library-film-feature" {...reveal(0.12)}>
-              <MediaArtwork
-                source={featured.backdrop ?? featured.poster}
-                session={session}
-                width={1280}
-                eager
-              />
-              <div className="library-feature-shade" />
-              <div className="library-film-copy">
-                <p className="library-kicker">
-                  {t('DANS VOTRE BIBLIOTHÈQUE')}{' '}
-                  {featured.year && ` · ${featured.year}`}
-                </p>
-                <h2>{featured.title}</h2>
-                <div className="library-feature-actions">
-                  {onPlay && (
-                    <button
-                      className="home-primary"
-                      data-artwork-open="player"
-                      onClick={() => onPlay(featured, featured.progress > 0)}
-                    >
-                      <Play size={16} fill="currentColor" />
-                      {featured.progress > 0 ? t('Reprendre') : t('Lire')}
-                    </button>
-                  )}
-                  <button
-                    className="library-outline-button"
-                    data-artwork-open="details"
-                    onClick={() => onSelect(featured)}
-                  >
-                    {t('Voir la fiche')} <ArrowUpRight size={17} />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
+          {featuredCard}
         </header>
       )}
 
@@ -236,26 +280,7 @@ export function LibraryView({
                 </motion.span>
               )}
             </div>
-            {featured && (
-              <motion.button
-                className="library-series-feature"
-                data-artwork-open="details"
-                onClick={() => onSelect(featured)}
-                {...reveal(0.12)}
-              >
-                <MediaArtwork
-                  source={featured.backdrop ?? featured.poster}
-                  session={session}
-                  width={960}
-                  eager
-                />
-                <span className="library-series-feature-copy">
-                  <small>{t('EXPLORER LA SÉRIE')}</small>
-                  <strong>{featured.title}</strong>
-                  <ArrowUpRight size={22} />
-                </span>
-              </motion.button>
-            )}
+            {featuredCard}
           </header>
           {episodes.length > 0 && (
             <motion.section
@@ -272,12 +297,17 @@ export function LibraryView({
                   {episodes.length} {t('en cours')}
                 </span>
               </div>
-              <div className="library-episode-rail">
+              <HorizontalRail
+                trackClassName="library-episode-rail"
+                previousLabel={t('Titres en cours précédents')}
+                nextLabel={t('Titres en cours suivants')}
+              >
                 {episodes.map((item) => (
                   <MediaTile
                     key={item.id}
                     item={item}
                     session={session}
+                    userId={userId}
                     wide
                     onSelect={onSelect}
                     onPlay={onPlay}
@@ -285,7 +315,7 @@ export function LibraryView({
                     onWatched={onWatched}
                   />
                 ))}
-              </div>
+              </HorizontalRail>
             </motion.section>
           )}
         </>
@@ -481,10 +511,8 @@ export function LibraryView({
             {collectionIndex ? (
               <div className="collection-gallery">
                 {collections.map((item, index) => (
-                  <motion.button
+                  <motion.div
                     key={item.id}
-                    className="collection-card"
-                    onClick={() => onCollection?.(item.id)}
                     data-collection-id={item.id}
                     initial={
                       reduced ? false : { opacity: 0, y: distance.panel }
@@ -496,36 +524,48 @@ export function LibraryView({
                       delay: reduced ? 0 : staggerDelay(index % 4),
                       ease: ease.out,
                     }}
-                    whileHover={reduced ? undefined : { y: -5 }}
-                    whileTap={reduced ? undefined : { scale: 0.99 }}
                   >
-                    <div className="collection-card-backdrop">
-                      <MediaArtwork
-                        source={item.backdrop ?? item.poster}
-                        session={session}
-                        width={720}
-                      />
-                    </div>
-                    <div className="collection-card-poster">
-                      <MediaArtwork
-                        source={item.poster}
-                        session={session}
-                        width={400}
-                      />
-                    </div>
-                    <div className="collection-card-copy">
-                      <small>
-                        {t('COLLECTION')}
-                        {item.count != null
-                          ? ` · ${item.count} ${item.count === 1 ? t('TITRE') : t('TITRES')}`
-                          : ''}
-                      </small>
-                      <h3>{item.title}</h3>
-                      <span>
-                        {t('Explorer')} <ArrowUpRight size={18} />
-                      </span>
-                    </div>
-                  </motion.button>
+                    <ArtworkPreview
+                      className="collection-card"
+                      triggerClassName="collection-trigger"
+                      title={item.title}
+                      cinematic
+                      titleLogo={item.logo}
+                      session={session}
+                      selectLabel={item.title}
+                      wide
+                      artwork={
+                        <MediaArtwork
+                          source={item.backdrop ?? item.poster}
+                          session={session}
+                          width={720}
+                        />
+                      }
+                      previewImage={{
+                        source: item.backdrop ?? item.poster,
+                        compactWidth: 720,
+                      }}
+                      onSelect={() => onCollection?.(item.id)}
+                    >
+                      <div className="collection-card-copy">
+                        <button
+                          type="button"
+                          data-preview-select
+                          onClick={() => onCollection?.(item.id)}
+                          className="glass-control"
+                        >
+                          {t('Explorer')} <ArrowUpRight size={16} />
+                        </button>
+                        <small>
+                          {t('COLLECTION')}
+                          {item.count != null
+                            ? ` · ${item.count} ${item.count === 1 ? t('TITRE') : t('TITRES')}`
+                            : ''}
+                        </small>
+                        {item.overview && <p>{item.overview}</p>}
+                      </div>
+                    </ArtworkPreview>
+                  </motion.div>
                 ))}
               </div>
             ) : (
@@ -533,6 +573,7 @@ export function LibraryView({
                 items={items}
                 total={total}
                 session={session}
+                userId={userId}
                 onSelect={onSelect}
                 onPlay={onPlay}
                 onFavorite={onFavorite}

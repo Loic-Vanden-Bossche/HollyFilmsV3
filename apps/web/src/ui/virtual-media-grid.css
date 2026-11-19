@@ -19,16 +19,6 @@
   min-width: 0;
 }
 
-.virtual-media-row > div:has(.media-tile[data-active='true']) {
-  position: relative;
-  z-index: 2;
-}
-.virtual-media-row:has(.media-tile[data-active='true']) {
-  z-index: 1;
-}
-.virtual-media-row .media-tile {
-  content-visibility: visible;
-}
 .catalogue-load-trigger {
   height: 1px;
 }
