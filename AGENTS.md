@@ -20,7 +20,7 @@ Valider avec `terraform -chdir=apps/infrastructure init -backend=false`, `fmt -c
 2. Exécute `corepack yarn install --immutable`, puis `corepack yarn dev`. Compose démarre Jellyfin 12.4 et PostgreSQL 17. `concurrently` lance Vite et Fastify en local avec rechargement automatique et préfixes colorés. L’API valide sa configuration, applique les migrations et génère le client Prisma au démarrage.
 3. Ouvre `http://localhost:5173`. Vite relaie `/api` vers Fastify (port 3000 par défaut) et `/jellyfin` vers Jellyfin (port 8096 par défaut). Vérifie `/api/health` et `/jellyfin/System/Info/Public` depuis cette origine si un service répond mal. Avec les services nécessaires déjà démarrés, `corepack yarn dev:web` et `corepack yarn dev:api` lancent chaque processus séparément.
 
-`JELLYFIN_API_KEY` et `DATABASE_URL` sont obligatoires côté API. Garde cette validation au démarrage. Les clés Jellyfin et Google et la clé de chiffrement restent côté serveur. Préserve la session utilisateur par onglet et le contrôle du rôle administrateur par Jellyfin sur les routes `/api/admin`.
+`JELLYFIN_API_KEY` et `DATABASE_URL` sont obligatoires côté API. Garde cette validation au démarrage. Les clés Jellyfin et Google et la clé de chiffrement restent côté serveur. Préserve la connexion persistante par origine, la déconnexion synchronisée entre onglets et le contrôle du rôle administrateur par Jellyfin sur les routes `/api/admin`.
 
 ## Serveurs MCP du projet
 
@@ -41,7 +41,7 @@ Pour la vitrine publique, utilise **Motion for React** (`motion/react`) pour l�
 1. Repère les composants et les stories existants avec WebStorm et Storybook. Pour un changement guidé par une maquette, relève les états et les variantes dans Figma. Utilise shadcn/ui pour rechercher un composant manquant et Motion pour les changements d’animation.
 2. Implémente dans `apps/web` en réutilisant les couleurs sémantiques et le dégradé de `apps/web/tailwind.config.js`, chargé par `apps/web/src/index.css`. Les appels de données du navigateur passent par `/api` et `/jellyfin` selon le service.
 3. Ajoute une story à côté d’un nouveau composant réutilisable ou mets à jour les stories dont le comportement change. Utilise les compétences locales [`discover-storybook-jetbrains`](.agents/skills/discover-storybook-jetbrains/SKILL.md) pour auditer la couverture et [`author-storybook-jetbrains`](.agents/skills/author-storybook-jetbrains/SKILL.md) pour écrire les stories et leurs interactions. Reproduis les états pertinents avec des données simulées.
-4. Vérifie le composant isolé dans Storybook, puis le parcours intégré dans Vite avec Playwright si la tâche touche à un écran ou à une interaction utilisateur. Pour un changement de connexion, vérifie aussi le rechargement dans le même onglet.
+4. Vérifie le composant isolé dans Storybook, puis le parcours intégré dans Vite avec Playwright si la tâche touche à un écran ou à une interaction utilisateur. Pour un changement de connexion, vérifie la restauration de la session après rechargement et réouverture.
 
 ## Modifier l’API ou la base
 

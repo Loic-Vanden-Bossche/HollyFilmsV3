@@ -17,7 +17,12 @@ import {
   isJellyfinAccessDenied,
 } from '@hollyfilms/shared/jellyfin'
 import { LoginForm } from './LoginForm.tsx'
-import { readSession, writeSession } from './session.ts'
+import {
+  clearSession,
+  readSession,
+  subscribeToSession,
+  writeSession,
+} from './session.ts'
 import { Button } from './ui/Button.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { GlassPanel } from './ui/GlassPanel.tsx'
@@ -166,9 +171,7 @@ export default function App({
     isSigningOut,
   ])
 
-  useEffect(() => {
-    writeSession(session)
-  }, [session])
+  useEffect(() => subscribeToSession(setSession), [])
 
   useEffect(() => {
     let mounted = true
@@ -193,10 +196,11 @@ export default function App({
 
   useEffect(() => {
     if (!session || !sessionRejected || isSigningOut) return
-    void releaseDeviceNotifications(session, user.data?.id).catch(() => {})
-    // The server has revoked this tab's session.
+    const remaining = clearSession(session)
     // oxlint-disable-next-line react/set-state-in-effect
-    setSession(null)
+    setSession(remaining)
+    if (remaining) return
+    void releaseDeviceNotifications(session, user.data?.id).catch(() => {})
     setLoginNotice('Ta session a expiré. Reconnecte-toi.')
   }, [session, sessionRejected, isSigningOut, user.data?.id])
 
@@ -222,7 +226,7 @@ export default function App({
     if (!session) return
 
     setIsSigningOut(true)
-    writeSession(null)
+    setSession(clearSession(session))
     try {
       await releaseDeviceNotifications(session, user.data?.id).catch(() => {})
       await endJellyfinSession(jellyfinUrl, session)
@@ -233,7 +237,6 @@ export default function App({
         )
       }
     } finally {
-      setSession(null)
       setIsSigningOut(false)
     }
   }
