@@ -4,6 +4,7 @@ import { getUserApi } from '@jellyfin/sdk/lib/utils/api/user-api.js'
 import { createJellyfinApi } from '@hollyfilms/shared/jellyfin'
 import {
   safeExternalUrl,
+  type MediaLocalization,
   type MediaReview,
   type ReviewPage,
   type WatchProviders,
@@ -11,6 +12,12 @@ import {
 import type { PrismaClient } from './generated/prisma/client.ts'
 import type { ServerConfig } from './config.ts'
 import { ApiError } from './errors.ts'
+import {
+  localizeTmdb,
+  mediaLocales,
+  type MediaLocale,
+  type TmdbLocalizedDetails,
+} from './tmdb-localization.ts'
 
 type Params = { id: string }
 type ReviewInput = { content: string; rating: number | null }
@@ -58,9 +65,27 @@ export function addMediaRoutes(
   app.addHook('onClose', async () => {
     cache.clear()
   })
-  async function tmdb<T>(path: string): Promise<T> {
+  const pendingTmdb = new Map<string, Promise<unknown>>()
+  async function tmdb<T>(
+    path: string,
+    select?: (value: unknown) => T,
+  ): Promise<T> {
     const cached = cache.get(path)
     if (cached && cached.expires > Date.now()) return cached.value as T
+    const pending = pendingTmdb.get(path)
+    if (pending) return pending as Promise<T>
+    const request = fetchTmdb(path, select)
+    pendingTmdb.set(path, request)
+    try {
+      return await request
+    } finally {
+      pendingTmdb.delete(path)
+    }
+  }
+  async function fetchTmdb<T>(
+    path: string,
+    select: ((value: unknown) => T) | undefined,
+  ): Promise<T> {
     const response = await fetch('https://api.themoviedb.org/3/' + path, {
       headers: {
         Authorization: `Bearer ${config.tmdbToken}`,
@@ -75,12 +100,13 @@ export function addMediaRoutes(
         'TMDB_UNAVAILABLE',
         'Les données TMDB sont momentanément indisponibles.',
       )
-    const value = (await response.json()) as T
-    if (cache.size >= 200) cache.delete(cache.keys().next().value!)
+    const data: unknown = await response.json()
+    const value = select ? select(data) : (data as T)
+    if (cache.size >= 1024) cache.delete(cache.keys().next().value!)
     cache.set(path, { expires: Date.now() + 15 * 60_000, value })
     return value
   }
-  async function authorize(request: FastifyRequest<{ Params: Params }>) {
+  function authenticatedApi(request: FastifyRequest) {
     const token = /^Bearer ([^\s]+)$/i.exec(
       request.headers.authorization ?? '',
     )?.[1]
@@ -91,26 +117,49 @@ export function addMediaRoutes(
         'Connecte-toi pour accéder à cette fiche.',
       )
     const device = request.headers['x-hollyfilms-device']
-    const api = createJellyfinApi(
+    return createJellyfinApi(
       config.jellyfinUrl,
       typeof device === 'string' && /^[a-z\d-]{1,128}$/i.test(device)
         ? device
         : undefined,
       token,
     )
+  }
+  async function getMediaUser(api: ReturnType<typeof authenticatedApi>) {
+    const { data: user } = await getUserApi(api).getCurrentUser({
+      timeout: 5000,
+    })
+    if (!user.Id || user.Policy?.IsDisabled)
+      throw new ApiError(
+        403,
+        'ACCESS_DENIED',
+        'Ce compte ne peut pas accéder à cette fiche.',
+      )
+    return { id: user.Id, name: user.Name }
+  }
+  function jellyfinError(error: unknown): never {
+    if (error instanceof ApiError) throw error
+    const status = (error as { response?: { status?: number } })?.response
+      ?.status
+    if (status === 401 || status === 403 || status === 404)
+      throw new ApiError(
+        status,
+        'ACCESS_DENIED',
+        'Ce titre n’est pas accessible avec ce compte.',
+      )
+    throw new ApiError(
+      503,
+      'JELLYFIN_UNAVAILABLE',
+      'Impossible de vérifier l’accès à ce titre. Réessaie.',
+    )
+  }
+  async function authorize(request: FastifyRequest<{ Params: Params }>) {
+    const api = authenticatedApi(request)
     try {
-      const { data: user } = await getUserApi(api).getCurrentUser({
-        timeout: 5000,
-      })
-      if (!user.Id || user.Policy?.IsDisabled)
-        throw new ApiError(
-          403,
-          'ACCESS_DENIED',
-          'Ce compte ne peut pas accéder à cette fiche.',
-        )
+      const user = await getMediaUser(api)
       const id = normalize(request.params.id)
       const { data: item } = await getLibraryApi(api).getItem(
-        { itemId: id, userId: user.Id },
+        { itemId: id, userId: user.id },
         { timeout: 5000 },
       )
       if (!item.Id || normalize(item.Id) !== id)
@@ -120,26 +169,13 @@ export function addMediaRoutes(
           'Ce titre n’est pas accessible.',
         )
       return {
-        userId: normalize(user.Id),
-        author: user.Name || 'Membre',
+        userId: normalize(user.id),
+        author: user.name || 'Membre',
         item,
         id,
       }
     } catch (error) {
-      if (error instanceof ApiError) throw error
-      const status = (error as { response?: { status?: number } })?.response
-        ?.status
-      if (status === 401 || status === 403 || status === 404)
-        throw new ApiError(
-          status,
-          'ACCESS_DENIED',
-          'Ce titre n’est pas accessible avec ce compte.',
-        )
-      throw new ApiError(
-        503,
-        'JELLYFIN_UNAVAILABLE',
-        'Impossible de vérifier l’accès à ce titre. Réessaie.',
-      )
+      return jellyfinError(error)
     }
   }
   function tmdbPath(item: Awaited<ReturnType<typeof authorize>>['item']) {
@@ -154,6 +190,78 @@ export function addMediaRoutes(
     schema: { params: paramsSchema },
     config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
   }
+  app.get<{ Querystring: { ids: string; locale: MediaLocale } }>(
+    '/api/media/localizations',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['ids', 'locale'],
+          properties: {
+            ids: {
+              type: 'string',
+              pattern: '^[a-fA-F0-9]{32}(,[a-fA-F0-9]{32}){0,11}$',
+            },
+            locale: { type: 'string', enum: Object.keys(mediaLocales) },
+          },
+        },
+      },
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
+      reply.header('Cache-Control', 'private, no-store')
+      const api = authenticatedApi(request)
+      const { locale } = request.query
+      const ids = [...new Set(request.query.ids.toLowerCase().split(','))]
+      const match = new Set(ids)
+      const localized: Record<string, MediaLocalization> = {}
+      const library = getLibraryApi(api)
+      const items = await (async () => {
+        try {
+          const user = await getMediaUser(api)
+          if (!config.tmdbToken) return []
+          const { data } = await library.getItems(
+            {
+              ids,
+              userId: user.id,
+              recursive: true,
+              collapseBoxSetItems: false,
+              fields: ['ProviderIds'],
+              limit: ids.length,
+              enableTotalRecordCount: false,
+              enableUserData: false,
+              enableImages: false,
+            },
+            { timeout: 5000 },
+          )
+          return data.Items ?? []
+        } catch (error) {
+          return jellyfinError(error)
+        }
+      })()
+      const { language, regions } = mediaLocales[locale]
+      const params = new URLSearchParams({
+        append_to_response: 'translations,images',
+        language: `${language}-${regions[0]}`,
+        include_image_language: `${language},null`,
+      })
+      const results = await Promise.allSettled(
+        items.map(async (item) => {
+          const id = normalize(item.Id ?? '')
+          const path = tmdbPath(item)
+          if (!match.has(id) || !path) return
+          const translation = await tmdb(path + '?' + params, (data) =>
+            localizeTmdb(data as TmdbLocalizedDetails, locale),
+          )
+          if (translation) localized[id] = translation
+        }),
+      )
+      return {
+        items: localized,
+        retry: results.some((result) => result.status === 'rejected'),
+      }
+    },
+  )
   app.get<{ Params: Params; Querystring: { region?: string } }>(
     '/api/media/:id/providers',
     {

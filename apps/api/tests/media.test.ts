@@ -38,7 +38,18 @@ test('media access, independent TMDB providers and persistent member reviews', a
           Policy: { IsDisabled: header.includes('disabled') },
         }),
       )
-    else if (req.url?.startsWith('/Items/' + movie))
+    else if (req.url?.startsWith('/Items?')) {
+      const query = new URL(req.url, 'http://127.0.0.1').searchParams
+      assert.equal(query.get('userId'), header.includes('other') ? other : user)
+      assert.match(query.get('fields') ?? '', /ProviderIds/)
+      res.end(
+        JSON.stringify({
+          Items: header.includes('other')
+            ? []
+            : [{ Id: movie, Type: 'Movie', ProviderIds: { Tmdb: '123' } }],
+        }),
+      )
+    } else if (req.url?.startsWith('/Items/' + movie))
       res.end(
         JSON.stringify({
           Id: movie,
@@ -65,6 +76,43 @@ test('media access, independent TMDB providers and persistent member reviews', a
         'Bearer server-only-key',
       )
       remoteCalls++
+      const params = new URL(String(url)).searchParams
+      if (params.has('append_to_response'))
+        return Response.json({
+          title: 'Project Hail Mary',
+          original_title: 'Project Hail Mary',
+          overview: 'A science teacher wakes on a spaceship.',
+          translations: {
+            translations: [
+              { iso_639_1: 'zh', iso_3166_1: 'TW', data: { title: '原片名' } },
+              {
+                iso_639_1: 'zh',
+                iso_3166_1: 'CN',
+                data: { title: '挽救计划', overview: '中文简介。' },
+              },
+              {
+                iso_639_1: 'en',
+                iso_3166_1: 'US',
+                data: {
+                  title: '',
+                  overview: 'A science teacher wakes on a spaceship.',
+                },
+              },
+            ],
+          },
+          images: {
+            posters: [
+              { iso_639_1: 'fr', file_path: '/fr.jpg' },
+              { iso_639_1: 'zh', file_path: '/zh.jpg' },
+              { iso_639_1: 'en', file_path: '/en.jpg' },
+            ],
+            backdrops: [
+              { iso_639_1: 'fr', file_path: '/fr-wide.jpg' },
+              { iso_639_1: 'en', file_path: '/en-wide.jpg' },
+              { iso_639_1: null, file_path: '/neutral.jpg' },
+            ],
+          },
+        })
       if (String(url).endsWith('/watch/providers'))
         return Response.json({
           results: {
@@ -117,6 +165,50 @@ test('media access, independent TMDB providers and persistent member reviews', a
     'x-hollyfilms-device': 'test-device',
     origin: 'http://localhost:5173',
   }
+  const localePath = '/api/media/localizations?ids=' + movie + ',' + other
+  assert.equal(
+    (await app.inject({ url: localePath + '&locale=zh-Hans' })).statusCode,
+    401,
+  )
+  assert.equal(
+    (await app.inject({ url: localePath + '&locale=fr', headers })).statusCode,
+    400,
+  )
+  const chinese = await app.inject({
+    url: localePath + '&locale=zh-Hans',
+    headers,
+  })
+  assert.equal(chinese.statusCode, 200)
+  assert.equal(chinese.headers['cache-control'], 'private, no-store')
+  assert.deepEqual(chinese.json(), {
+    items: {
+      [movie]: {
+        title: '挽救计划',
+        overview: '中文简介。',
+        poster: 'https://image.tmdb.org/t/p/w500/zh.jpg',
+        backdrop: 'https://image.tmdb.org/t/p/w1280/neutral.jpg',
+      },
+    },
+    retry: false,
+  })
+  const english = await app.inject({ url: localePath + '&locale=en', headers })
+  assert.deepEqual(english.json(), {
+    items: {
+      [movie]: {
+        title: 'Project Hail Mary',
+        overview: 'A science teacher wakes on a spaceship.',
+        poster: 'https://image.tmdb.org/t/p/w500/en.jpg',
+        thumb: 'https://image.tmdb.org/t/p/w780/en-wide.jpg',
+        backdrop: 'https://image.tmdb.org/t/p/w1280/neutral.jpg',
+      },
+    },
+    retry: false,
+  })
+  const inaccessible = await app.inject({
+    url: localePath + '&locale=zh-Hans',
+    headers: { ...headers, authorization: 'Bearer other' },
+  })
+  assert.deepEqual(inaccessible.json(), { items: {}, retry: false })
   const path = '/api/media/' + movie
   assert.equal((await app.inject({ url: path + '/reviews' })).statusCode, 401)
   assert.equal(

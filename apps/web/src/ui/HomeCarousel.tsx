@@ -1,5 +1,6 @@
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
+import { useMediaLocalization } from '../MediaLocalizations.tsx'
 import { usePerformanceProfile } from '../performance/PerformanceProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
@@ -162,7 +163,12 @@ export function HomeCarousel({
   const slides = useMemo(() => items.slice(0, 20), [items])
   const found = slides.findIndex((item) => item.id === selectedId)
   const index = found < 0 ? 0 : found
-  const item = slides[index]
+  const original = slides[index]
+  const localize = useMediaLocalization()
+  const item = useMemo(
+    () => (original ? localize(original) : undefined),
+    [localize, original],
+  )
   useLayoutEffect(() => {
     const selector = restoreControl.current
     if (!selector) return
@@ -420,7 +426,7 @@ export function HomeCarousel({
                 data-artwork-open="details"
                 onClick={(event) =>
                   navigateArtwork(event.currentTarget, 'details', () =>
-                    onSelect(item),
+                    onSelect(original ?? item),
                   )
                 }
               >

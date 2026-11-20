@@ -21,6 +21,7 @@ export type MediaItem = {
   year?: number
   overview: string
   genres: string[]
+  hasTmdb?: boolean
   rating?: number
   criticRating?: number
   favorite?: boolean
@@ -82,6 +83,11 @@ export function toMediaItem(item: BaseItemDto): MediaItem | null {
     year: item.ProductionYear ?? undefined,
     overview: item.Overview ?? '',
     genres: item.Genres ?? [],
+    hasTmdb:
+      (item.Type === 'Movie' || item.Type === 'Series') &&
+      /^\d+$/.test(item.ProviderIds?.Tmdb ?? '')
+        ? true
+        : undefined,
     rating: item.CommunityRating ?? undefined,
     criticRating: item.CriticRating ?? undefined,
     favorite: item.UserData?.IsFavorite ?? false,
@@ -194,6 +200,7 @@ export async function getLibraryPage(
       fields: [
         'Overview',
         'Genres',
+        'ProviderIds',
         'RemoteTrailers',
         'MediaSources',
         'MediaStreams',
@@ -312,6 +319,7 @@ export async function getResumeItems(
       fields: [
         'Overview',
         'Genres',
+        'ProviderIds',
         'RemoteTrailers',
         'MediaSources',
         'MediaStreams',

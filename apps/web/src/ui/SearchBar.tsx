@@ -44,6 +44,23 @@ export function SearchBar({
       transition={{
         layout: { duration: reduced ? 0 : duration.panel, ease: ease.out },
       }}
+      onClick={(event) => {
+        const target = event.target
+        if (
+          event.defaultPrevented ||
+          !(target instanceof Element) ||
+          !event.currentTarget.contains(target) ||
+          target.closest('input, button')
+        )
+          return
+        const field = input.current
+        if (field?.matches(':focus')) {
+          // Escape restores focus to the field when the bar collapses.
+          if (!expanded) onExpand()
+        } else {
+          field?.focus({ preventScroll: true })
+        }
+      }}
     >
       <div className="cinema-search-glow" aria-hidden="true" />
       <AnimatePresence initial={false} mode="popLayout">

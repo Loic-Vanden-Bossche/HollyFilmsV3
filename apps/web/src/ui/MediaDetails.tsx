@@ -1,4 +1,5 @@
 import { localizeText } from '../i18n/messages.ts'
+import { useMediaLocalization } from '../MediaLocalizations.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
@@ -105,6 +106,7 @@ export function MediaDetails({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const localize = useMediaLocalization()
   const navigateArtwork = useArtworkNavigation()
   const backdropWidth = useBackdropWidth()
   const { scope, reduced, present, dismiss, sharedEntrance, cardFrame } =
@@ -141,7 +143,7 @@ export function MediaDetails({
   const [collectionPatches, setCollectionPatches] = useState<
     Record<string, Partial<MediaItem>>
   >({})
-  const item = { ...(data?.item ?? summary), ...patch }
+  const item = localize({ ...(data?.item ?? summary), ...patch })
   const [region, setRegion] = useState(() => {
     try {
       const stored = localStorage.getItem(
@@ -1172,7 +1174,7 @@ export function MediaDetails({
             <summary>{t('Sources et crédits')}</summary>
             <p>
               {t(
-                'Les fiches et images de votre bibliothèque proviennent de votre serveur. Les critiques externes et disponibilités sont fournies par TMDB ; les disponibilités proviennent de JustWatch.',
+                'Votre serveur fournit les fiches de la bibliothèque. TMDB fournit les traductions, les visuels localisés et les critiques externes. Les disponibilités viennent de JustWatch via TMDB.',
               )}
             </p>
             <a

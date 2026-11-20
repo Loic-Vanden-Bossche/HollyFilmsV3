@@ -14,6 +14,7 @@ import type { MediaItem } from '@hollyfilms/shared/library'
 import { formatDuration } from '../format-duration.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { localizeText } from '../i18n/messages.ts'
+import { useMediaLocalization } from '../MediaLocalizations.tsx'
 import { ArtworkPreview } from './ArtworkPreview.tsx'
 import { ArtworkWatermark } from './ArtworkWatermark.tsx'
 import {
@@ -28,7 +29,7 @@ import '../home.css'
 import './media-card.css'
 
 export const MediaTile = memo(function MediaTile({
-  item,
+  item: original,
   session,
   userId,
   wide: landscapeTile = false,
@@ -51,6 +52,8 @@ export const MediaTile = memo(function MediaTile({
   onWatched?: (item: MediaItem, watched: boolean) => Promise<boolean>
 }) {
   const { t } = useI18n()
+  const localize = useMediaLocalization()
+  const item = localize(original)
   const navigateArtwork = useArtworkNavigation()
   const [pending, setPending] = useState<'favorite' | 'watched'>()
   const [error, setError] = useState(false)
@@ -137,7 +140,7 @@ export const MediaTile = memo(function MediaTile({
         )
       }
       selectLabel={t('Voir la fiche de {title}', { title: accessibleTitle })}
-      onSelect={() => onSelect(item)}
+      onSelect={() => onSelect(original)}
       artwork={
         <MediaArtwork
           source={cover}

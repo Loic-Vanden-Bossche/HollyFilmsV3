@@ -1,5 +1,6 @@
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { useI18n } from '../i18n/I18nProvider.tsx'
+import { useMediaLocalization } from '../MediaLocalizations.tsx'
 import { Select } from './Select.tsx'
 import { motion, useIsPresent } from 'motion/react'
 import { useEffect, useState, type CSSProperties } from 'react'
@@ -99,7 +100,9 @@ export function LibraryView({
   const navigateArtwork = useArtworkNavigation()
   const reduced = useReducedMotion()
   const present = useIsPresent()
-  const featured = items.find((item) => item.backdrop) ?? items[0]
+  const original = items.find((item) => item.backdrop) ?? items[0]
+  const localize = useMediaLocalization()
+  const featured = original && localize(original)
   const collectionIndex = page === 'collections' && !collectionId
   const ready = state === 'ready'
   const episodes = resumeItems
@@ -138,7 +141,7 @@ export function LibraryView({
         }
         triggerClassName="media-tile-select"
         wide
-        onSelect={() => onSelect(featured)}
+        onSelect={() => onSelect(original ?? featured)}
         artwork={
           <MediaArtwork
             source={featured.backdrop ?? featured.poster}
@@ -161,7 +164,7 @@ export function LibraryView({
               data-artwork-open="details"
               onClick={(event) =>
                 navigateArtwork(event.currentTarget, 'details', () =>
-                  onSelect(featured),
+                  onSelect(original ?? featured),
                 )
               }
             >
@@ -213,18 +216,21 @@ export function LibraryView({
             aria-hidden="true"
             {...reveal(0.1)}
           >
-            {items.slice(0, 3).map((item, i) => (
-              <div
-                key={item.id}
-                style={{ '--poster-order': i } as CSSProperties}
-              >
-                <MediaArtwork
-                  source={item.poster}
-                  session={session}
-                  width={400}
-                />
-              </div>
-            ))}
+            {items
+              .slice(0, 3)
+              .map(localize)
+              .map((item, i) => (
+                <div
+                  key={item.id}
+                  style={{ '--poster-order': i } as CSSProperties}
+                >
+                  <MediaArtwork
+                    source={item.poster ?? item.backdrop}
+                    session={session}
+                    width={400}
+                  />
+                </div>
+              ))}
             {!items.length && <Heart size={100} strokeWidth={0.6} />}
           </motion.div>
         </header>
@@ -232,7 +238,7 @@ export function LibraryView({
 
       {page === 'movies' && (
         <MoviesIntro
-          featured={featured}
+          featured={original}
           count={ready ? total : undefined}
           session={session}
           userId={userId}
@@ -640,7 +646,7 @@ export function LibraryView({
 }
 
 function MoviesIntro({
-  featured,
+  featured: original,
   count,
   session,
   userId,
@@ -655,6 +661,8 @@ function MoviesIntro({
   count?: number
 }) {
   const { t, locale } = useI18n()
+  const localize = useMediaLocalization()
+  const featured = original && localize(original)
   const navigateArtwork = useArtworkNavigation()
   const backdropWidth = useBackdropWidth()
   const { ref, running, fine, profile } = useEffectActivity(paused)
@@ -779,7 +787,7 @@ function MoviesIntro({
               data-artwork-open="details"
               onClick={(event) =>
                 navigateArtwork(event.currentTarget, 'details', () =>
-                  onSelect(featured),
+                  onSelect(original ?? featured),
                 )
               }
             >

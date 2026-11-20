@@ -1,4 +1,23 @@
 export default {
+  Action: '动作',
+  Animation: '动画',
+  Aventure: '冒险',
+  Comédie: '喜剧',
+  Crime: '犯罪',
+  Documentaire: '纪录片',
+  Drame: '剧情',
+  Famille: '家庭',
+  Fantastique: '奇幻',
+  Guerre: '战争',
+  Histoire: '历史',
+  Horreur: '恐怖',
+  Mystère: '悬疑',
+  Romance: '爱情',
+  'Science-fiction': '科幻',
+  'Science-Fiction': '科幻',
+  Téléfilm: '电视电影',
+  Thriller: '惊悚',
+  Western: '西部',
   Utilisateurs: '用户',
   Inscriptions: '注册申请',
   Membre: '成员',
@@ -684,8 +703,8 @@ export default {
     'TMDB 评论暂时不可用。',
   'Les disponibilités seront accessibles après l’activation de TMDB par l’administrateur.':
     '管理员启用 TMDB 后即可查询观看渠道。',
-  'Les fiches et images de votre bibliothèque proviennent de votre serveur. Les critiques externes et disponibilités sont fournies par TMDB ; les disponibilités proviennent de JustWatch.':
-    '详情和图片来自媒体库服务器。外部评论及观看渠道由 TMDB 提供，其中观看渠道数据来自 JustWatch。',
+  'Votre serveur fournit les fiches de la bibliothèque. TMDB fournit les traductions, les visuels localisés et les critiques externes. Les disponibilités viennent de JustWatch via TMDB.':
+    '媒体库服务器提供影片详情。TMDB 提供译文、本地化图片和外部评论。观看渠道数据来自 JustWatch，由 TMDB 提供。',
   'Les films': '电影',
   'Les films et séries accessibles à votre compte apparaîtront ici.':
     '此账户可观看的电影和剧集将在此显示。',

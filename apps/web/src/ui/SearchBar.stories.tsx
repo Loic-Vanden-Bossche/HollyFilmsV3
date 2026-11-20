@@ -52,12 +52,11 @@ export const FocusAndEscape: Story = {
   name: 'Focus, saisie et fermeture animée',
   play: async ({ canvas, args, userEvent, canvasElement }) => {
     const input = canvas.getByRole('searchbox')
-    await userEvent.click(input)
-    await expect(args.onExpand).toHaveBeenCalled()
-    await expect(canvasElement.querySelector('.cinema-search')).toHaveAttribute(
-      'data-expanded',
-      'true',
-    )
+    const bar = canvasElement.querySelector('.cinema-search')!
+    await userEvent.click(bar.querySelector('.cinema-search-icon svg')!)
+    await expect(args.onExpand).toHaveBeenCalledTimes(1)
+    await expect(bar).toHaveAttribute('data-expanded', 'true')
+    await expect(input).toHaveFocus()
     await userEvent.type(input, 'Signal')
     await expect(args.onChange).toHaveBeenLastCalledWith('Signal')
     await userEvent.click(
@@ -67,12 +66,10 @@ export const FocusAndEscape: Story = {
     await expect(input).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect(args.onClose).toHaveBeenCalledTimes(1)
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.cinema-search')).toHaveAttribute(
-        'data-expanded',
-        'false',
-      ),
-    )
+    await waitFor(() => expect(bar).toHaveAttribute('data-expanded', 'false'))
+    await expect(input).toHaveFocus()
+    await userEvent.click(bar)
+    await expect(bar).toHaveAttribute('data-expanded', 'true')
     await expect(input).toHaveFocus()
   },
 }

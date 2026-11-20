@@ -30,6 +30,7 @@ import { navigateApp } from './use-app-route.ts'
 import { getProfile } from './account-api.ts'
 import { collectionFixtures } from './library-fixtures.ts'
 import { profileFixture } from './profile-fixtures.ts'
+import { I18nProvider, useI18n } from './i18n/I18nProvider.tsx'
 const meta = {
   title: 'HollyFilms/Accueil connecté',
   component: HomeScreen,
@@ -399,6 +400,136 @@ export const Connected: Story = {
       expect(
         canvas.getByRole('button', { name: 'Voir la fiche de Signal' }),
       ).toBeVisible(),
+    )
+  },
+}
+
+function SwitchCatalogueLanguage() {
+  const { setPreference } = useI18n()
+  return (
+    <div>
+      <button type="button" onClick={() => setPreference('en')}>
+        English
+      </button>
+      <button type="button" onClick={() => setPreference('fr')}>
+        Français
+      </button>
+    </div>
+  )
+}
+
+export const LocalizedCatalogue: Story = {
+  name: 'Catalogue et fiche selon la langue',
+  decorators: [
+    (Story) => (
+      <I18nProvider initialPreference="zh-Hans">
+        <SwitchCatalogueLanguage />
+        <Story />
+      </I18nProvider>
+    ),
+  ],
+  beforeEach: () => {
+    const item = {
+      ...homeItems[0],
+      id: 'a'.repeat(32),
+      title: 'Projet Dernière Chance',
+      overview: 'Un résumé français.',
+      genres: ['Horreur', 'Thriller'],
+      hasTmdb: true,
+      thumb: homeResume[0].thumb,
+    }
+    const original = { ...homeItems[1], title: 'Titre sans traduction' }
+    mocked(getLibraryPage).mockResolvedValue({
+      items: [item, original],
+      total: 2,
+    })
+    mocked(getResumeItems).mockResolvedValue([item])
+    mocked(getMediaDetails).mockResolvedValue({ ...detailedMovie, item })
+    mocked(mediaRequest).mockImplementation(async (_session, path) => {
+      if (path.startsWith('localizations?')) {
+        const locale = new URLSearchParams(path.split('?')[1]).get('locale')
+        expect(['en', 'zh-Hans']).toContain(locale)
+        return {
+          items: {
+            [item.id]:
+              locale === 'en'
+                ? {
+                    title: 'Project Hail Mary',
+                    overview: 'A science teacher wakes on a spaceship.',
+                    poster: homeItems[1].poster,
+                    thumb: homeResume[1].thumb,
+                    backdrop: homeItems[1].backdrop,
+                  }
+                : {
+                    title: '挽救计划',
+                    overview: '一位科学教师在宇宙飞船上醒来。',
+                    backdrop: homeItems[1].backdrop,
+                  },
+          },
+          retry: false,
+        } as never
+      }
+      return (
+        path.endsWith('/providers?region=FR')
+          ? detailedProviders
+          : detailedReviews
+      ) as never
+    })
+  },
+  play: async ({ canvas, userEvent }) => {
+    const resume = await canvas.findByRole('region', { name: '继续观看' })
+    const card = await within(resume).findByRole('button', {
+      name: '查看《挽救计划》详情',
+    })
+    await expect(
+      (
+        await canvas.findAllByRole('button', {
+          name: '查看《Titre sans traduction》详情',
+        })
+      )[0],
+    ).toBeInTheDocument()
+    card.focus()
+    await userEvent.keyboard('{Enter}')
+    const dialog = await canvas.findByRole('dialog')
+    const title = within(dialog).getByRole('heading', { name: '挽救计划' })
+    title.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    await waitFor(() => expect(title).toBeVisible())
+    await expect(
+      within(dialog).getAllByText('一位科学教师在宇宙飞船上醒来。')[0],
+    ).toBeInTheDocument()
+    await expect(within(dialog).getAllByText('恐怖').length).toBeGreaterThan(0)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(canvas.getByRole('button', { name: 'English' }))
+    const englishCard = await within(resume).findByRole('button', {
+      name: 'View details for Project Hail Mary',
+    })
+    await waitFor(() =>
+      expect(englishCard.querySelector('img')).toHaveAttribute(
+        'src',
+        homeResume[1].thumb,
+      ),
+    )
+    englishCard.focus()
+    await userEvent.keyboard('{Enter}')
+    const englishDialog = await canvas.findByRole('dialog')
+    await expect(
+      within(englishDialog).getByRole('heading', { name: 'Project Hail Mary' }),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        englishDialog.querySelector('.media-detail-poster img'),
+      ).toHaveAttribute('src', homeItems[1].poster),
+    )
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(canvas.getByRole('button', { name: 'Français' }))
+    const frenchCard = await within(resume).findByRole('button', {
+      name: 'Voir la fiche de Projet Dernière Chance',
+    })
+    await waitFor(() =>
+      expect(frenchCard.querySelector('img')).toHaveAttribute(
+        'src',
+        homeResume[0].thumb,
+      ),
     )
   },
 }

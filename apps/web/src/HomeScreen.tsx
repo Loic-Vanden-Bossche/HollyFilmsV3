@@ -23,6 +23,7 @@ import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { getMediaDetails } from '@hollyfilms/shared/media-details'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { HomePage } from './HomePage.tsx'
+import { MediaLocalizations } from './MediaLocalizations.tsx'
 import { homeShelfQuery, resumeQuery } from './home-queries.ts'
 import { ArtworkRoutes } from './ui/artwork-hero-context.ts'
 import { useProfile } from './use-profile.ts'
@@ -568,110 +569,127 @@ export function HomeScreen({
     )
 
   if (!libraryMounted) return player
+  const searchItems = searchTerm
+    ? [
+        ...new Map(
+          searchLibrary.data?.pages
+            .flatMap((page) => page.items)
+            .map((item) => [item.id, item]),
+        ).values(),
+      ].filter((item) => filter !== 'favorites' || item.favorite)
+    : []
   return (
     <ArtworkRoutes value>
-      <HomePage
-        avatarUrl={profile.avatarUrl}
-        collectionId={route.collection}
-        collection={collection.data}
-        collections={
-          collections.data?.pages.flatMap((page) => page.items) ?? []
-        }
-        sort={sort}
-        updatingOrder={!collectionsIndex && library.isPlaceholderData}
-        onSort={(sort) => navigateApp({ sort }, 'replace')}
-        onCollection={(id) =>
-          navigateApp({
-            filter: 'collections',
-            collection: id,
-            search: '',
-            sort: undefined,
-          })
-        }
-        onPlay={onPlay}
-        username={profile.data?.name ?? user.name}
-        unreadNotifications={inbox.data?.pages[0]?.unread}
-        isAdmin={user.isAdministrator}
+      <MediaLocalizations
         session={session}
         userId={user.id}
-        playbackOpen={Boolean(route.play)}
-        selectedItem={route.play ? null : selected}
-        onSelectItem={selectItem}
-        onFavorite={onFavorite}
-        onWatched={onWatched}
-        items={items}
-        ratedMovies={supplement ? ratedMovies.data?.items : undefined}
-        loadingRatings={supplement && ratedMovies.isLoading}
-        recentSeries={supplement ? recentSeries.data?.items : undefined}
-        loadingSeries={supplement && recentSeries.isLoading}
-        searchResults={{
-          items: !searchTerm
-            ? []
-            : [
-                ...new Map(
-                  searchLibrary.data?.pages
-                    .flatMap((page) => page.items)
-                    .map((item) => [item.id, item]),
-                ).values(),
-              ].filter((item) => filter !== 'favorites' || item.favorite),
-          total: searchTerm ? (searchLibrary.data?.pages[0].total ?? 0) : 0,
-          state: searchLibrary.isPending
-            ? 'loading'
-            : searchLibrary.isError && !searchLibrary.data
-              ? 'error'
-              : 'ready',
-          hasMore: searchLibrary.hasNextPage,
-          loadingMore: searchLibrary.isFetchingNextPage,
-          loadMoreError: searchLibrary.isFetchNextPageError,
-          onLoadMore: () => {
-            if (searchLibrary.hasNextPage)
-              void searchLibrary.fetchNextPage({ cancelRefetch: false })
-          },
-          onRetry: () => void searchLibrary.refetch(),
-        }}
-        discovery={
-          <DiscoveryResults
-            userId={user.id}
-            session={session}
-            query={search}
-            administrator={user.isAdministrator}
-            type={
-              filter === 'movies'
-                ? 'movie'
-                : filter === 'series'
-                  ? 'tv'
-                  : undefined
-            }
-          />
-        }
-        resumeItems={resume.data ?? []}
-        resumeError={resume.isError}
-        state={pageState}
-        total={(home ? recent.data?.total : pageData.data?.pages[0].total) ?? 0}
-        filter={filter}
-        search={search}
-        hasMore={!pageData.isPlaceholderData && pageData.hasNextPage}
-        loadingMore={pageData.isFetchingNextPage}
-        loadMoreError={pageData.isFetchNextPageError}
-        onFilter={(filter, nextSort) =>
-          navigateApp({
-            filter,
-            search: '',
-            collection: undefined,
-            sort: nextSort,
-          })
-        }
-        onSearch={(search) => navigateApp({ search }, 'replace')}
-        onLoadMore={() => void pageData.fetchNextPage({ cancelRefetch: false })}
-        onRetry={() => {
-          if (home) void recent.refetch()
-          else void pageData.refetch()
-          if (route.collection) void collection.refetch()
-          if (filter === 'all' || filter === 'series') void resume.refetch()
-        }}
-        onSignOut={onSignOut}
-        signingOut={signingOut}
-      />
+        items={[
+          ...(searchTerm ? searchItems : items),
+          ...(homeActive ? (ratedMovies.data?.items ?? []) : []),
+          ...(homeActive ? (recentSeries.data?.items ?? []) : []),
+          ...(resume.data ?? []),
+          ...(selected ? [selected] : []),
+        ]}
+      >
+        <HomePage
+          avatarUrl={profile.avatarUrl}
+          collectionId={route.collection}
+          collection={collection.data}
+          collections={
+            collections.data?.pages.flatMap((page) => page.items) ?? []
+          }
+          sort={sort}
+          updatingOrder={!collectionsIndex && library.isPlaceholderData}
+          onSort={(sort) => navigateApp({ sort }, 'replace')}
+          onCollection={(id) =>
+            navigateApp({
+              filter: 'collections',
+              collection: id,
+              search: '',
+              sort: undefined,
+            })
+          }
+          onPlay={onPlay}
+          username={profile.data?.name ?? user.name}
+          unreadNotifications={inbox.data?.pages[0]?.unread}
+          isAdmin={user.isAdministrator}
+          session={session}
+          userId={user.id}
+          playbackOpen={Boolean(route.play)}
+          selectedItem={route.play ? null : selected}
+          onSelectItem={selectItem}
+          onFavorite={onFavorite}
+          onWatched={onWatched}
+          items={items}
+          ratedMovies={supplement ? ratedMovies.data?.items : undefined}
+          loadingRatings={supplement && ratedMovies.isLoading}
+          recentSeries={supplement ? recentSeries.data?.items : undefined}
+          loadingSeries={supplement && recentSeries.isLoading}
+          searchResults={{
+            items: searchItems,
+            total: searchTerm ? (searchLibrary.data?.pages[0].total ?? 0) : 0,
+            state: searchLibrary.isPending
+              ? 'loading'
+              : searchLibrary.isError && !searchLibrary.data
+                ? 'error'
+                : 'ready',
+            hasMore: searchLibrary.hasNextPage,
+            loadingMore: searchLibrary.isFetchingNextPage,
+            loadMoreError: searchLibrary.isFetchNextPageError,
+            onLoadMore: () => {
+              if (searchLibrary.hasNextPage)
+                void searchLibrary.fetchNextPage({ cancelRefetch: false })
+            },
+            onRetry: () => void searchLibrary.refetch(),
+          }}
+          discovery={
+            <DiscoveryResults
+              userId={user.id}
+              session={session}
+              query={search}
+              administrator={user.isAdministrator}
+              type={
+                filter === 'movies'
+                  ? 'movie'
+                  : filter === 'series'
+                    ? 'tv'
+                    : undefined
+              }
+            />
+          }
+          resumeItems={resume.data ?? []}
+          resumeError={resume.isError}
+          state={pageState}
+          total={
+            (home ? recent.data?.total : pageData.data?.pages[0].total) ?? 0
+          }
+          filter={filter}
+          search={search}
+          hasMore={!pageData.isPlaceholderData && pageData.hasNextPage}
+          loadingMore={pageData.isFetchingNextPage}
+          loadMoreError={pageData.isFetchNextPageError}
+          onFilter={(filter, nextSort) =>
+            navigateApp({
+              filter,
+              search: '',
+              collection: undefined,
+              sort: nextSort,
+            })
+          }
+          onSearch={(search) => navigateApp({ search }, 'replace')}
+          onLoadMore={() =>
+            void pageData.fetchNextPage({ cancelRefetch: false })
+          }
+          onRetry={() => {
+            if (home) void recent.refetch()
+            else void pageData.refetch()
+            if (route.collection) void collection.refetch()
+            if (filter === 'all' || filter === 'series') void resume.refetch()
+          }}
+          onSignOut={onSignOut}
+          signingOut={signingOut}
+        />
+      </MediaLocalizations>
       {!route.play && route.media && !selected && (
         <div className="glass-panel fixed inset-x-4 bottom-6 z-50 mx-auto max-w-lg rounded-2xl p-5">
           <p role={selectedDetails.isError ? 'alert' : 'status'}>

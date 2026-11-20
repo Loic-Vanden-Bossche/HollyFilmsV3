@@ -68,6 +68,15 @@ export type WatchProviders = {
   providers: { id: number; name: string; logo?: string; offers: string[] }[]
 }
 
+export type MediaLocalization = {
+  title?: string
+  overview?: string
+  poster?: string
+  thumb?: string
+  backdrop?: string
+  logo?: string
+}
+
 export function safeExternalUrl(value?: string | null) {
   try {
     const url = new URL(value ?? '')

@@ -1,4 +1,23 @@
 export default {
+  Action: 'Action',
+  Animation: 'Animation',
+  Aventure: 'Adventure',
+  Comédie: 'Comedy',
+  Crime: 'Crime',
+  Documentaire: 'Documentary',
+  Drame: 'Drama',
+  Famille: 'Family',
+  Fantastique: 'Fantasy',
+  Guerre: 'War',
+  Histoire: 'History',
+  Horreur: 'Horror',
+  Mystère: 'Mystery',
+  Romance: 'Romance',
+  'Science-fiction': 'Science fiction',
+  'Science-Fiction': 'Science fiction',
+  Téléfilm: 'TV movie',
+  Thriller: 'Thriller',
+  Western: 'Western',
   Utilisateurs: 'Users',
   Inscriptions: 'Registrations',
   Membre: 'Member',
@@ -730,8 +749,8 @@ export default {
     'TMDB reviews are temporarily unavailable.',
   'Les disponibilités seront accessibles après l’activation de TMDB par l’administrateur.':
     'Streaming availability requires your administrator to enable TMDB.',
-  'Les fiches et images de votre bibliothèque proviennent de votre serveur. Les critiques externes et disponibilités sont fournies par TMDB ; les disponibilités proviennent de JustWatch.':
-    'Details and artwork come from your library server. TMDB supplies external reviews and streaming availability, with availability data from JustWatch.',
+  'Votre serveur fournit les fiches de la bibliothèque. TMDB fournit les traductions, les visuels localisés et les critiques externes. Les disponibilités viennent de JustWatch via TMDB.':
+    'Your server supplies the library details. TMDB supplies translations, localized artwork and external reviews. Streaming availability comes from JustWatch via TMDB.',
   'Les films': 'Movies',
   'Les films et séries accessibles à votre compte apparaîtront ici.':
     'Movies and TV shows available to your account will appear here.',
