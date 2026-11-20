@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { duration, ease, staggerDelay } from './motion/tokens.ts'
 import { usePerformanceReducedMotion } from './performance/PerformanceProvider.tsx'
+import { PerformancePreference } from './performance/PerformancePreference.tsx'
 import {
   ArrowLeft,
   Camera,
@@ -307,7 +308,10 @@ export function ProfilePage({
               >
                 {t('Préférences')}
               </h2>
-              <LanguageSelect />
+              <div className="grid gap-5">
+                <LanguageSelect />
+                <PerformancePreference />
+              </div>
             </motion.section>
             {deviceSettings}
             <motion.section

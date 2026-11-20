@@ -15,7 +15,6 @@ function ProfileScene({
 }) {
   const [controller] = useState(() => {
     const value = new PerformanceController()
-    value.setAdmin(true)
     value.select(profile, 0)
     return value
   })
@@ -58,7 +57,7 @@ const meta = {
       </div>
     ),
   },
-  parameters: { layout: 'fullscreen', profile: 'balanced' },
+  parameters: { layout: 'fullscreen', profile: 'cinema' },
   render: (args, { parameters }) => (
     <ProfileScene key={parameters.profile} profile={parameters.profile}>
       {args.children}
@@ -67,8 +66,8 @@ const meta = {
 } satisfies Meta<typeof PerformanceProvider>
 export default meta
 type Story = StoryObj<typeof meta>
-export const Essential: Story = {
-  parameters: { profile: 'essential' },
+export const Light: Story = {
+  parameters: { profile: 'light' },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.querySelector('canvas')).toBeNull()
     await expect(
@@ -76,7 +75,4 @@ export const Essential: Story = {
     ).toHaveAttribute('data-motion', 'paused')
   },
 }
-export const Light: Story = { ...Essential, parameters: { profile: 'light' } }
-export const Balanced: Story = { parameters: { profile: 'balanced' } }
-export const High: Story = { parameters: { profile: 'high' } }
-export const Ultra: Story = { parameters: { profile: 'ultra' } }
+export const Cinema: Story = { parameters: { profile: 'cinema' } }

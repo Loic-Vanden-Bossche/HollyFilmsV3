@@ -10,7 +10,7 @@
   --hf-scroll-behavior: auto;
 }
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-performance='essential'], [data-performance='light']) {
+  :root:not([data-performance='light']) {
     --hf-scroll-behavior: smooth;
   }
 }

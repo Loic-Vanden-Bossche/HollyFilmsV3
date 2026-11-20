@@ -186,6 +186,12 @@ export const Administrator: Story = {
 export const Restricted: Story = {
   args: { profile: { ...profileFixture, canEdit: false } },
   play: async ({ canvas }) => {
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('group', { name: 'Mode de performance' }),
+      ).toBeVisible(),
+    )
+    await expect(canvas.getByRole('radio', { name: 'Léger' })).toBeEnabled()
     await expect(
       canvas.queryByRole('button', { name: 'Changer la photo' }),
     ).not.toBeInTheDocument()

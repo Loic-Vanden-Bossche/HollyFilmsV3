@@ -1255,6 +1255,7 @@ export function PlaybackPlayer({
           }
           session={session}
           visible={!devices.destination && (!player.hasFrame || audioOnly)}
+          remote={!!devices.destination}
         />
         <PlayerCaptions
           layout={

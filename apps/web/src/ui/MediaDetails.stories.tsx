@@ -73,9 +73,11 @@ export const ChaptersAndCollection: Story = {
     await userEvent.click(
       canvas.getByRole('button', { name: 'Lire Un signal inconnu à 6:24' }),
     )
-    await expect(args.onPlay).toHaveBeenCalledWith(
-      { ...args.item, playbackPosition: 384 },
-      true,
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenCalledWith(
+        { ...args.item, playbackPosition: 384 },
+        true,
+      ),
     )
     await userEvent.click(
       canvas.getByRole('button', {
@@ -85,10 +87,12 @@ export const ChaptersAndCollection: Story = {
     await userEvent.click(
       await canvas.findByRole('button', { name: 'Lire la collection' }),
     )
-    await expect(args.onPlay).toHaveBeenLastCalledWith(
-      homeItems[0],
-      true,
-      homeItems,
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenLastCalledWith(
+        homeItems[0],
+        true,
+        homeItems,
+      ),
     )
   },
 }
@@ -392,17 +396,23 @@ export const Play: Story = {
   args: { onPlay: fn() },
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Lire la série' }))
-    await expect(args.onPlay).toHaveBeenCalledWith(args.item, true)
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenCalledWith(args.item, true),
+    )
   },
 }
 export const Resume: Story = {
   args: { item: homeResume[0], onPlay: fn() },
   play: async ({ canvas, userEvent, args }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Reprendre' }))
-    await expect(args.onPlay).toHaveBeenLastCalledWith(args.item, true)
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenLastCalledWith(args.item, true),
+    )
     await userEvent.click(
       canvas.getByRole('button', { name: 'Depuis le début' }),
     )
-    await expect(args.onPlay).toHaveBeenLastCalledWith(args.item, false)
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenLastCalledWith(args.item, false),
+    )
   },
 }

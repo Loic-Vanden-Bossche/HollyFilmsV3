@@ -15,96 +15,77 @@ function sample(
     fps: 60,
     frameP95: 17,
     slowFrames: 0,
-    blocking: 0,
+    blocking: null,
     interaction: null,
     state: 'active',
-    profile: 'balanced',
+    profile: 'cinema',
     ...values,
   }
 }
 
-test('five profiles remove expensive work progressively, with automatic mode for members', () => {
-  assert.equal(performanceProfiles.length, 5)
+test('members can switch immediately between the cinematic and lightweight interfaces', () => {
   const controller = new PerformanceController()
-  controller.select('ultra', 0)
-  assert.equal(controller.getSettings().selection, 'auto')
-  assert.equal(controller.getSettings().profile.id, 'balanced')
-  const slow = { frameP95: 40, slowFrames: 0.25 }
-  controller.ingest(sample(2000, slow))
-  assert.equal(controller.getSettings().profile.id, 'balanced')
-  controller.ingest(sample(4000, slow))
-  assert.equal(controller.getSettings().profile.id, 'light')
-  assert.equal(controller.getTrace().events[0].reason, 'slow')
+  assert.deepEqual(
+    performanceProfiles.map((profile) => profile.id),
+    ['cinema', 'light'],
+  )
+  assert.equal(controller.getSettings().profile.id, 'cinema')
+  controller.select('light', 1)
+  const light = controller.getSettings().profile
+  assert.equal(light.id, 'light')
+  assert.equal(light.trailers, false)
+  assert.equal(light.shaders, false)
+  assert.equal(light.ambient, false)
+  controller.select('cinema', 2)
+  const cinema = controller.getSettings().profile
+  assert.equal(cinema.trailers, true)
+  assert.equal(cinema.shaders, true)
+  assert.equal(cinema.ambient, true)
+  assert.equal(controller.getSettings().admin, false)
+  assert.deepEqual(controller.getTrace(), { samples: [], events: [] })
 })
 
-test('severe blocking and slow interactions lower quality even when average FPS looks good', () => {
-  for (const measurements of [{ blocking: 0.5 }, { interaction: 450 }]) {
-    const controller = new PerformanceController()
-    controller.ingest(sample(2000, measurements))
-    controller.ingest(sample(4000, measurements))
-    assert.equal(controller.getSettings().profile.id, 'essential')
-  }
-})
-
-test('recovery needs sustained active work and cannot oscillate after a switch', () => {
-  const controller = new PerformanceController()
-  controller.ingest(sample(2000, { frameP95: 60 }))
-  controller.ingest(sample(4000, { frameP95: 60 }))
-  assert.equal(controller.getSettings().profile.id, 'essential')
-  for (let time = 6000; time <= 32000; time += 2000)
-    controller.ingest(sample(time))
-  assert.equal(controller.getSettings().profile.id, 'essential')
-  controller.ingest(sample(34000))
-  assert.equal(controller.getSettings().profile.id, 'light')
-  controller.ingest(sample(36000, { frameP95: 60 }))
-  assert.equal(controller.getSettings().profile.id, 'light')
-  controller.ingest(sample(38000, { frameP95: 60 }))
-  assert.equal(controller.getSettings().profile.id, 'essential')
-})
-
-test('warmup, idle and playback are excluded and visibility resets incomplete evidence', () => {
-  for (const state of ['warmup', 'idle', 'playback'] as const) {
-    const controller = new PerformanceController()
-    for (let time = 2000; time <= 60000; time += 2000)
-      controller.ingest(sample(time, { state, frameP95: 80 }))
-    assert.equal(controller.getSettings().profile.id, 'balanced')
-    assert.equal(controller.getTrace().events.length, 0)
-  }
-  const controller = new PerformanceController()
-  controller.ingest(sample(2000, { frameP95: 80 }))
-  controller.resetEvidence()
-  controller.ingest(sample(200000, { frameP95: 80 }))
-  assert.equal(controller.getSettings().profile.id, 'balanced')
-})
-
-test('admin manual overrides suspend adaptation, and role loss restores automatic selection', () => {
+test('diagnostic samples cannot override the chosen mode', () => {
   const controller = new PerformanceController()
   controller.setAdmin(true)
   for (const profile of performanceProfiles) {
     controller.select(profile.id, 0)
-    assert.equal(controller.getSettings().profile.id, profile.id)
-    controller.ingest(sample(2000, { frameP95: 80 }))
-    controller.ingest(sample(4000, { frameP95: 80 }))
-    assert.equal(controller.getSettings().profile.id, profile.id)
+    for (let i = 0; i < 100; i++) {
+      controller.ingest(
+        sample(i * 2000, {
+          profile: profile.id,
+          frameP95: i < 50 ? 70 : 16,
+        }),
+      )
+      assert.equal(controller.getSettings().profile.id, profile.id)
+    }
   }
-  controller.select('auto', 6000)
-  assert.equal(controller.getTrace().events.at(-1)?.reason, 'auto')
-  controller.select('ultra', 8000)
-  controller.setAdmin(false)
-  controller.select('light', 9000)
-  assert.equal(controller.getSettings().selection, 'auto')
-  controller.ingest(sample(10000, { frameP95: 80 }))
-  controller.ingest(sample(12000, { frameP95: 80 }))
-  assert.equal(controller.getSettings().profile.id, 'balanced')
+  assert.deepEqual(controller.getTrace().events, [
+    { time: 0, from: 'cinema', to: 'light' },
+  ])
 })
 
-test('optional measurements can be absent, and histories remain bounded', () => {
+test('diagnostics are bounded and cleared when account or privileges change', () => {
   const controller = new PerformanceController()
-  for (let time = 2000; time <= 400000; time += 2000)
-    controller.ingest(sample(time, { blocking: null, interaction: null }))
-  assert.equal(controller.getTrace().samples.length, 120)
-  assert.equal(controller.getSettings().profile.id, 'ultra')
+  controller.ingest(sample(0))
+  assert.equal(controller.getTrace().samples.length, 0)
   controller.setAdmin(true)
-  for (let i = 0; i < 100; i++) controller.select(i % 2 ? 'light' : 'ultra', i)
+  for (let i = 0; i < 150; i++) {
+    controller.select(i % 2 ? 'light' : 'cinema', i)
+    controller.ingest(
+      sample(i * 2000, { profile: controller.getSettings().profile.id }),
+    )
+  }
+  assert.equal(controller.getTrace().samples.length, 120)
   assert.equal(controller.getTrace().events.length, 60)
+  const before = controller.getTrace()
+  controller.ingest(sample(1, { fps: NaN }))
+  assert.equal(controller.getTrace(), before)
+  controller.startSession('light', true)
+  assert.deepEqual(controller.getTrace(), { samples: [], events: [] })
+  controller.ingest(sample(0))
+  controller.setAdmin(false)
+  controller.ingest(sample(1))
+  assert.equal(controller.getSettings().selection, 'light')
+  assert.deepEqual(controller.getTrace(), { samples: [], events: [] })
 })

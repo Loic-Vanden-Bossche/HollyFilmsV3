@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
   useLayoutEffect,
+  useContext,
   useRef,
   type KeyboardEventHandler,
   type ReactNode,
@@ -14,6 +15,7 @@ import { ArrowLeft, RotateCcw } from 'lucide-react'
 import type { PlayerState } from '../playback/use-playback.ts'
 import { Wordmark } from './Wordmark.tsx'
 import { lockBodyScroll } from './body-scroll-lock.ts'
+import { ArtworkHeroContext } from './artwork-hero-context.ts'
 import '../player.css'
 
 export function PlayerShell({
@@ -53,6 +55,12 @@ export function PlayerShell({
   const dialog = useRef<HTMLDialogElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
+  const hero = useContext(ArtworkHeroContext)
+  useLayoutEffect(() => {
+    if (state === 'error') hero?.finishPlayerProjection()
+    else if (interrupted || state === 'playing')
+      hero?.finishPlayerProjection(true)
+  }, [hero, state, interrupted])
   useLayoutEffect(() => {
     const element = dialog.current!
     const unlockScroll = lockBodyScroll()

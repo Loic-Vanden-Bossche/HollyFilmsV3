@@ -197,59 +197,22 @@ et `test:player` passent. Le test lecteur utilise Jellyfin 12.4 isolé et des m�
 synthétiques ; la bibliothèque personnelle n'est pas authentifiée dans Playwright.
 Les avertissements de taille de chunks Vite déjà présents subsistent.
 
-## Profils adaptatifs
+## Modes de performance
 
-Le navigateur démarre en mode automatique avec le profil Équilibré. Les cinq
-profils pilotent les effets réellement exécutés, sans modifier les droits d’accès
-aux médias ni les réglages de qualité du lecteur.
+Les préférences du profil proposent deux modes à tous les comptes connectés.
+**Cinéma**, le choix par défaut, active les animations, les effets de profondeur
+et les aperçus vidéo. **Léger** utilise des affiches fixes, des fonds statiques et
+une seule rangée de marge dans les grilles virtualisées. La préférence système
+de mouvement réduit reste prioritaire dans les deux modes.
 
-| Profil    | Effets                                                                                                                  |
-| --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Essentiel | Fond statique, mouvements physiques désactivés, surfaces opaques, une rangée de marge pour la grille virtuelle.         |
-| Léger     | Fond statique, fondus courts, verre limité à 4 px, aucune inclinaison au pointeur.                                      |
-| Équilibré | Fond CSS animé, profondeur des cartes à 50 %, verre à 8 px, deux rangées de marge, shaders et aperçus vidéo désactivés. |
-| Élevé     | Shaders à DPR 0,85 avec une couche Aurora, profondeur à 80 %, verre à 16 px, aperçus vidéo.                             |
-| Ultra     | Shaders à DPR 1 avec deux couches Aurora, profondeur complète, verre à 24 px et trois rangées de marge.                 |
+Le choix s’applique immédiatement. HollyFilms le conserve dans `localStorage`
+par serveur Jellyfin et par compte. Les anciens réglages Essentiel et Léger
+deviennent Léger. Automatique, Équilibré, Élevé et Ultra deviennent Cinéma.
+Si le stockage est indisponible, le réglage reste utilisable pour la session.
 
-`apps/web/src/performance` contient les profils, le contrôleur et un seul collecteur
-par application. Toutes les deux secondes, il publie la cadence rAF, le p95 des
-intervalles entre images, la proportion d’intervalles supérieurs à 25 ms, le temps
-de tâches longues et la latence maximale d’interaction. Les API PerformanceObserver
-sont optionnelles. La latence entrée → prochaine image sert aussi de repli. Une
-mesure absente s’affiche avec « — ». La cadence rAF mesure les possibilités de
-rendu du navigateur, elle ne mesure pas directement l’utilisation du GPU.
-
-Deux fenêtres actives lentes déclenchent une baisse, avec au moins quatre secondes
-entre les changements. Une fenêtre est lente si son p95 dépasse 28 ms, si plus de
-16 % des images dépassent 25 ms, si les tâches longues occupent plus de 15 % du
-temps, ou si une interaction dépasse 200 ms. Une dégradation sévère peut retirer
-deux niveaux. La remontée ajoute un seul niveau après quinze fenêtres actives
-stables et au moins trente secondes depuis le dernier changement. Les mesures
-de démarrage, les périodes masquées, les périodes sans activité ni décoration
-animée et la lecture vidéo sont exclues des décisions. Les écouteurs, observers
-et la boucle rAF sont nettoyés au démontage. Le mouvement réduit système reste
-prioritaire, y compris en sélection manuelle.
-
-Après vérification du rôle par Jellyfin, un bouton **Performances** permet aux
-administrateurs de choisir Auto ou un des cinq profils. Les autres comptes
-utilisent Auto. Une perte du rôle annule le choix manuel. Le graphe conserve
-120 échantillons et 60 événements au maximum, uniquement en mémoire, avec le
-profil actif, les changements et leurs raisons. Aucun appel réseau de télémétrie
-n’est ajouté. Le choix Auto ou manuel est conservé dans `localStorage`, par
-origine/serveur Jellyfin et identifiant de compte. Il est restauré uniquement
-après vérification du rôle administrateur par Jellyfin. Un compte ordinaire
-ne lit pas cette préférence et reste en Auto. La déconnexion et le nettoyage
-React ne remplacent pas le choix enregistré. Un stockage bloqué ou une valeur
-invalide laisse l’application fonctionner en Auto. Le profil calculé par Auto
-et l’historique des mesures ne sont pas persistés.
-
-Les tests du contrôleur couvrent dégradation, remontée, temporisations, exclusions,
-mesures manquantes, contrôle admin et limites des historiques. Le test navigateur
-avec une charge réelle du thread principal a mesuré un p95 de 109 ms et 75 % de
-temps bloqué, puis un passage automatique Équilibré → Essentiel. Les cinq choix
-manuels, la fermeture au clavier, le focus restauré, le format 390 × 844 et le
-fonctionnement sans PerformanceObserver ont été vérifiés dans Storybook. Un test
-de visibilité simulée confirme l’arrêt des mesures pendant la période masquée.
+Le panneau **Performances** des administrateurs conserve en mémoire jusqu’à
+120 échantillons de rendu et 60 changements de mode. Il suspend les mesures
+lorsque l’onglet est masqué. Le choix du mode est indépendant des mesures.
 
 ## Rechargement et contrôle Ultra — 17 novembre 2026
 
@@ -285,7 +248,8 @@ avant, cadence rAF médiane 113,75/s et p95 médian 8,4 ms ; après, 102/s et
 11,6 ms (97,5–114,125/s selon le passage). La variance ne permet pas de conclure
 à un gain global de cadence : aucune promesse de FPS sur tous les appareils.
 Les résultats et traces sont conservés localement dans le répertoire temporaire
-Windows sous `hollyfilms-ultra-*`. La story permet de reproduire le contrôle.
+Windows sous `hollyfilms-ultra-*`. La story **Cinéma — catalogue de 96 titres**
+reprend ce catalogue de test avec le mode actuel.
 
 Vérifications Playwright : Ultra puis Auto conservés après rechargement de
 `/app` avec identité Jellyfin simulée ; liste dans le dialogue en plein écran ;

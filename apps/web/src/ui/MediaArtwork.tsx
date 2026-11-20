@@ -232,8 +232,7 @@ function ArtworkFrame({
                   reveal === 'shared' &&
                   element.ownerDocument.documentElement.hasAttribute(
                     'data-artwork-flight',
-                  ) &&
-                  !element.closest('[data-artwork-endpoint="loading"]')
+                  )
                 const frameBlob = frame === loadedSource ? painted?.blob : blob
                 if (frameBlob) markArtworkDecoded(frameBlob)
                 setPainted({ src: frame, sharedReveal, blob: frameBlob })

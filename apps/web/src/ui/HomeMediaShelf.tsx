@@ -79,7 +79,6 @@ export function HomeMediaShelf({
           const art = target.querySelector<HTMLElement>(
             '.artwork-preview-trigger > .media-artwork',
           )
-          const number = target.querySelector<HTMLElement>('.home-rank-number')
           const delay = staggerDelay(order++)
           if (art) {
             const entry = animate(
@@ -92,22 +91,6 @@ export function HomeMediaShelf({
                 opacity: [0.7, 1],
               },
               { duration: duration.scene, delay, ease: ease.out },
-            )
-            controls.add(entry)
-            void entry.then(() => controls.delete(entry))
-          }
-          if (number) {
-            const entry = animate(
-              number,
-              {
-                translate: ['0.16em 0', '0px 0px'],
-                opacity: [0.35, 1],
-              },
-              {
-                duration: duration.scene,
-                delay: delay + duration.stagger,
-                ease: ease.out,
-              },
             )
             controls.add(entry)
             void entry.then(() => controls.delete(entry))

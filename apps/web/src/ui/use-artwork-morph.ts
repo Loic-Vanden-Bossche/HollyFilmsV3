@@ -11,6 +11,7 @@ export function useArtworkMorph({
   open,
   retracting,
   reduced,
+  rankedHover,
   onRetracted,
 }: {
   slot: ElementRef
@@ -19,6 +20,7 @@ export function useArtworkMorph({
   open: boolean
   retracting: boolean
   reduced: boolean
+  rankedHover: boolean
   onRetracted: () => void
 }) {
   const progress = useMotionValue(0)
@@ -37,6 +39,12 @@ export function useArtworkMorph({
     )!
     const hero = shell.querySelector<HTMLElement>('.artwork-preview-hero')!
     const cover = hero.querySelector<HTMLElement>('.artwork-preview-cover')!
+    const number = rankedHover
+      ? origin.parentElement?.querySelector<HTMLElement>(
+          ':scope > .home-rank-number',
+        )
+      : null
+    number?.setAttribute('data-rank-hover', '')
     const document = shell.ownerDocument
     const fromRadius =
       parseFloat(
@@ -83,7 +91,9 @@ export function useArtworkMorph({
       const x = (start.left - end.left) * rest
       const y = (start.top - end.top) * rest
       const radius = fromRadius * rest + toRadius * value
-      shell.style.setProperty('--preview-progress', String(value))
+      const fraction = String(value)
+      shell.style.setProperty('--preview-progress', fraction)
+      number?.style.setProperty('--preview-progress', fraction)
       const scaleX = value + (start.width / end.width) * rest
       const scaleY = value + (start.height / end.height) * rest
       shell.style.setProperty(
@@ -116,6 +126,12 @@ export function useArtworkMorph({
     }
     function sync() {
       geometry = measure()
+      // At the rail's right edge the preview grows to the left. Keep the
+      // number next to that moving edge throughout the same morph.
+      number?.style.setProperty(
+        '--rank-travel',
+        geometry.end.left - geometry.start.left + 'px',
+      )
       paint(progress.get())
     }
     sync()
@@ -136,6 +152,9 @@ export function useArtworkMorph({
       document.removeEventListener('scroll', onScroll, true)
       shell.style.removeProperty('--preview-progress')
       shell.style.removeProperty('--preview-shadow-transform')
+      number?.removeAttribute('data-rank-hover')
+      number?.style.removeProperty('--preview-progress')
+      number?.style.removeProperty('--rank-travel')
       surface.style.transform = ''
       surface.style.clipPath = ''
       surface.style.borderRadius = ''
@@ -145,7 +164,7 @@ export function useArtworkMorph({
       hero.style.clipPath = ''
       progress.jump(0)
     }
-  }, [open, slot, panel, trigger, progress])
+  }, [open, slot, panel, trigger, progress, rankedHover])
 
   useLayoutEffect(() => {
     if (!open) return

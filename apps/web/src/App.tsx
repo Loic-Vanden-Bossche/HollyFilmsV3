@@ -14,6 +14,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -44,7 +45,7 @@ import { GlassPanel } from './ui/GlassPanel.tsx'
 import { JellyfinStatus } from './ui/JellyfinStatus.tsx'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { navigateApp, takeAppReturn, useAppRoute } from './use-app-route.ts'
-import { performanceController } from './performance/profiles.ts'
+import { usePerformanceController } from './performance/PerformanceProvider.tsx'
 import { bindPerformancePreference } from './performance/preferences.ts'
 import { releaseDeviceNotifications } from './pwa/notifications.ts'
 import { setPwaViewer } from './pwa/runtime.ts'
@@ -252,6 +253,18 @@ function SessionRoutes({
   const sessionRejected = isJellyfinAccessDenied(user.error)
   const viewer =
     session && user.isSuccess && !isSigningOut ? user.data.id : null
+  const performanceController = usePerformanceController()
+  const isAdministrator = Boolean(viewer && user.data?.isAdministrator)
+  useLayoutEffect(
+    () =>
+      bindPerformancePreference(
+        performanceController,
+        jellyfinUrl,
+        viewer,
+        isAdministrator,
+      ),
+    [performanceController, viewer, isAdministrator],
+  )
   useEffect(() => {
     setPwaViewer(viewer)
     return () => setPwaViewer(null)
@@ -289,22 +302,6 @@ function SessionRoutes({
       window.removeEventListener('online', markOpened)
     }
   }, [client, session, viewer])
-  useEffect(() => {
-    return bindPerformancePreference(
-      performanceController,
-      jellyfinUrl,
-      session && user.isSuccess && user.data.isAdministrator && !isSigningOut
-        ? user.data.id
-        : null,
-    )
-  }, [
-    session,
-    user.isSuccess,
-    user.data?.isAdministrator,
-    user.data?.id,
-    isSigningOut,
-  ])
-
   useEffect(() => {
     if (!session || !sessionRejected || isSigningOut) return
     const remaining = clearSession(session)

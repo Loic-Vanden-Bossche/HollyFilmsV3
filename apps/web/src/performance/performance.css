@@ -70,22 +70,8 @@
   font-size: 12px;
 }
 .performance-selection {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
   margin: 24px 0 18px;
 }
-.performance-selection label,
-.performance-current {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-}
-.performance-current strong {
-  font-size: 20px;
-  color: #7dded8;
-}
-.performance-current small,
 .performance-help,
 .performance-status,
 .performance-graph figcaption {
@@ -139,13 +125,12 @@
 }
 .performance-events li {
   display: grid;
-  grid-template-columns: 55px 1fr 1fr;
+  grid-template-columns: 55px 1fr;
   gap: 8px;
   padding-block: 6px;
   border-bottom: 1px solid #ecf4fb14;
 }
-.performance-events time,
-.performance-events span {
+.performance-events time {
   color: #a2b1c4;
 }
 /* Only surfaces that already use glass receive blur. Avoid creating new GPU layers. */
@@ -160,7 +145,7 @@
   ) {
   backdrop-filter: blur(var(--performance-blur, 8px));
 }
-:root[data-performance='essential']
+:root[data-performance='light']
   :is(
     .glass-panel,
     .glass-control,
@@ -173,7 +158,7 @@
   backdrop-filter: none !important;
   background-color: #101b2bf5;
 }
-:root:is([data-performance='essential'], [data-performance='light'])
+:root[data-performance='light']
   :is(
     .rb-gradual-blur,
     .catalogue-stardust,
@@ -184,11 +169,11 @@
   ) {
   display: none;
 }
-:root:is([data-performance='essential'], [data-performance='light'])
+:root[data-performance='light']
   :is(.rb-blur-text, .rb-rotating, .home-intro-bloom, .home-intro-frame) {
   filter: none !important;
 }
-:root[data-performance='essential'] * {
+:root[data-performance='light'] * {
   animation: none !important;
   transition-duration: 0.08s !important;
 }
@@ -210,13 +195,7 @@
   .performance-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .performance-selection {
-    grid-template-columns: 1fr;
-  }
   .performance-events li {
     grid-template-columns: 40px 1fr;
-  }
-  .performance-events span {
-    grid-column: 2;
   }
 }

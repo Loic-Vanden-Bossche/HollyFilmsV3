@@ -15,6 +15,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { createPortal } from 'react-dom'
 import { duration, ease } from '../motion/tokens.ts'
 import { motion } from 'motion/react'
 import {
@@ -106,8 +107,8 @@ export function MediaDetails({
   const { t } = useI18n()
   const navigateArtwork = useArtworkNavigation()
   const backdropWidth = useBackdropWidth()
-  const { scope, reduced, present, dismiss, sharedEntrance } =
-    useMediaDetailsMotion()
+  const { scope, reduced, present, dismiss, sharedEntrance, cardFrame } =
+    useMediaDetailsMotion(summary.id)
   const marker = useId()
   const { active: activeSection, selectSection } = useDetailSections(scope)
   const collectionRequest = useRef<AbortController | null>(null)
@@ -275,7 +276,10 @@ export function MediaDetails({
       setPending('')
     }
   }
-  async function playCollection(collectionId = browsing?.id) {
+  async function playCollection(
+    control: HTMLElement,
+    collectionId = browsing?.id,
+  ) {
     if (!collectionId || (!loadRelatedPage && (!session || !userId))) return
     collectionRequest.current?.abort()
     const controller = new AbortController()
@@ -309,8 +313,8 @@ export function MediaDetails({
       }
       if (!queue.length)
         setActionError('Aucun titre accessible dans cette collection.')
-      if (queue.length && !controller.signal.aborted)
-        onPlay?.(queue[0], true, queue)
+      if (queue.length && !controller.signal.aborted && onPlay)
+        navigateArtwork(control, 'player', () => onPlay(queue[0], true, queue))
     } catch {
       if (!controller.signal.aborted)
         setActionError('Impossible de charger la collection. Réessaie.')
@@ -332,70 +336,8 @@ export function MediaDetails({
     const rect = scope.current.getBoundingClientRect()
     return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
   }
-  return (
-    <motion.dialog
-      initial={sharedEntrance ? false : { opacity: 0 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{
-        opacity: 0,
-        y: reduced ? 0 : 6,
-        transition: { duration: reduced ? 0 : duration.micro, ease: ease.in },
-      }}
-      transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
-      inert={!present}
-      aria-hidden={!present}
-      data-present={present}
-      data-phase={present ? 'opening' : 'closing'}
-      onAnimationComplete={() => {
-        if (present && scope.current?.open)
-          scope.current.setAttribute('data-phase', 'open')
-      }}
-      ref={scope}
-      className="media-dialog glass-panel"
-      aria-labelledby="media-detail-title"
-      onCancel={(event) => {
-        event.preventDefault()
-        void close()
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          const menu = scope.current.querySelector<HTMLDetailsElement>(
-            '.detail-card-menu[open]',
-          )
-          if (menu) {
-            menu.open = false
-            event.preventDefault()
-            event.stopPropagation()
-          } else {
-            event.preventDefault()
-            void close()
-          }
-        }
-      }}
-      onPointerDown={(event) => {
-        outside.current =
-          event.button === 0 &&
-          event.target === event.currentTarget &&
-          isOutside(event.clientX, event.clientY)
-      }}
-      onPointerCancel={() => {
-        outside.current = false
-      }}
-      onClick={(event) => {
-        if (!(event.target as HTMLElement).closest('.detail-card-menu'))
-          scope.current
-            .querySelectorAll<HTMLDetailsElement>('.detail-card-menu[open]')
-            .forEach((menu) => {
-              menu.open = false
-            })
-        const dismiss =
-          outside.current &&
-          event.target === event.currentTarget &&
-          isOutside(event.clientX, event.clientY)
-        outside.current = false
-        if (dismiss) void close()
-      }}
-    >
+  const contents = (
+    <>
       <div className="detail-toolbar">
         <nav
           className="detail-section-nav"
@@ -461,7 +403,7 @@ export function MediaDetails({
         <p id="detail-overview" className="home-eyebrow">
           {t(item.kind)} {item.year && '· ' + item.year}
         </p>
-        <h2 id="media-detail-title">{item.title}</h2>
+        <h2 id={present ? 'media-detail-title' : undefined}>{item.title}</h2>
         <div className="home-meta">
           {item.minutes && <span>{formatDuration(item.minutes, t)}</span>}
           {item.classification && (
@@ -847,7 +789,10 @@ export function MediaDetails({
                     <button
                       className="home-primary"
                       disabled={!!pending}
-                      onClick={() => void playCollection()}
+                      data-artwork-open="player"
+                      onClick={(event) =>
+                        void playCollection(event.currentTarget)
+                      }
                     >
                       <Play size={16} />
                       {pending === 'collection'
@@ -933,6 +878,7 @@ export function MediaDetails({
                       : undefined
                   }
                   onSelect={play}
+                  destination={play ? 'player' : undefined}
                   artwork={
                     <MediaArtwork
                       source={chapter.image}
@@ -949,8 +895,10 @@ export function MediaDetails({
                   {play && (
                     <button
                       className="detail-preview-action glass-control"
-                      data-preview-select
-                      onClick={play}
+                      data-artwork-open="player"
+                      onClick={(event) =>
+                        navigateArtwork(event.currentTarget, 'player', play)
+                      }
                     >
                       <Play size={16} aria-hidden="true" />
                       {t('Lire')}
@@ -1058,7 +1006,13 @@ export function MediaDetails({
                             aria-label={t('Lire la collection : {title}', {
                               title: collection.title,
                             })}
-                            onClick={() => void playCollection(collection.id)}
+                            data-artwork-open="player"
+                            onClick={(event) =>
+                              void playCollection(
+                                event.currentTarget,
+                                collection.id,
+                              )
+                            }
                           >
                             <Play size={16} />
                           </button>
@@ -1143,33 +1097,49 @@ export function MediaDetails({
                   onWatched ? (i, v) => update(i, 'watched', v) : undefined
                 }
                 footerAction={
-                  <details className="detail-card-menu">
-                    <Tooltip>
-                      <summary
-                        aria-label={t('Plus d’actions pour {title}', {
-                          title: entry.title,
-                        })}
-                      >
-                        <MoreHorizontal size={18} />
-                      </summary>
-                    </Tooltip>
-                    <div>
-                      <button
-                        data-preview-select
-                        onClick={() => navigate(entry)}
-                      >
-                        {t('Voir la fiche')}
-                      </button>
-                      {onPlay && (
-                        <button
-                          data-preview-select
-                          onClick={() => onPlay(entry, false)}
+                  (onSelect || onPlay) && (
+                    <details className="detail-card-menu">
+                      <Tooltip>
+                        <summary
+                          aria-label={t('Plus d’actions pour {title}', {
+                            title: entry.title,
+                          })}
                         >
-                          {t('Lire depuis le début')}
-                        </button>
-                      )}
-                    </div>
-                  </details>
+                          <MoreHorizontal size={18} />
+                        </summary>
+                      </Tooltip>
+                      <div>
+                        {onSelect && (
+                          <button
+                            data-artwork-open="details"
+                            onClick={(event) =>
+                              navigateArtwork(
+                                event.currentTarget,
+                                'details',
+                                () => onSelect(entry),
+                              )
+                            }
+                          >
+                            {t('Voir la fiche')}
+                          </button>
+                        )}
+                        {onPlay && (
+                          <button
+                            data-artwork-open="player"
+                            onClick={(event) =>
+                              navigateArtwork(
+                                event.currentTarget,
+                                'player',
+                                () => onPlay(entry, false),
+                              )
+                            }
+                          >
+                            {t('Lire depuis le début')}
+                          </button>
+                        )}
+                      </div>
+                    </details>
+                  )
                 }
               />
             </div>
@@ -1226,6 +1196,83 @@ export function MediaDetails({
           </details>
         </footer>
       </div>
+    </>
+  )
+  return (
+    <motion.dialog
+      initial={sharedEntrance ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{
+        opacity: 0,
+        y: reduced || sharedEntrance ? 0 : 6,
+        transition: {
+          duration: reduced || sharedEntrance || cardFrame ? 0 : duration.micro,
+          ease: ease.in,
+        },
+      }}
+      transition={{ duration: reduced ? 0 : duration.panel, ease: ease.out }}
+      inert={!present}
+      aria-hidden={!present}
+      data-present={present}
+      data-phase={present ? 'opening' : 'closing'}
+      onAnimationComplete={() => {
+        if (present && scope.current?.open)
+          scope.current.setAttribute('data-phase', 'open')
+      }}
+      ref={scope}
+      className="media-dialog glass-panel"
+      data-media-id={summary.id}
+      data-card-dialog={cardFrame ? true : undefined}
+      aria-labelledby="media-detail-title"
+      onCancel={(event) => {
+        event.preventDefault()
+        void close()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          const menu = event.currentTarget.querySelector<HTMLDetailsElement>(
+            '.detail-card-menu[open]',
+          )
+          if (menu) {
+            menu.open = false
+            event.preventDefault()
+            event.stopPropagation()
+          } else {
+            event.preventDefault()
+            void close()
+          }
+        }
+      }}
+      onPointerDown={(event) => {
+        outside.current =
+          event.button === 0 &&
+          event.target === event.currentTarget &&
+          isOutside(event.clientX, event.clientY)
+      }}
+      onPointerCancel={() => {
+        outside.current = false
+      }}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest('.detail-card-menu'))
+          event.currentTarget
+            .querySelectorAll<HTMLDetailsElement>('.detail-card-menu[open]')
+            .forEach((menu) => {
+              menu.open = false
+            })
+        const dismiss =
+          outside.current &&
+          event.target === event.currentTarget &&
+          isOutside(event.clientX, event.clientY)
+        outside.current = false
+        if (dismiss) void close()
+      }}
+    >
+      {cardFrame
+        ? createPortal(
+            <div className="artwork-card-details">{contents}</div>,
+            cardFrame,
+          )
+        : contents}
     </motion.dialog>
   )
 }

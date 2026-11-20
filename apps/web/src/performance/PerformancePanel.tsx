@@ -2,30 +2,20 @@ import { useRef, useSyncExternalStore } from 'react'
 import { motion } from 'motion/react'
 import { X, Activity } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import { Select } from '../ui/Select.tsx'
+import { PerformancePreference } from './PerformancePreference.tsx'
 import { useModalPresence } from '../ui/use-modal-presence.ts'
 import { duration, ease } from '../motion/tokens.ts'
 import {
   usePerformanceController,
   usePerformanceReducedMotion,
 } from './PerformanceProvider.tsx'
-import {
-  performanceProfiles,
-  type PerformanceTrace,
-  type SwitchReason,
-} from './profiles.ts'
+import { performanceProfiles, type PerformanceTrace } from './profiles.ts'
 
-const reasons = {
-  slow: 'Ralentissement mesuré',
-  stable: 'Performance stable',
-  manual: 'Sélection manuelle',
-  auto: 'Retour au mode automatique',
-} as const
 const states = {
   warmup: 'Étalonnage',
   active: 'Mesure active',
   idle: 'En attente d’activité',
-  playback: 'Adaptation suspendue pendant la lecture',
+  playback: 'Lecture en cours',
 } as const
 const profileLabel = (id: string) =>
   performanceProfiles.find((entry) => entry.id === id)!.label
@@ -89,13 +79,7 @@ export function PerformanceGraph({ trace }: { trace: PerformanceTrace }) {
             width="5"
             height="12"
             rx="2"
-            fill={
-              ['#8ba3be', '#74b5aa', '#4ade80', '#46b8d3', '#3b82f6'][
-                performanceProfiles.findIndex(
-                  (entry) => entry.id === sample.profile,
-                )
-              ]
-            }
+            fill={sample.profile === 'light' ? '#8ba3be' : '#46b8d3'}
           >
             <title>
               {t(profileLabel(sample.profile))} · {Math.round(sample.fps)} FPS ·{' '}
@@ -117,8 +101,7 @@ export function PerformanceGraph({ trace }: { trace: PerformanceTrace }) {
               />
               <circle cx={x(event.time)} cy="10" r="4" fill="#4ade80" />
               <title>
-                {t(profileLabel(event.from))} → {t(profileLabel(event.to))} ·{' '}
-                {t(reasons[event.reason])}
+                {t(profileLabel(event.from))} → {t(profileLabel(event.to))}
               </title>
             </g>
           ))}
@@ -166,10 +149,7 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
       data-exiting={!present || undefined}
       aria-label={t('Débogage des performances')}
       onKeyDownCapture={(event) => {
-        if (
-          event.key === 'Escape' &&
-          !event.currentTarget.querySelector('.holly-select-popup[data-open]')
-        ) {
+        if (event.key === 'Escape') {
           event.preventDefault()
           event.stopPropagation()
           onClose()
@@ -217,46 +197,7 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
           </button>
         </header>
         <div className="performance-selection">
-          <label>
-            {t('Mode de performance')}
-            <Select
-              aria-label={t('Mode de performance')}
-              value={settings.selection}
-              onValueChange={(value) => {
-                if (
-                  value === 'auto' ||
-                  performanceProfiles.some((entry) => entry.id === value)
-                )
-                  controller.select(
-                    value as typeof settings.selection,
-                    performance.now(),
-                  )
-              }}
-            >
-              <option value="auto">{t('Automatique')}</option>
-              {performanceProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {t(profile.label)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <div className="performance-current" role="status">
-            <span>{t('Profil actif')}</span>
-            <motion.strong
-              key={settings.profile.id}
-              initial={{ opacity: 0.55, y: reduced ? 0 : 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: duration.micro, ease: ease.out }}
-            >
-              {t(settings.profile.label)}
-            </motion.strong>
-            <small>
-              {settings.selection === 'auto'
-                ? t('Automatique')
-                : t('Sélection manuelle')}
-            </small>
-          </div>
+          <PerformancePreference />
         </div>
         <dl className="performance-metrics">
           <div>
@@ -287,11 +228,6 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
         <PerformanceGraph trace={trace} />
         <p className="performance-help">
           {t(
-            'Réduction après deux mesures lentes. Remontée après 30 secondes stables en activité. Les onglets masqués sont exclus.',
-          )}
-        </p>
-        <p className="performance-help">
-          {t(
             'La préférence système de mouvement réduit reste prioritaire. — indique une mesure indisponible.',
           )}
         </p>
@@ -307,7 +243,6 @@ export default function PerformancePanel({ onClose }: { onClose: () => void }) {
                   <strong>
                     {t(profileLabel(event.from))} → {t(profileLabel(event.to))}
                   </strong>
-                  <span>{t(reasons[event.reason as SwitchReason])}</span>
                 </li>
               ))}
           </ol>

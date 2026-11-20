@@ -36,6 +36,10 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+function rankScale(number: Element) {
+  return parseFloat(getComputedStyle(number).scale) || 1
+}
+
 export const OffscreenKeyboard: Story = {
   name: 'Rangée hors écran accessible au clavier',
   decorators: [
@@ -110,10 +114,18 @@ export const Ranked: Story = {
     )!
     await userEvent.click(next)
     await waitFor(() => expect(track.scrollLeft).toBeGreaterThan(0))
-    track.scrollTo({ left: track.scrollWidth, behavior: 'instant' })
+    track.scrollTo({
+      left: track.scrollWidth,
+      top: track.scrollHeight,
+      behavior: 'instant',
+    })
     await waitFor(() => expect(next).toBeDisabled())
+    await expect(track.scrollTop).toBe(0)
     const last = within(ranking).getAllByRole('article').at(-1)!
     const cover = last.getBoundingClientRect()
+    const rail = track.getBoundingClientRect()
+    await expect(cover.top).toBeGreaterThanOrEqual(rail.top - 1)
+    await expect(cover.bottom).toBeLessThanOrEqual(rail.bottom + 1)
     await expect(cover.width / cover.height).toBeCloseTo(16 / 9, 1)
     await expect(cover.right).toBeLessThanOrEqual(
       document.documentElement.clientWidth + 1,
@@ -128,6 +140,72 @@ export const Ranked: Story = {
     const image = artwork.getBoundingClientRect()
     await expect(image.width).toBeCloseTo(cover.width, 0)
     await expect(image.height).toBeCloseTo(cover.height, 0)
+    const number = ranks[9]
+    const compressed = getComputedStyle(number).transform
+    const hoverMotion =
+      window.matchMedia(
+        '(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)',
+      ).matches && document.documentElement.dataset.performance !== 'light'
+    // The number ignores pointer events; its grid cell receives the actual hit.
+    await userEvent.hover(number.parentElement!)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await expect(last).toHaveAttribute('data-active', 'false')
+    await expect(rankScale(number)).toBe(1)
+
+    // Read both visuals in the same frame, including the return to the rail.
+    const samples: { progress: number; scale: number }[] = []
+    const sample = () => {
+      const shell = last.querySelector<HTMLElement>('.artwork-preview-shell')
+      const progress = Number(
+        shell?.style.getPropertyValue('--preview-progress') || 0,
+      )
+      samples.push({ progress, scale: rankScale(number) })
+    }
+    const observer = new MutationObserver(sample)
+    observer.observe(last, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['style'],
+    })
+    let fullScale = 1
+    let startOfReturn = 0
+    try {
+      await userEvent.hover(last)
+      await waitFor(() => expect(last).toHaveAttribute('data-active', 'true'))
+      await waitFor(() =>
+        expect(
+          last
+            .querySelector<HTMLElement>('.artwork-preview-shell')
+            ?.style.getPropertyValue('--preview-progress'),
+        ).toBe('1'),
+      )
+      fullScale = rankScale(number)
+      await expect(hoverMotion ? fullScale > 1 : fullScale === 1).toBe(true)
+      await expect(getComputedStyle(number).transform).toBe(compressed)
+      await expect(track.scrollHeight).toBe(track.clientHeight)
+      startOfReturn = samples.length
+      await userEvent.hover(number.parentElement!)
+      await waitFor(() => expect(last).toHaveAttribute('data-active', 'false'))
+      await expect(rankScale(number)).toBe(1)
+    } finally {
+      observer.disconnect()
+    }
+    if (hoverMotion) {
+      for (const phase of [
+        samples.slice(0, startOfReturn),
+        samples.slice(startOfReturn),
+      ]) {
+        await expect(
+          phase.some(({ progress }) => progress > 0 && progress < 1),
+        ).toBe(true)
+        const maxDrift = Math.max(
+          ...phase.map(({ progress, scale }) =>
+            Math.abs((scale - 1) / (fullScale - 1) - progress),
+          ),
+        )
+        await expect(maxDrift).toBeLessThan(0.01)
+      }
+    }
     await userEvent.click(
       within(last).getByRole('button', { name: /^Voir la fiche/ }),
     )
@@ -141,12 +219,15 @@ export const RankedPreview: Story = {
   args: { onPlay: fn() },
   play: async ({ canvas, userEvent, args }) => {
     const item = args.items[0]
-    const card = canvas.getByRole('article', { name: item.title })
-    const trigger = within(card).getByRole('button', { name: /^Voir la fiche/ })
-    await expect(card.querySelector('.artwork-watermark')).toBeVisible()
-    await waitFor(() =>
-      expect(trigger.querySelector('img')).toHaveAttribute('src', item.thumb),
-    )
+    const { card, trigger } = await waitFor(() => {
+      const card = canvas.getByRole('article', { name: item.title })
+      const trigger = within(card).getByRole('button', {
+        name: /^Voir la fiche/,
+      })
+      expect(trigger.querySelector('img')).toHaveAttribute('src', item.thumb)
+      expect(card.querySelector('.artwork-watermark')).toBeVisible()
+      return { card, trigger }
+    })
     await userEvent.pointer([{ keys: '[TouchA]', target: trigger }])
     const panel = await within(card).findByRole('group', { name: item.title })
     await expect(panel).toHaveAttribute('data-presentation', 'ranked')
@@ -158,6 +239,9 @@ export const RankedPreview: Story = {
       expect(art.querySelector(':scope > .artwork-watermark')).toBeVisible(),
     )
     await expect(panel.querySelector('.artwork-preview-title')).toBeNull()
+    await expect(
+      rankScale(card.parentElement!.querySelector('.home-rank-number')!),
+    ).toBe(1)
     await waitFor(() => {
       expect(art.querySelector('img')).toHaveAttribute('src', item.thumb)
       const frame = art.getBoundingClientRect()
@@ -222,6 +306,9 @@ export const RankedFallbackTitles: Story = {
         expect(title.top).toBeGreaterThanOrEqual(image.top - 1)
         expect(title.bottom).toBeLessThanOrEqual(image.bottom + 1)
       })
+      await expect(
+        rankScale(card.parentElement!.querySelector('.home-rank-number')!),
+      ).toBe(1)
       await userEvent.keyboard('{Escape}')
       await expect(trigger).toHaveFocus()
       await waitFor(() =>

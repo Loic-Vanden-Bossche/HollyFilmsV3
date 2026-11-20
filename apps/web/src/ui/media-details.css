@@ -21,10 +21,42 @@
   position: absolute;
   inset: 0;
 }
+.media-dialog[data-detail-morph],
+.media-dialog[data-detail-morph] .detail-art-reveal,
+.detail-morph-picture {
+  transform-origin: 0 0;
+}
+.detail-morph-picture {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 1;
+  max-width: none;
+  pointer-events: none;
+}
+.media-dialog[data-detail-morph] .media-detail-art[data-source-shade]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-image: var(--detail-source-shade);
+  animation: detail-source-shade-out var(--hf-scene, 420ms)
+    var(--hf-ease-in-out, ease-in-out) both;
+}
+@keyframes detail-source-shade-out {
+  0%,
+  16% {
+    opacity: 1;
+  }
+  70%,
+  100% {
+    opacity: 0;
+  }
+}
 .media-dialog::backdrop {
   animation: detail-backdrop-in 0.32s ease-out both;
 }
-.media-dialog[data-present='false']:not([open]) {
+.media-dialog[data-present='false']:not([open], [data-card-dialog]) {
   display: block;
   position: fixed;
   inset: 0;

@@ -386,7 +386,11 @@ export function HomeCarousel({
               {item.overview ||
                 t('Découvrez ce titre dans votre bibliothèque HollyFilms.')}
             </p>
-            <div data-hero-stage className="home-hero-actions">
+            <div
+              data-hero-stage
+              className="home-hero-actions"
+              data-media-id={item.id}
+            >
               {onPlay && (
                 <StarBorder className="hero-play-border">
                   <motion.button

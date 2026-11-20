@@ -66,6 +66,7 @@ export const Loading: Story = {
       ),
     )
     await expect(canvasElement.querySelector('video')).toBeInTheDocument()
+    await expect(canvasElement.querySelector('.player-projection')).toBeNull()
     const video = canvasElement.querySelector('video')!
     const back = canvas.getByRole('button', { name: 'Retour au catalogue' })
     await userEvent.keyboard(' ')
@@ -115,6 +116,7 @@ export const KeyboardPlayback: Story = {
       ),
     )
     await expect(video.paused).toBe(true)
+    await expect(canvasElement.querySelector('.player-projection')).toBeNull()
     await userEvent.keyboard(' ')
     await waitFor(() => expect(video.paused).toBe(false))
     await userEvent.keyboard(' ')

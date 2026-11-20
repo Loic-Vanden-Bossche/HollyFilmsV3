@@ -34,7 +34,11 @@ const server = await preview({
           calls.push({ token, pathname })
           response.setHeader('Cache-Control', 'no-store')
           response.setHeader('Content-Type', 'application/json')
-          if (pathname.startsWith('/jellyfin/') && !viewer) {
+          if (
+            (pathname.startsWith('/jellyfin/') ||
+              pathname === '/api/profile') &&
+            !viewer
+          ) {
             response.writeHead(401).end()
             return
           }
@@ -48,20 +52,20 @@ const server = await preview({
             }
           } else if (pathname.endsWith('/Items')) {
             body = {
-              TotalRecordCount: 1,
-              Items: [
-                {
-                  Id: '3'.repeat(32),
-                  Type: 'Movie',
-                  Name: viewer.title,
-                  ImageTags: { Primary: 'same-tag' },
-                  UserData: {},
-                  ProductionYear: 2024,
-                },
-              ],
+              TotalRecordCount: 2,
+              Items: ['3', '4'].map((digit, index) => ({
+                Id: digit.repeat(32),
+                Type: 'Movie',
+                Name: index ? viewer.title + ' II' : viewer.title,
+                ImageTags: { Primary: 'same-tag' },
+                UserData: {},
+                ProductionYear: 2024,
+              })),
             }
           } else if (pathname.includes('/Images/')) {
-            if (token === 'alpha') await oldImage.promise
+            // One painted tile can travel; another private image stays pending.
+            if (token === 'alpha' && pathname.includes('4'.repeat(32)))
+              await oldImage.promise
             response.setHeader('Content-Type', 'image/svg+xml')
             response.end(
               '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="30"><rect width="20" height="30" fill="' +
@@ -69,10 +73,32 @@ const server = await preview({
                 '"/></svg>',
             )
             return
-          } else if (pathname === '/api/profile') body = { name: token }
+          } else if (pathname === '/api/profile')
+            body = {
+              id: viewer.id,
+              name: token,
+              isAdministrator: false,
+              canEdit: false,
+              hasPassword: true,
+            }
           else if (pathname === '/api/notifications')
             body = { items: [], unreadCount: 0 }
           else if (pathname === '/api/showcase') body = { items: [] }
+          else if (pathname.endsWith('/providers'))
+            body = {
+              status: 'unconfigured',
+              region: 'FR',
+              regions: [],
+              providers: [],
+            }
+          else if (pathname.endsWith('/reviews'))
+            body = {
+              items: [],
+              own: null,
+              total: 0,
+              hasMore: false,
+              external: 'unconfigured',
+            }
           response.end(JSON.stringify(body))
         })
       },
@@ -111,29 +137,54 @@ try {
       .waitFor()
     return page
   }
+  await writer.evaluate(
+    ({ server, accounts }) => {
+      const prefix =
+        'hollyfilms:performance:v1:' + encodeURIComponent(server) + ':'
+      localStorage.setItem(prefix + accounts.alpha.id, 'essential')
+      localStorage.setItem(prefix + accounts.beta.id, 'light')
+    },
+    { server: origin + '/jellyfin', accounts },
+  )
   await changeIdentity('alpha')
+  const settings = await context.newPage()
+  await settings.goto(origin + '/profile')
+  const modes = settings.getByRole('group', { name: 'Mode de performance' })
+  const cinema = modes.getByRole('radio', { name: 'Cinéma', exact: true })
+  const light = modes.getByRole('radio', { name: 'Léger', exact: true })
+  await settings.locator('html[data-performance="light"]').waitFor()
+  assert.ok(await light.isChecked(), 'Respect the member’s saved legacy mode')
+  assert.equal(await modes.getByRole('radio').count(), 2)
+  await cinema.check()
+  await settings.locator('html[data-performance="cinema"]').waitFor()
+  await settings.reload()
+  await cinema.waitFor()
+  assert.ok(await cinema.isChecked(), 'A member can save a mode across reload')
   const a = await movies()
   const b = await movies()
   const has = (token, suffix) =>
     calls.some((call) => call.token === token && call.pathname.includes(suffix))
-  assert.ok(has('alpha', '/Images/'), 'Old private image is pending')
-  // Hold the native snapshot callback so the identity change lands during the
-  // transition even on fast machines. The actual React and CSS paths still run.
-  await a.bringToFront()
-  await a.evaluate(() => {
-    const native = document.startViewTransition.bind(document)
-    const gate = Promise.withResolvers()
-    window.releaseSnapshot = gate.resolve
-    document.startViewTransition = (update) =>
-      native(async () => {
-        await gate.promise
-        await update()
-      })
-  })
-  await a.locator('.media-tile-select').first().click()
-  await a.waitForFunction(
-    () => document.documentElement.dataset.artworkFlight === 'true',
+  const tile = a.locator('.artwork-preview-trigger.media-tile-select').first()
+  await tile.locator('.media-artwork[data-decoded] img').first().waitFor()
+  assert.ok(
+    has('alpha', '4'.repeat(32) + '/Images/'),
+    'Old private image is pending',
   )
+  await a.bringToFront()
+  // Freeze the real artwork animation so the account changes mid-flight,
+  // independently of browser speed. Session cleanup must release the canvas.
+  await a.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const dialog = document.querySelector('.media-dialog[open]')
+      if (!dialog?.querySelector('.detail-morph-picture')) return
+      for (const animation of dialog.getAnimations({ subtree: true }))
+        animation.pause()
+      observer.disconnect()
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+  })
+  await tile.click()
+  await a.locator('.media-dialog[open] .detail-morph-picture').waitFor()
   // Hold the new identity response so an accidental reuse of the prior session
   // remains observable even on a fast machine.
   await changeIdentity('beta')
@@ -149,11 +200,13 @@ try {
     assert.equal(await page.locator('.media-tile').count(), 0)
   }
   assert.ok(has('beta', '/Users/Me'))
-  await a.evaluate(() => window.releaseSnapshot())
+  assert.equal(await a.locator('.detail-morph-picture').count(), 0)
   // Return to the same catalogue URL as the other tab before comparing bytes.
   await a.goto(origin + '/app/movies')
   newIdentity.resolve()
   oldImage.resolve()
+  await settings.locator('html[data-performance="light"]').waitFor()
+  assert.ok(await light.isChecked(), 'A second account restores its own mode')
   for (const page of [a, b]) {
     await page
       .getByRole('heading', { name: accounts.beta.title, exact: true })

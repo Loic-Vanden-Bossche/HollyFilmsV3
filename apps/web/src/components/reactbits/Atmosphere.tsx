@@ -30,7 +30,6 @@ export function Atmosphere({
               height={0.45}
               brightness={0.65}
               glow={0.25}
-              layers={profile.id === 'ultra' ? 2 : 1}
               opacity={0.55}
               intro={false}
               dpr={profile.dpr}

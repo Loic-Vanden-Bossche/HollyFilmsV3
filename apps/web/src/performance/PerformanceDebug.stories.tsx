@@ -18,6 +18,8 @@ function Scene({
     value.setAdmin(administrator)
     if (!live) {
       for (let i = 0; i < 24; i++) {
+        if (i === 12) value.select('light', i * 2000)
+        if (i === 18) value.select('cinema', i * 2000)
         const slow = i >= 8 && i <= 10
         const sample: PerformanceSample = {
           time: i * 2000,
@@ -71,8 +73,8 @@ export const Administrator: Story = {
       ).toBeVisible(),
     )
     await expect(
-      dialog.getAllByText('Ralentissement mesuré').length,
-    ).toBeGreaterThan(0)
+      within(dialog.getByRole('list')).getByText('Cinéma → Léger'),
+    ).toBeVisible()
   },
 }
 export const Member: Story = {
@@ -91,25 +93,10 @@ export const ManualSelection: Story = {
       canvas.getByRole('button', { name: 'Débogage des performances' }),
     )
     const dialog = within(await canvas.findByRole('dialog'))
-    await userEvent.click(
-      dialog.getByRole('combobox', { name: 'Mode de performance' }),
-    )
-    await waitFor(() => expect(dialog.getByRole('listbox')).toBeVisible())
-    await userEvent.keyboard('{Escape}')
-    await expect(canvas.getByRole('dialog')).toBeVisible()
-    await waitFor(() =>
-      expect(dialog.queryByRole('listbox')).not.toBeInTheDocument(),
-    )
-    await userEvent.click(
-      dialog.getByRole('combobox', { name: 'Mode de performance' }),
-    )
-    await userEvent.click(
-      await dialog.findByRole('option', { name: /^Léger$/ }),
-    )
-    await expect(dialog.getByRole('status')).toHaveTextContent('Léger')
-    await expect(dialog.getByRole('status')).toHaveTextContent(
-      'Sélection manuelle',
-    )
+    await expect(dialog.getAllByRole('radio')).toHaveLength(2)
+    const light = dialog.getByRole('radio', { name: /Léger/ })
+    await userEvent.click(light)
+    await expect(light).toBeChecked()
     await userEvent.keyboard('{Escape}')
     await waitFor(() =>
       expect(

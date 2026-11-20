@@ -1,15 +1,129 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
+import { readAppRoute } from '../app-route.ts'
 import { deferHistoryRender } from '../use-app-route.ts'
-import { ArtworkHeroContext } from './artwork-hero-context.ts'
+import {
+  ArtworkHeroContext,
+  type DetailOrigin,
+} from './artwork-hero-context.ts'
+import { capturePlaySource } from './play-projection-source.ts'
+import { morphDetailArtwork } from './morph-detail-artwork.ts'
+import { returnArtworkCard } from './return-artwork-card.ts'
+import { returnBannerArtwork } from './return-banner-artwork.ts'
+import { createPlayProjection } from './play-projection.ts'
 import './artwork-hero.css'
 
 const endpoint = 'data-artwork-endpoint'
-const videoReady =
-  '.player-viewport:is([data-state="playing"],[data-has-frame="true"])'
-type Destination = 'details' | 'player' | 'catalogue'
-type Origin = { card: HTMLElement; detail: HTMLElement }
+type DetailVisit = {
+  mediaId: string | undefined
+  origin: DetailOrigin | null
+  catalogue: HTMLElement | null
+  page: string | undefined
+}
+type ArtworkEntry = {
+  document: string
+  mediaId: string
+  page: string
+  trigger?: HistoryAnchor
+  catalogue?: HistoryAnchor
+}
+type HistoryAnchor = { id: string; mediaId: string }
+
+function catalogueRoute() {
+  const url = new URL(location.href)
+  if (
+    !/^\/app(?:\/(favorites|movies|series|collections))?\/?$/.test(
+      url.pathname,
+    ) ||
+    url.searchParams.has('play')
+  )
+    return null
+  const { media } = readAppRoute(url.search, url.pathname)
+  if (url.searchParams.has('media') && !media) return null
+  url.searchParams.delete('media')
+  return { page: url.pathname + url.search, media }
+}
+
+const documentId = crypto.getRandomValues(new Uint32Array(3)).join('-')
+
+// History stores DOM IDs: virtualized cards can be collected, while surviving
+// duplicates of the same title still return to the exact rail that was used.
+function historyAnchor(control: HTMLElement | null) {
+  const mediaId =
+    control?.closest<HTMLElement>('[data-media-id]')?.dataset.mediaId
+  if (!control || !mediaId) return undefined
+  const node = control.closest<HTMLElement>('.artwork-card-frame') ?? control
+  node.id ||= 'artwork-' + crypto.getRandomValues(new Uint32Array(3)).join('-')
+  return { id: node.id, mediaId }
+}
+
+function resolveAnchor(anchor?: HistoryAnchor) {
+  if (!anchor || typeof anchor.id !== 'string') return null
+  const node = document.getElementById(anchor.id)
+  const trigger = node?.matches('.artwork-card-frame')
+    ? node.querySelector<HTMLElement>('.artwork-preview-trigger')
+    : node?.matches('[data-artwork-open="details"]')
+      ? node
+      : null
+  return trigger?.closest<HTMLElement>('[data-media-id]')?.dataset.mediaId ===
+    anchor.mediaId
+    ? trigger
+    : null
+}
+
+function detailOrigin(control: HTMLElement) {
+  const frame = control.closest<HTMLElement>('.artwork-card-frame')
+  const trigger =
+    frame?.querySelector<HTMLElement>('.artwork-preview-trigger') ?? control
+  return { frame, trigger }
+}
+
+function rememberVisit(visit: DetailVisit) {
+  const route = catalogueRoute()
+  if (
+    !route?.media ||
+    route.media !== visit.mediaId ||
+    visit.page !== route.page
+  )
+    return
+  const entry: ArtworkEntry = {
+    document: documentId,
+    mediaId: route.media,
+    page: route.page,
+    trigger: historyAnchor(visit.origin?.trigger ?? null),
+    catalogue: historyAnchor(visit.catalogue),
+  }
+  try {
+    history.replaceState({ ...history.state, hollyfilmsArtwork: entry }, '')
+  } catch {
+    // The route has committed. History write limits must never block its render.
+  }
+}
+
+function savedVisit(mediaId: string, page: string): DetailVisit | null {
+  const entry: ArtworkEntry | undefined = history.state?.hollyfilmsArtwork
+  if (
+    entry?.document !== documentId ||
+    entry.mediaId !== mediaId ||
+    entry.page !== page
+  )
+    return null
+  const trigger =
+    entry.trigger?.mediaId === mediaId ? resolveAnchor(entry.trigger) : null
+  return {
+    mediaId,
+    page,
+    catalogue: resolveAnchor(entry.catalogue),
+    origin: trigger ? detailOrigin(trigger) : null,
+  }
+}
+
+function activeDialog() {
+  return document.querySelector<HTMLDialogElement>(
+    '.media-dialog[open]:not([inert])',
+  )
+}
 
 function visible(surface: HTMLElement | null): surface is HTMLElement {
   if (!surface?.isConnected || surface.closest('dialog:not([open])'))
@@ -25,223 +139,325 @@ function visible(surface: HTMLElement | null): surface is HTMLElement {
   )
 }
 
-function detailSurface(dialog: HTMLElement, poster: boolean) {
+function visibleDetailHeader(dialog: HTMLElement) {
   const art = dialog.querySelector<HTMLElement>('.media-detail-art')
-  const cover = dialog.querySelector<HTMLElement>('.media-detail-poster')
-  const preferred = poster ? cover : art
-  if (visible(preferred)) return preferred
-  const alternate = poster ? art : cover
-  return visible(alternate) ? alternate : null
+  if (!visible(art)) return null
+  const rect = art.getBoundingClientRect()
+  const sheet = dialog.getBoundingClientRect()
+  const top =
+    dialog.querySelector('.detail-toolbar')?.getBoundingClientRect().bottom ??
+    sheet.top
+  return rect.top >= top - 1 && rect.bottom <= sheet.bottom + 1 ? art : null
 }
 
-function sourceSurface(control: HTMLElement) {
-  const dialog = control.closest<HTMLDialogElement>('.media-dialog[open]')
-  if (!dialog && !control.closest('.home-page')) return null
-  // The settled popover paints its shadow outside the clipping surface. During
-  // expansion the inner surface still carries the card's moving geometry.
-  const panel = control.closest<HTMLElement>('.artwork-preview-panel')
-  if (panel?.style.getPropertyValue('--preview-progress') === '1') return panel
+function catalogueBackdrop(control: HTMLElement) {
+  const hero = control.closest('.home-carousel, .library-movies-intro')
   return (
-    control.closest<HTMLElement>(
-      '.artwork-preview-surface, .home-carousel, .library-movies-intro',
-    ) ??
-    (dialog && detailSurface(dialog, false))
+    hero?.querySelector<HTMLElement>(
+      '.home-hero-media, .library-movie-scene',
+    ) ?? null
   )
 }
 
-/** Cached artwork normally decodes in the next commit. Bound the time spent
- * waiting for an endpoint so cold images and lazy routes never gate navigation. */
-function waitForPaintedSurface(
-  find: () => HTMLElement | null,
-  signal: AbortSignal,
-) {
-  const ready = () => {
-    const surface = find()
-    return visible(surface) &&
-      surface.querySelector('.media-artwork[data-decoded]')
-      ? surface
-      : null
-  }
-  const painted = ready()
-  if (painted || signal.aborted) return Promise.resolve(painted)
-  return new Promise<HTMLElement | null>((resolve) => {
-    const finish = (surface: HTMLElement | null) => {
-      observer.disconnect()
-      clearTimeout(timeout)
-      signal.removeEventListener('abort', cancel)
-      resolve(surface)
-    }
-    const cancel = () => finish(null)
-    const observer = new MutationObserver(() => {
-      const surface = ready()
-      if (surface) finish(surface)
-    })
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-decoded', 'open'],
-    })
-    const timeout = setTimeout(() => {
-      const surface = find()
-      finish(visible(surface) ? surface : null)
-    }, 180)
-    signal.addEventListener('abort', cancel, { once: true })
-  })
+// Prefer the actual crop on screen, including a partly expanded hover. The
+// player's neutral slit when no artwork is visible is specific to playback.
+function visiblePicture(control: HTMLElement | null) {
+  if (!control?.isConnected) return null
+  const picture = capturePlaySource(control)
+  return picture.canvas && picture.bounds.height > 8 ? picture : null
 }
 
 export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
   const reduced = usePerformanceReducedMotion()
-  const running = useRef<{ skip: () => void; commit: () => void } | null>(null)
-  const origins = useRef(new WeakMap<HTMLDialogElement, Origin>())
+  const running = useRef<{ skip: () => void } | null>(null)
+  const projection = useRef<ReturnType<typeof createPlayProjection> | null>(
+    null,
+  )
+  const origins = useRef(
+    new WeakMap<
+      HTMLDialogElement,
+      {
+        catalogue: WeakRef<HTMLElement> | null
+        page: string | undefined
+      }
+    >(),
+  )
+  const opening = useRef<DetailVisit | null>(null)
 
   const registry = useMemo(() => {
-    function transition(
+    function finishPrevious() {
+      running.current?.skip()
+    }
+
+    function moveArtwork(
+      destination: 'details' | 'catalogue',
+      start: (finish: () => void) => (() => void) | undefined,
+    ) {
+      const root = document.documentElement
+      const flight = { skip: finish }
+      function finish() {
+        if (running.current !== flight) return
+        running.current = null
+        delete root.dataset.artworkDestination
+        delete root.dataset.artworkFlight
+      }
+      running.current = flight
+      root.dataset.artworkFlight = 'true'
+      root.dataset.artworkDestination = destination
+      try {
+        flight.skip = start(finish) ?? finish
+      } finally {
+        if (flight.skip === finish) finish()
+      }
+    }
+
+    function recordDialog(visit: DetailVisit, dialog = activeDialog()) {
+      if (!dialog || dialog.dataset.mediaId !== visit.mediaId) return null
+      if (!origins.current.has(dialog))
+        origins.current.set(dialog, {
+          page: visit.page,
+          catalogue: visit.catalogue && new WeakRef(visit.catalogue),
+        })
+      return dialog
+    }
+
+    function openDetails(
+      visit: DetailVisit,
       source: HTMLElement | null,
-      destination: Destination,
       update: () => void,
-      findTarget: () => HTMLElement | null,
       begin?: () => () => void,
     ) {
-      // A new action may arrive before the browser has taken the first snapshot.
-      // Finish its navigation before committing the newer one.
-      const previous = running.current
-      if (previous) {
-        previous.skip()
-        previous.commit()
-      }
+      const picture =
+        !reduced && !document.hidden ? visiblePicture(source) : null
+      finishPrevious()
       const publish = begin?.()
+      if (begin) rememberVisit(visit)
       const render = () => {
-        update()
-        publish?.()
+        opening.current = visit
+        try {
+          flushSync(() => {
+            update()
+            publish?.()
+          })
+        } finally {
+          opening.current = null
+        }
+        return recordDialog(visit)
       }
-      if (
-        !document.startViewTransition ||
-        reduced ||
-        document.hidden ||
-        !visible(source)
-      ) {
+      if (!picture) {
         render()
         return
       }
-
-      const root = document.documentElement
-      const life = new AbortController()
-      let target: HTMLElement | null = null
-      let native: ViewTransition | undefined
-      let committed = false
-      const commit = () => {
-        if (committed) return
-        committed = true
-        if (life.signal.aborted && running.current?.commit === commit)
-          running.current = null
-        flushSync(render)
-      }
-      const release = () => {
-        if (life.signal.aborted) return
-        life.abort()
-        source.removeAttribute(endpoint)
-        target?.removeAttribute(endpoint)
-        delete root.dataset.artworkFlight
-        delete root.dataset.artworkDestination
-        if (committed && running.current?.commit === commit)
-          running.current = null
-      }
-      const skip = () => {
-        native?.skipTransition()
-        release()
-      }
-      root.dataset.artworkFlight = 'true'
-      root.dataset.artworkDestination = destination
-      source.setAttribute(endpoint, 'source')
-      running.current = { skip, commit }
-      try {
-        native = document.startViewTransition(async () => {
-          if (!life.signal.aborted) source.removeAttribute(endpoint)
-          commit()
-          if (life.signal.aborted) return
-
-          if (destination === 'player') {
-            const onFirstFrame = () => {
-              if (document.querySelector(videoReady)) skip()
-            }
-            const observer = new MutationObserver(onFirstFrame)
-            observer.observe(document.body, {
-              subtree: true,
-              childList: true,
-              attributes: true,
-              attributeFilter: ['data-state', 'data-has-frame'],
-            })
-            life.signal.addEventListener('abort', () => observer.disconnect(), {
-              once: true,
-            })
-            onFirstFrame()
-          }
-          const painted = await waitForPaintedSurface(findTarget, life.signal)
-          if (life.signal.aborted) return
-          if (!painted) {
-            skip()
-            return
-          }
-          target = painted
-          target.setAttribute(
-            endpoint,
-            target.querySelector('.media-artwork[data-decoded]')
-              ? 'painted'
-              : 'loading',
-          )
-        })
-        // A deliberate skip rejects ready, but the update still runs.
-        void native.ready.catch(() => {})
-        void native.finished.then(release, release)
-      } catch {
-        release()
-        commit()
-      }
+      moveArtwork('details', (finish) => {
+        const dialog = render()
+        return dialog ? morphDetailArtwork(dialog, picture, finish) : undefined
+      })
     }
+
     function navigate(
       control: HTMLElement,
       destination: 'details' | 'player',
       update: () => void,
       begin?: () => () => void,
     ) {
-      const source = sourceSurface(control)
-      const card = source?.closest('.artwork-preview')
-      const poster = Boolean(
-        card &&
-        card.getAttribute('data-wide') === 'false' &&
-        card.getAttribute('data-active') !== 'true',
-      )
-      transition(
-        source,
-        destination,
-        update,
-        () => {
-          if (destination === 'player')
-            return document.querySelector<HTMLElement>('.player-viewport')
-          const dialog = document.querySelector<HTMLDialogElement>(
-            '.media-dialog[open]',
-          )
-          if (!dialog) return null
-          const detail = detailSurface(dialog, poster)
-          if (detail && source)
-            origins.current.set(dialog, { card: source, detail })
-          return detail
-        },
-        begin,
-      )
+      if (destination === 'player') {
+        try {
+          const source =
+            !reduced &&
+            !document.hidden &&
+            typeof control.animate === 'function' &&
+            capturePlaySource(control)
+          finishPrevious()
+          if (source) {
+            const root = document.documentElement
+            const shot = createPlayProjection(
+              source,
+              () => {
+                if (projection.current !== shot) return
+                delete root.dataset.artworkFlight
+                delete root.dataset.artworkDestination
+              },
+              () => {
+                if (projection.current !== shot) return
+                projection.current = null
+                running.current = null
+              },
+            )
+            projection.current = shot
+            running.current = { skip: shot.finish }
+            root.dataset.artworkDestination = 'player'
+            root.dataset.artworkFlight = 'true'
+          }
+        } catch {
+          // A source may disappear or lose its decoder during activation.
+          // The visual handoff is optional; playback always commits below.
+          finishPrevious()
+        }
+        try {
+          const publish = begin?.()
+          flushSync(() => {
+            update()
+            publish?.()
+          })
+        } finally {
+          const shot = projection.current
+          if (shot && !shot.mounted) shot.finish()
+        }
+        return
+      }
+      const parent = control.closest<HTMLDialogElement>('.media-dialog[open]')
+      const origin = detailOrigin(control)
+      const visit: DetailVisit = {
+        mediaId:
+          control.closest<HTMLElement>('[data-media-id]')?.dataset.mediaId,
+        origin,
+        catalogue: parent
+          ? (origins.current.get(parent)?.catalogue?.deref() ?? null)
+          : origin.trigger,
+        page: catalogueRoute()?.page,
+      }
+      openDetails(visit, control, update, begin)
     }
     function returnToOrigin(dialog: HTMLDialogElement, update: () => void) {
-      const origin = origins.current.get(dialog)
+      const origin = origins.current.get(dialog)?.catalogue?.deref()
       origins.current.delete(dialog)
-      transition(
-        origin?.detail ?? null,
-        'catalogue',
-        update,
-        () => origin?.card ?? null,
-      )
+      const moving = !reduced && !document.hidden && origin?.isConnected
+      const frame = origin?.closest<HTMLElement>('.artwork-card-frame')
+      const banner =
+        moving && !frame && origin ? catalogueBackdrop(origin) : null
+      const nativeHeader =
+        banner &&
+        typeof document.startViewTransition === 'function' &&
+        !dialog.hasAttribute('data-detail-morph') &&
+        visibleDetailHeader(dialog)
+      const picture = moving && !nativeHeader ? visiblePicture(dialog) : null
+      finishPrevious()
+      if (frame && picture) {
+        flushSync(update)
+        moveArtwork('catalogue', (finish) =>
+          returnArtworkCard(frame, picture, finish),
+        )
+        return
+      }
+      if (!nativeHeader || !visible(banner)) {
+        flushSync(update)
+        if (picture && visible(banner))
+          moveArtwork('catalogue', (finish) =>
+            returnBannerArtwork(banner, picture, finish),
+          )
+        return
+      }
+      // Only the visible header can travel back to a banner. The dialog shell
+      // and the catalogue stay live outside the two clipped pictures.
+      let committed = false
+      const commit = () => {
+        if (committed) return
+        committed = true
+        flushSync(update)
+      }
+      const root = document.documentElement
+      const flight = { skip: commit }
+      running.current = flight
+      root.dataset.artworkFlight = 'true'
+      root.dataset.artworkDestination = 'catalogue'
+      nativeHeader.setAttribute(endpoint, 'source')
+      const release = () => {
+        if (running.current !== flight) return
+        nativeHeader.removeAttribute(endpoint)
+        banner.removeAttribute(endpoint)
+        delete root.dataset.artworkFlight
+        delete root.dataset.artworkDestination
+        running.current = null
+      }
+      try {
+        const transition = document.startViewTransition(() => {
+          nativeHeader.removeAttribute(endpoint)
+          commit()
+          if (running.current === flight && visible(banner))
+            banner.setAttribute(endpoint, 'target')
+        })
+        flight.skip = () => {
+          transition.skipTransition()
+          release()
+          commit()
+        }
+        void transition.ready.catch(() => {})
+        void transition.finished.then(release, release)
+      } catch {
+        release()
+        commit()
+      }
     }
-    return { navigate, returnToOrigin }
+    function detailOriginFor(mediaId: string) {
+      if (opening.current?.mediaId === mediaId) return opening.current.origin
+      const route = catalogueRoute()
+      return route?.media === mediaId
+        ? (savedVisit(mediaId, route.page)?.origin ?? null)
+        : null
+    }
+    function onDialogOpening(event: ToggleEvent) {
+      // A player return or slow history load can mount after a transition.
+      if (
+        event.newState !== 'open' ||
+        !(event.target instanceof HTMLDialogElement) ||
+        !event.target.matches('.media-dialog') ||
+        opening.current
+      )
+        return
+      const route = catalogueRoute()
+      if (!route?.media || event.target.dataset.mediaId !== route.media) return
+      const visit = savedVisit(route.media, route.page)
+      if (visit) recordDialog(visit, event.target)
+    }
+    function restoreHistory(event: PopStateEvent) {
+      const route = catalogueRoute()
+      const dialog = activeDialog()
+      if (!route || document.querySelector('.player-shell[open]')) return false
+      if (!route.media) {
+        if (!dialog || origins.current.get(dialog)?.page !== route.page)
+          return false
+        deferHistoryRender(event, (render) => returnToOrigin(dialog, render))
+        return true
+      }
+      if (dialog?.dataset.mediaId === route.media) return false
+      const visit = savedVisit(route.media, route.page)
+      const previous = dialog && origins.current.get(dialog)
+      if (previous && previous.page !== route.page) return false
+      if (!visit?.origin && !(dialog && previous?.page === route.page))
+        return false
+      const catalogue = visit?.catalogue ?? previous?.catalogue?.deref() ?? null
+      // On a nested return the recommendation that opened the current dialog
+      // was unmounted. The outgoing dialog itself is its painted endpoint.
+      const source = dialog ?? visit?.origin?.trigger
+      deferHistoryRender(event, (render) =>
+        openDetails(
+          {
+            mediaId: route.media,
+            page: route.page,
+            catalogue,
+            origin:
+              visit?.origin ??
+              (catalogue && { frame: null, trigger: catalogue }),
+          },
+          source ?? null,
+          render,
+        ),
+      )
+      return true
+    }
+    return {
+      attachPlayerProjection: (host: HTMLElement) =>
+        projection.current?.mount(host),
+      finishPlayerProjection: (presentFrame = false) => {
+        if (presentFrame) projection.current?.revealFilm()
+        else projection.current?.finish()
+      },
+      detailOriginFor,
+      navigate,
+      returnToOrigin,
+      restoreHistory,
+      onDialogOpening,
+    }
   }, [reduced])
 
   useEffect(() => {
@@ -250,20 +466,7 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       if (event.key === 'Tab') cancel()
     }
     const back = (event: PopStateEvent) => {
-      const route = new URLSearchParams(location.search)
-      const dialog = document.querySelector<HTMLDialogElement>(
-        '.media-dialog[open]',
-      )
-      if (
-        dialog &&
-        origins.current.has(dialog) &&
-        !route.has('media') &&
-        !route.has('play')
-      )
-        deferHistoryRender(event, (render) =>
-          registry.returnToOrigin(dialog, render),
-        )
-      else cancel()
+      if (!registry.restoreHistory(event)) cancel()
     }
     window.addEventListener('popstate', back, true)
     window.addEventListener('resize', cancel)
@@ -274,6 +477,7 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       capture: true,
     })
     document.addEventListener('visibilitychange', cancel)
+    document.addEventListener('beforetoggle', registry.onDialogOpening, true)
     return () => {
       cancel()
       window.removeEventListener('popstate', back, true)
@@ -282,6 +486,11 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('wheel', cancel, true)
       window.removeEventListener('touchmove', cancel, true)
       document.removeEventListener('visibilitychange', cancel)
+      document.removeEventListener(
+        'beforetoggle',
+        registry.onDialogOpening,
+        true,
+      )
     }
   }, [registry])
 

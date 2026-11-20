@@ -12,7 +12,15 @@ export type ArtworkNavigation = (
   update: () => void,
 ) => void
 
+export type DetailOrigin = {
+  frame: HTMLElement | null
+  trigger: HTMLElement
+}
+
 type ArtworkRegistry = {
+  attachPlayerProjection: (host: HTMLElement) => (() => void) | undefined
+  finishPlayerProjection: (presentFrame?: boolean) => void
+  detailOriginFor: (mediaId: string) => DetailOrigin | null
   navigate: (
     control: HTMLElement,
     destination: 'details' | 'player',

@@ -207,10 +207,22 @@ export const SectionNavigation: Story = {
       )
       const minimalMotion =
         matchMedia('(prefers-reduced-motion: reduce)').matches ||
-        ['light', 'essential'].includes(
-          document.documentElement.dataset.performance ?? '',
-        )
+        document.documentElement.dataset.performance === 'light'
       await expect(intermediate).toBe(!minimalMotion)
+
+      const entriesAfterNavigation = window.history.length
+      const search = window.location.search
+      const recent = canvas.getByRole('heading', { name: 'Tout juste arrivés' })
+      recent.scrollIntoView({ block: 'start', behavior: 'instant' })
+      await waitFor(() => expect(window.location.hash).toBe('#' + recent.id))
+      await expect(heading).toHaveFocus()
+      await expect(window.history.length).toBe(entriesAfterNavigation)
+
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      await waitFor(() => expect(window.location.hash).toBe(''))
+      await expect(window.location.search).toBe(search)
+      await expect(heading).toHaveFocus()
+      await expect(window.history.length).toBe(entriesAfterNavigation)
     } finally {
       window.removeEventListener('scroll', sample)
     }
@@ -255,22 +267,17 @@ export const OverlappingGenres: Story = {
   },
 }
 
-export const UltraPerformance: Story = {
-  name: 'Ultra — catalogue de 96 titres',
+export const CinemaPerformance: Story = {
+  name: 'Cinéma — catalogue de 96 titres',
   args: {
     items: Array.from({ length: 96 }, (_, index) => ({
       ...homeItems[index % homeItems.length],
-      id: 'ultra-' + index,
+      id: 'cinema-' + index,
     })),
   },
   decorators: [
-    function Ultra(Story) {
-      const [controller] = useState(() => {
-        const value = new PerformanceController()
-        value.setAdmin(true)
-        value.select('ultra', 0)
-        return value
-      })
+    function Cinema(Story) {
+      const [controller] = useState(() => new PerformanceController())
       return (
         <PerformanceProvider controller={controller}>
           <Story />

@@ -142,7 +142,6 @@ export function measurePerformance(controller: PerformanceController) {
     inputStarted = undefined
     start = performance.now()
     warmupUntil = start + 2000
-    controller.resetEvidence()
     if (!document.hidden) raf = requestAnimationFrame(tick)
   }
   document.addEventListener('visibilitychange', visibility)

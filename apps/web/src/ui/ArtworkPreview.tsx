@@ -13,6 +13,7 @@ import type { LibraryImage } from '@hollyfilms/shared/library'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { distance, duration, ease } from '../motion/tokens.ts'
+import { ArtworkCardFrame } from './ArtworkCardFrame.tsx'
 import { MediaArtwork } from './MediaArtwork.tsx'
 import {
   artworkActivated,
@@ -148,6 +149,7 @@ export function ArtworkPreview({
   triggerOverlay,
   watermark,
   mediaId,
+  destination = mediaId ? 'details' : undefined,
   children,
 }: {
   title: string
@@ -174,6 +176,7 @@ export function ArtworkPreview({
   triggerOverlay?: ReactNode
   watermark?: ReactNode
   mediaId?: string
+  destination?: 'details' | 'player'
   children: ReactNode
 }) {
   const { t } = useI18n()
@@ -228,6 +231,11 @@ export function ArtworkPreview({
     setRetracting(false)
     const anchor = root.current
     if (!anchor || !trigger.current || open) return
+    if (
+      !anchor.closest('dialog[open]') &&
+      document.querySelector('dialog:modal')
+    )
+      return
     anchor.style.setProperty(
       '--preview-origin-radius',
       getComputedStyle(trigger.current).borderTopLeftRadius,
@@ -258,8 +266,10 @@ export function ArtworkPreview({
   }
   function select(control: HTMLButtonElement) {
     if (!onSelect) return
-    if (mediaId) {
-      navigateArtwork(control, 'details', () => {
+    clearTimeout(timer.current)
+    clearTimeout(videoTimer.current)
+    if (destination) {
+      navigateArtwork(control, destination, () => {
         if (!open) restoreFocus()
         onSelect()
       })
@@ -404,7 +414,8 @@ export function ArtworkPreview({
     const escapeOutside = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
-        event.target instanceof Node &&
+        event.target instanceof Element &&
+        event.target.closest('dialog[open]') === dialog &&
         !anchor.contains(event.target)
       ) {
         event.preventDefault()
@@ -464,6 +475,7 @@ export function ArtworkPreview({
     open,
     retracting,
     reduced,
+    rankedHover: presentation === 'ranked' && frame?.fromHover === true,
     onRetracted: hide,
   })
 
@@ -505,6 +517,173 @@ export function ArtworkPreview({
     }
   }, [staged, presentation])
 
+  const preview = (
+    <div
+      ref={panel}
+      popover={open ? 'manual' : undefined}
+      role={open ? 'group' : undefined}
+      aria-label={open ? title : undefined}
+      className={
+        open
+          ? 'artwork-preview-shell artwork-preview-panel'
+          : 'artwork-preview-shell'
+      }
+      data-presentation={presentation}
+      data-branded={watermark ? true : undefined}
+      data-retracting={retracting || undefined}
+      data-reduced-motion={reduced || undefined}
+      onClickCapture={(event) => {
+        if (
+          !open ||
+          !(event.target instanceof Element) ||
+          trigger.current?.contains(event.target)
+        )
+          return
+        if (event.target.closest('[data-preview-select]')) restoreFocus()
+      }}
+      onClick={(event) => {
+        if (
+          !open ||
+          !(event.target instanceof Element) ||
+          trigger.current?.contains(event.target)
+        )
+          return
+        if (event.target.closest('[data-preview-select]')) hide()
+      }}
+    >
+      <div className="artwork-preview-surface">
+        <div
+          className={
+            'artwork-preview-layout' +
+            (open
+              ? cinematic
+                ? ' artwork-preview-stage'
+                : ' artwork-preview-stack'
+              : '')
+          }
+        >
+          <div
+            className="artwork-preview-hero"
+            data-titled-image={previewImage?.includesTitle || undefined}
+            data-contain={
+              (open &&
+                !cinematic &&
+                !wide &&
+                !previewArtwork &&
+                !previewImage?.source) ||
+              undefined
+            }
+          >
+            <div className="artwork-preview-cover">
+              <button
+                ref={trigger}
+                type="button"
+                className={'artwork-preview-trigger ' + triggerClassName}
+                aria-label={selectLabel ?? title}
+                aria-expanded={open}
+                aria-controls={open ? id : undefined}
+                data-artwork-open={destination}
+                onPointerDown={(event) => {
+                  touch.current = event.pointerType !== 'mouse'
+                }}
+                onFocus={(event) => {
+                  // Restoring focus from a dialog must leave the returning
+                  // card at the same size as its destination snapshot.
+                  if (
+                    !restoringFocus.current &&
+                    !touch.current &&
+                    !restoringArtworkFocus.has(event.currentTarget) &&
+                    event.target.matches(':focus-visible')
+                  )
+                    show()
+                }}
+                onKeyDown={() => {
+                  touch.current = false
+                }}
+                onClick={(event) => {
+                  // When a shelf mounts under an active finger, the browser
+                  // can deliver the click here after pointerdown hit its slot.
+                  const pointerType =
+                    'pointerType' in event.nativeEvent &&
+                    event.nativeEvent.pointerType
+                  const tapped =
+                    event.detail !== 0 &&
+                    (touch.current ||
+                      pointerType === 'touch' ||
+                      pointerType === 'pen')
+                  touch.current = false
+                  if (!open && (tapped || !onSelect)) show()
+                  else if (onSelect) select(event.currentTarget)
+                  else if (open) restoreThenHide()
+                }}
+              >
+                {artwork}
+              </button>
+              {triggerOverlay && (
+                <div aria-hidden={open || undefined}>{triggerOverlay}</div>
+              )}
+            </div>
+            {frame && (
+              <>
+                {(alternateImage || previewArtwork) && (
+                  <div
+                    className="artwork-preview-backdrop"
+                    data-ready={previewArtwork ? true : undefined}
+                  >
+                    {alternateImage && previewImage ? (
+                      <MediaArtwork
+                        source={previewImage.source}
+                        onUnavailable={previewImage.onUnavailable}
+                        session={session}
+                        width={imageWidth}
+                        eager
+                      />
+                    ) : (
+                      previewArtwork
+                    )}
+                  </div>
+                )}
+                {hoveringVideo && !reduced && hoverVideo}
+                {cinematic && (
+                  <div aria-hidden="true" className="artwork-preview-scrim" />
+                )}
+                {onSelect && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="artwork-preview-open"
+                    aria-label={t('Ouvrir {title}', { title })}
+                    data-artwork-open={destination}
+                    onClick={(event) => select(event.currentTarget)}
+                  />
+                )}
+                {titleOnImage &&
+                  (!previewImage?.includesTitle || hoveringVideo) &&
+                  previewTitle}
+                {watermark}
+              </>
+            )}
+          </div>
+          {open && (
+            <div id={id} className="artwork-preview-content">
+              {!titleOnImage && previewTitle}
+              {children}
+            </div>
+          )}
+        </div>
+        {open && (
+          <button
+            type="button"
+            className="artwork-preview-close"
+            aria-label={t('Fermer l’aperçu')}
+            onClick={dismiss}
+          >
+            <X aria-hidden="true" size={18} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
   return (
     <article
       ref={root}
@@ -560,171 +739,7 @@ export function ArtworkPreview({
         } else dismiss()
       }}
     >
-      <div
-        ref={panel}
-        popover={open ? 'manual' : undefined}
-        role={open ? 'group' : undefined}
-        aria-label={open ? title : undefined}
-        className={
-          open
-            ? 'artwork-preview-shell artwork-preview-panel'
-            : 'artwork-preview-shell'
-        }
-        data-presentation={presentation}
-        data-branded={watermark ? true : undefined}
-        data-retracting={retracting || undefined}
-        data-reduced-motion={reduced || undefined}
-        onClickCapture={(event) => {
-          if (
-            !open ||
-            !(event.target instanceof Element) ||
-            trigger.current?.contains(event.target)
-          )
-            return
-          if (event.target.closest('[data-preview-select]')) restoreFocus()
-        }}
-        onClick={(event) => {
-          if (
-            !open ||
-            !(event.target instanceof Element) ||
-            trigger.current?.contains(event.target)
-          )
-            return
-          if (event.target.closest('[data-preview-select]')) hide()
-        }}
-      >
-        <div className="artwork-preview-surface">
-          <div
-            className={
-              'artwork-preview-layout' +
-              (open
-                ? cinematic
-                  ? ' artwork-preview-stage'
-                  : ' artwork-preview-stack'
-                : '')
-            }
-          >
-            <div
-              className="artwork-preview-hero"
-              data-titled-image={previewImage?.includesTitle || undefined}
-              data-contain={
-                (open &&
-                  !cinematic &&
-                  !wide &&
-                  !previewArtwork &&
-                  !previewImage?.source) ||
-                undefined
-              }
-            >
-              <div className="artwork-preview-cover">
-                <button
-                  ref={trigger}
-                  type="button"
-                  className={'artwork-preview-trigger ' + triggerClassName}
-                  aria-label={selectLabel ?? title}
-                  aria-expanded={open}
-                  aria-controls={open ? id : undefined}
-                  data-artwork-open={mediaId ? 'details' : undefined}
-                  onPointerDown={(event) => {
-                    touch.current = event.pointerType !== 'mouse'
-                  }}
-                  onFocus={(event) => {
-                    // Restoring focus from a dialog must leave the returning
-                    // card at the same size as its destination snapshot.
-                    if (
-                      !restoringFocus.current &&
-                      !touch.current &&
-                      !restoringArtworkFocus.has(event.currentTarget) &&
-                      event.target.matches(':focus-visible')
-                    )
-                      show()
-                  }}
-                  onKeyDown={() => {
-                    touch.current = false
-                  }}
-                  onClick={(event) => {
-                    // When a shelf mounts under an active finger, the browser
-                    // can deliver the click here after pointerdown hit its slot.
-                    const pointerType =
-                      'pointerType' in event.nativeEvent &&
-                      event.nativeEvent.pointerType
-                    const tapped =
-                      event.detail !== 0 &&
-                      (touch.current ||
-                        pointerType === 'touch' ||
-                        pointerType === 'pen')
-                    touch.current = false
-                    if (!open && (tapped || !onSelect)) show()
-                    else if (onSelect) select(event.currentTarget)
-                    else if (open) restoreThenHide()
-                  }}
-                >
-                  {artwork}
-                </button>
-                {triggerOverlay && (
-                  <div aria-hidden={open || undefined}>{triggerOverlay}</div>
-                )}
-              </div>
-              {frame && (
-                <>
-                  {(alternateImage || previewArtwork) && (
-                    <div
-                      className="artwork-preview-backdrop"
-                      data-ready={previewArtwork ? true : undefined}
-                    >
-                      {alternateImage && previewImage ? (
-                        <MediaArtwork
-                          source={previewImage.source}
-                          onUnavailable={previewImage.onUnavailable}
-                          session={session}
-                          width={imageWidth}
-                          eager
-                        />
-                      ) : (
-                        previewArtwork
-                      )}
-                    </div>
-                  )}
-                  {hoveringVideo && !reduced && hoverVideo}
-                  {cinematic && (
-                    <div aria-hidden="true" className="artwork-preview-scrim" />
-                  )}
-                  {onSelect && (
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      className="artwork-preview-open"
-                      aria-label={t('Ouvrir {title}', { title })}
-                      data-artwork-open={mediaId ? 'details' : undefined}
-                      onClick={(event) => select(event.currentTarget)}
-                    />
-                  )}
-                  {titleOnImage &&
-                    (!previewImage?.includesTitle || hoveringVideo) &&
-                    previewTitle}
-                  {watermark}
-                </>
-              )}
-            </div>
-            {open && (
-              <div id={id} className="artwork-preview-content">
-                {!titleOnImage && previewTitle}
-                {children}
-              </div>
-            )}
-          </div>
-          {open && (
-            <button
-              type="button"
-              className="artwork-preview-close"
-              aria-label={t('Fermer l’aperçu')}
-              onClick={dismiss}
-            >
-              <X aria-hidden="true" size={18} />
-            </button>
-          )}
-        </div>
-      </div>
+      {mediaId ? <ArtworkCardFrame>{preview}</ArtworkCardFrame> : preview}
     </article>
   )
 }

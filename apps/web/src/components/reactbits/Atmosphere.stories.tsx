@@ -11,12 +11,7 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => {
-      const [controller] = useState(() => {
-        const value = new PerformanceController()
-        value.setAdmin(true)
-        value.select('ultra', 0)
-        return value
-      })
+      const [controller] = useState(() => new PerformanceController())
       return (
         <PerformanceProvider controller={controller} measure={false}>
           <div style={{ height: '100dvh', position: 'relative' }}>

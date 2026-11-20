@@ -88,7 +88,7 @@ export const Opening: Story = {
       .filter((animation) => animation.playState === 'running')
     if (
       window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      document.documentElement.dataset.performance === 'essential' ||
+      document.documentElement.dataset.performance === 'light' ||
       document.hidden
     ) {
       await expect(running).toHaveLength(0)

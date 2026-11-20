@@ -45,7 +45,7 @@
     transition: opacity var(--hf-press) linear;
   }
 }
-:root:is([data-performance='essential'], [data-performance='light'])
+:root[data-performance='light']
   :is(.holly-select-popup, .holly-tooltip):is(
     [data-starting-style],
     [data-ending-style]

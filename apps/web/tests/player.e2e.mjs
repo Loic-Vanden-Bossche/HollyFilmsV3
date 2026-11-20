@@ -525,7 +525,9 @@ test(
     )
     await page.getByRole('button', { name: 'Lire', exact: true }).click()
     await page
-      .locator('[data-artwork-destination="player"]')
+      .locator(
+        '[data-artwork-destination="player"] .player-projection-aperture canvas',
+      )
       .waitFor({ timeout: 1500 })
     const playerView = page.locator('.player-shell')
     const video = playerView.locator('video')
@@ -600,6 +602,11 @@ test(
     await page
       .locator('.player-viewport[data-state="playing"]')
       .waitFor({ timeout: 30_000 })
+    assert.equal(
+      await page.locator('.player-projection').count(),
+      0,
+      'the launch animation has released the playing video',
+    )
     await playerView
       .locator('.player-loading')
       .waitFor({ state: 'detached', timeout: 1000 })

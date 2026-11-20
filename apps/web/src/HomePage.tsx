@@ -23,6 +23,11 @@ import { CatalogueBackdrop } from './ui/CatalogueBackdrop.tsx'
 import { SearchBar } from './ui/SearchBar.tsx'
 import { SearchResults, type SearchPageData } from './ui/SearchResults.tsx'
 import { useCatalogueReturn } from './ui/use-catalogue-return.ts'
+import {
+  artworkActivated,
+  restoringArtworkFocus,
+} from './ui/artwork-hero-context.ts'
+import { useHomeShelfLocation } from './ui/use-home-shelf-location.ts'
 import { allowPageScrollInterruption, scrollPageTo } from './ui/page-scroll.ts'
 import { LibraryTransition } from './ui/LibraryTransition.tsx'
 import { LibraryView } from './ui/LibraryView.tsx'
@@ -136,8 +141,9 @@ export function HomePage({
       const control = document.activeElement
       if (
         item &&
+        !catalogueInvoker.current &&
         control instanceof HTMLElement &&
-        control !== document.body &&
+        control.matches('button, a[href]') &&
         !control.closest('dialog')
       )
         catalogueInvoker.current =
@@ -155,8 +161,11 @@ export function HomePage({
     if (selected || playbackOpen || !catalogueInvoker.current) return
     const control = catalogueInvoker.current
     catalogueInvoker.current = null
-    if (control.isConnected && !document.querySelector('dialog[open]'))
+    if (control.isConnected && !document.querySelector('dialog[open]')) {
+      restoringArtworkFocus.add(control)
       control.focus({ preventScroll: true })
+      restoringArtworkFocus.delete(control)
+    }
   }, [selected, playbackOpen])
   const [backgroundPaused, setBackgroundPaused] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
@@ -167,6 +176,22 @@ export function HomePage({
     scrollPageTo(0)
   }
   const content = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const catalogue = content.current
+    if (!catalogue) return
+    // A pointer click need not focus a button. Remember the actual invoker
+    // before its hover controls fold away or the player takes focus.
+    const remember = (event: Event) => {
+      if (event.target instanceof HTMLElement)
+        catalogueInvoker.current =
+          event.target
+            .closest('.artwork-preview')
+            ?.querySelector<HTMLElement>('.artwork-preview-trigger') ??
+          event.target
+    }
+    catalogue.addEventListener(artworkActivated, remember, true)
+    return () => catalogue.removeEventListener(artworkActivated, remember, true)
+  }, [])
   const rememberPlace = useCatalogueReturn(
     content,
     filter + '/' + (collectionId ?? ''),
@@ -301,6 +326,12 @@ export function HomePage({
     return buildHomeShelves(items, ratings, recentSeries)
   }, [browsing, searchActive, state, items, ratedMovies, recentSeries, total])
   const entryShelf = useRef(window.location.hash)
+  const shelves = useRef<HTMLDivElement>(null)
+  useHomeShelfLocation(
+    shelves,
+    !browsing && !searchActive && !selected && !playbackOpen,
+    entryShelf,
+  )
   const entryShelfY = useRef<number>(undefined)
   useLayoutEffect(() => {
     // The browser's initial fragment lookup can precede Jellyfin's response.
@@ -700,7 +731,7 @@ export function HomePage({
                     </section>
                   )}
 
-                  <div className="home-content home-shelves">
+                  <div ref={shelves} className="home-content home-shelves">
                     {resumeItems.length > 0 && (
                       <HomeMediaShelf
                         id="resume"

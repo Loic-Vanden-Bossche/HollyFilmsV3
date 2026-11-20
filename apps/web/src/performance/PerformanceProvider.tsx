@@ -31,9 +31,7 @@ export function usePerformanceProfile() {
 export function usePerformanceReducedMotion() {
   const preference = useSystemReducedMotion()
   const profile = usePerformanceProfile()
-  return (
-    Boolean(preference) || profile.id === 'essential' || profile.id === 'light'
-  )
+  return Boolean(preference) || !profile.ambient
 }
 export function PerformanceProvider({
   children,
@@ -52,8 +50,9 @@ export function PerformanceProvider({
   const reduced = useSystemReducedMotion()
   const profile = settings.profile
   useEffect(
-    () => (measure ? measurePerformance(controller) : undefined),
-    [controller, measure],
+    () =>
+      measure && settings.admin ? measurePerformance(controller) : undefined,
+    [controller, measure, settings.admin],
   )
   useLayoutEffect(() => {
     const root = document.documentElement

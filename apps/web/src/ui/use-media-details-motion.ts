@@ -18,10 +18,12 @@ const revealSelector = [
 ].join(', ')
 
 /** One observer per open dialog, including metadata arriving after its opening. */
-export function useMediaDetailsMotion() {
+export function useMediaDetailsMotion(mediaId: string) {
   const [scope, animate] = useAnimate<HTMLDialogElement>()
   const reduced = useReducedMotion()
   const artworkHero = useContext(ArtworkHeroContext)
+  const [origin] = useState(() => artworkHero?.detailOriginFor(mediaId) ?? null)
+  const cardFrame = origin?.frame ?? null
   const [sharedEntrance] = useState(
     () => document.documentElement.dataset.artworkDestination === 'details',
   )
@@ -33,17 +35,42 @@ export function useMediaDetailsMotion() {
   useLayoutEffect(() => {
     if (!present) return
     const dialog = scope.current
-    const trigger = document.activeElement as HTMLElement | null
+    const slot = cardFrame?.parentElement
+    const trigger =
+      cardFrame?.querySelector<HTMLElement>('.artwork-preview-trigger') ??
+      origin?.trigger ??
+      (document.activeElement as HTMLElement | null)
     const unlockScroll = lockBodyScroll()
     closing.current = false
+    if (cardFrame && slot) {
+      slot.setAttribute('data-card-away', '')
+      dialog.append(cardFrame)
+    }
     dialog.showModal()
+    // History traversal can clear the browser's own dialog autofocus after
+    // popstate returns. Repair only that lost focus, before the next paint.
+    const initialFocus = dialog.ownerDocument.activeElement
+    const focusFrame = requestAnimationFrame(() => {
+      if (
+        dialog.open &&
+        document.activeElement === document.body &&
+        initialFocus instanceof HTMLElement &&
+        dialog.contains(initialFocus)
+      )
+        initialFocus.focus({ preventScroll: true })
+    })
     let released = false
     const release = () => {
       if (released) return
       released = true
+      cancelAnimationFrame(focusFrame)
       // close() itself may focus the card before our explicit focus restore.
       if (trigger) restoringArtworkFocus.add(trigger)
       try {
+        if (cardFrame && slot) {
+          slot.append(cardFrame)
+          slot.removeAttribute('data-card-away')
+        }
         dialog.close()
         unlockScroll()
         if (trigger?.isConnected && !trigger.closest('[inert]'))
@@ -54,7 +81,7 @@ export function useMediaDetailsMotion() {
     }
     releaseLayer.current = release
     return release
-  }, [scope, present])
+  }, [scope, present, cardFrame, origin])
 
   useLayoutEffect(() => {
     if (!present) return
@@ -179,5 +206,5 @@ export function useMediaDetailsMotion() {
     if (artworkHero) artworkHero.returnToOrigin(dialog, close)
     else close()
   }
-  return { scope, reduced, present, dismiss, sharedEntrance }
+  return { scope, reduced, present, dismiss, sharedEntrance, cardFrame }
 }

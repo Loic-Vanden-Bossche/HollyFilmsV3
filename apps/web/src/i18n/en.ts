@@ -1053,16 +1053,15 @@ export default {
   Vu: 'Watched',
   'Impossible d’effectuer cette action. Réessaie.':
     'Could not complete this action. Please try again.',
-  Essentiel: 'Essential',
+  Cinéma: 'Cinema',
   Léger: 'Light',
-  Équilibré: 'Balanced',
-  Élevé: 'High',
-  Ultra: 'Ultra',
+  'Animations cinématiques et aperçus vidéo.':
+    'Cinematic animations and video previews.',
+  'Mouvements réduits et affiches fixes.': 'Reduced motion and still artwork.',
+  'Lecture en cours': 'Playing',
   Performances: 'Performance',
   'Débogage des performances': 'Performance debugging',
   'Mode de performance': 'Performance mode',
-  'Profil actif': 'Active profile',
-  'Sélection manuelle': 'Manual selection',
   'Image p95': 'Frame time p95',
   'Temps bloqué': 'Main thread blocked',
   'Interaction maximale': 'Maximum interaction latency',
@@ -1070,17 +1069,10 @@ export default {
   Étalonnage: 'Warming up',
   'Mesure active': 'Measuring active work',
   'En attente d’activité': 'Waiting for activity',
-  'Adaptation suspendue pendant la lecture':
-    'Adaptation paused during playback',
-  'Ralentissement mesuré': 'Measured slowdown',
-  'Performance stable': 'Stable performance',
-  'Retour au mode automatique': 'Automatic mode resumed',
   'Fréquence des images et changements de profil':
     'Frame rate and profile changes',
   'FPS mesurés par rAF · pointillés = changement de profil · bande = profil actif':
     'Measured rAF FPS · dashed lines = profile changes · strip = active profile',
-  'Réduction après deux mesures lentes. Remontée après 30 secondes stables en activité. Les onglets masqués sont exclus.':
-    'Reduced after two slow samples. Increased after 30 stable seconds of activity. Hidden tabs are excluded.',
   'La préférence système de mouvement réduit reste prioritaire. — indique une mesure indisponible.':
     'System reduced-motion settings take priority. — means the measurement is unavailable.',
   'Changements de profil': 'Profile changes',
