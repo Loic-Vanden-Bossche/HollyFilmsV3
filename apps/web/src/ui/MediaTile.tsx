@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { memo, useCallback, useState, type ReactNode } from 'react'
 import {
   Check,
   Eye,
@@ -27,7 +27,7 @@ import { Tooltip } from './Tooltip.tsx'
 import '../home.css'
 import './media-card.css'
 
-export function MediaTile({
+export const MediaTile = memo(function MediaTile({
   item,
   session,
   userId,
@@ -143,7 +143,7 @@ export function MediaTile({
           source={cover}
           onUnavailable={hasTitledCover ? onCoverUnavailable : undefined}
           session={session}
-          width={coverWidth}
+          width="display"
         />
       }
       previewImage={{
@@ -309,4 +309,4 @@ export function MediaTile({
       )}
     </ArtworkPreview>
   )
-}
+})

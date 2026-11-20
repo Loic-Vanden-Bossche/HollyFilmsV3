@@ -87,21 +87,25 @@ export function acquireArtworkUrl(blob: Blob) {
   }
 }
 
-const waiting = new Map<Element, () => void>()
+const waiting = new Map<Element, (width: number) => void>()
 let observer: IntersectionObserver | undefined
 
-export function whenArtworkIsNear(element: Element, load: () => void) {
+export function whenArtworkIsNear(
+  element: Element,
+  load: (width: number) => void,
+) {
   observer ??= new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
-        if (entry.isIntersecting) waiting.get(entry.target)?.()
+        if (entry.isIntersecting)
+          waiting.get(entry.target)?.(entry.boundingClientRect.width)
       }
     },
     { rootMargin: '200px' },
   )
-  waiting.set(element, () => {
+  waiting.set(element, (width) => {
     stop()
-    load()
+    load(width)
   })
   observer.observe(element)
   function stop() {
@@ -113,4 +117,92 @@ export function whenArtworkIsNear(element: Element, load: () => void) {
     }
   }
   return stop
+}
+
+const coverWidths = [
+  160, 240, 320, 400, 480, 640, 800, 960, 1280, 1600, 1920, 2560, 3200, 3840,
+]
+
+export function artworkPixelWidth(cssWidth: number) {
+  const pixels = Math.ceil(cssWidth * (window.devicePixelRatio || 1))
+  return (
+    coverWidths.find((width) => width >= pixels) ??
+    coverWidths[coverWidths.length - 1]
+  )
+}
+
+const densityListeners = new Set<() => void>()
+let densityQuery: MediaQueryList | undefined
+
+function watchDensity() {
+  densityQuery = window.matchMedia(
+    `(resolution: ${window.devicePixelRatio || 1}dppx)`,
+  )
+  densityQuery.addEventListener('change', onDensityChange, { once: true })
+}
+
+function onDensityChange() {
+  watchDensity()
+  for (const notify of densityListeners) notify()
+}
+
+export function subscribeArtworkDensity(notify: () => void) {
+  densityListeners.add(notify)
+  if (!densityQuery) watchDensity()
+  return () => {
+    densityListeners.delete(notify)
+    if (!densityListeners.size) {
+      densityQuery?.removeEventListener('change', onDensityChange)
+      densityQuery = undefined
+    }
+  }
+}
+
+type ArtworkSize = {
+  css: number
+  pixels: number
+  notify: (pixels: number) => void
+}
+const resizeListeners = new Map<Element, ArtworkSize>()
+let resizeObserver: ResizeObserver | undefined
+let stopDensity: (() => void) | undefined
+
+function updateArtworkSize(size: ArtworkSize) {
+  if (size.css <= 0) return
+  const pixels = artworkPixelWidth(size.css)
+  if (pixels !== size.pixels) {
+    size.pixels = pixels
+    size.notify(pixels)
+  }
+}
+
+export function observeArtworkSize(
+  element: Element,
+  notify: (pixels: number) => void,
+) {
+  resizeObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const size = resizeListeners.get(entry.target)
+      if (size) {
+        size.css = entry.contentRect.width
+        updateArtworkSize(size)
+      }
+    }
+  })
+  // Screen changes need no layout reads: reuse widths delivered by ResizeObserver.
+  stopDensity ??= subscribeArtworkDensity(() =>
+    resizeListeners.forEach(updateArtworkSize),
+  )
+  resizeListeners.set(element, { css: 0, pixels: 0, notify })
+  resizeObserver.observe(element)
+  return () => {
+    resizeListeners.delete(element)
+    resizeObserver?.unobserve(element)
+    if (!resizeListeners.size) {
+      resizeObserver?.disconnect()
+      resizeObserver = undefined
+      stopDensity?.()
+      stopDensity = undefined
+    }
+  }
 }

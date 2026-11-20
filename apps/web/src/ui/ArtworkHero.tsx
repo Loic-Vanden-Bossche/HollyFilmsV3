@@ -3,7 +3,6 @@ import { flushSync } from 'react-dom'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { deferHistoryRender } from '../use-app-route.ts'
 import { ArtworkHeroContext } from './artwork-hero-context.ts'
-import type { ArtworkNavigation } from './artwork-hero-context.ts'
 import './artwork-hero.css'
 
 const endpoint = 'data-artwork-endpoint'
@@ -102,6 +101,7 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
       destination: Destination,
       update: () => void,
       findTarget: () => HTMLElement | null,
+      begin?: () => () => void,
     ) {
       // A new action may arrive before the browser has taken the first snapshot.
       // Finish its navigation before committing the newer one.
@@ -110,13 +110,18 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         previous.skip()
         previous.commit()
       }
+      const publish = begin?.()
+      const render = () => {
+        update()
+        publish?.()
+      }
       if (
         !document.startViewTransition ||
         reduced ||
         document.hidden ||
         !visible(source)
       ) {
-        update()
+        render()
         return
       }
 
@@ -130,7 +135,7 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         committed = true
         if (life.signal.aborted && running.current?.commit === commit)
           running.current = null
-        flushSync(update)
+        flushSync(render)
       }
       const release = () => {
         if (life.signal.aborted) return
@@ -194,7 +199,12 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         commit()
       }
     }
-    const navigate: ArtworkNavigation = (control, destination, update) => {
+    function navigate(
+      control: HTMLElement,
+      destination: 'details' | 'player',
+      update: () => void,
+      begin?: () => () => void,
+    ) {
       const source = sourceSurface(control)
       const card = source?.closest('.artwork-preview')
       const poster = Boolean(
@@ -202,18 +212,24 @@ export function ArtworkHeroProvider({ children }: { children: ReactNode }) {
         card.getAttribute('data-wide') === 'false' &&
         card.getAttribute('data-active') !== 'true',
       )
-      transition(source, destination, update, () => {
-        if (destination === 'player')
-          return document.querySelector<HTMLElement>('.player-viewport')
-        const dialog = document.querySelector<HTMLDialogElement>(
-          '.media-dialog[open]',
-        )
-        if (!dialog) return null
-        const detail = detailSurface(dialog, poster)
-        if (detail && source)
-          origins.current.set(dialog, { card: source, detail })
-        return detail
-      })
+      transition(
+        source,
+        destination,
+        update,
+        () => {
+          if (destination === 'player')
+            return document.querySelector<HTMLElement>('.player-viewport')
+          const dialog = document.querySelector<HTMLDialogElement>(
+            '.media-dialog[open]',
+          )
+          if (!dialog) return null
+          const detail = detailSurface(dialog, poster)
+          if (detail && source)
+            origins.current.set(dialog, { card: source, detail })
+          return detail
+        },
+        begin,
+      )
     }
     function returnToOrigin(dialog: HTMLDialogElement, update: () => void) {
       const origin = origins.current.get(dialog)

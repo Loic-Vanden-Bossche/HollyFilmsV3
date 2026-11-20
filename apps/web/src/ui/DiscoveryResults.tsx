@@ -65,7 +65,8 @@ export function DiscoveryResults({
     }, 300)
     return () => clearTimeout(timer)
   }, [query])
-  const searching = debounced !== query.trim()
+  const term = query.trim()
+  const searching = debounced !== term
   const language = requestLanguage(locale)
   const options = useQuery({
     queryKey: ['request-options', session],
@@ -81,22 +82,10 @@ export function DiscoveryResults({
     readonly unknown[],
     number
   >({
-    queryKey: ['request-search', session, language, type, debounced],
+    queryKey: ['request-search', session, language, type, term],
     initialPageParam: 1,
-    placeholderData: (previous, previousQuery) => {
-      const key = previousQuery?.queryKey
-      if (key?.[1] === session && key[2] === language && key[3] === type)
-        return previous
-    },
     queryFn: ({ pageParam, signal }) =>
-      searchRequestTitles(
-        session,
-        debounced,
-        language,
-        pageParam,
-        type,
-        signal,
-      ),
+      searchRequestTitles(session, term, language, pageParam, type, signal),
     getNextPageParam: (page) =>
       page.page < page.pages ? page.page + 1 : undefined,
     enabled:
@@ -151,7 +140,7 @@ export function DiscoveryResults({
     }
   }
   if (query.trim().length < 2) return null
-  const replacing = searching || results.isPlaceholderData
+  const replacing = searching && !results.data
   const items = [
     ...new Map(
       results.data?.pages
@@ -239,7 +228,7 @@ export function DiscoveryResults({
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '32px' }}
                   layout={reduced ? false : 'position'}
-                  layoutDependency={debounced}
+                  layoutDependency={term}
                   transition={{
                     duration: reduced ? duration.press : duration.panel,
                     ease: ease.out,

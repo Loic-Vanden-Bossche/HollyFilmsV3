@@ -7,9 +7,14 @@ import { createApp } from '../src/app.ts'
 test('La vitrine publie seulement la sélection et ses affiches', async (context) => {
   const id = '123456781234123412341234567890ab'
   let imageRequests = 0
+  let requestedWidth: string | null = null
   const upstream = createServer((request, response) => {
     if (request.url?.includes('/Images/')) {
       imageRequests++
+      requestedWidth = new URL(
+        request.url,
+        'http://localhost',
+      ).searchParams.get('maxWidth')
       response.setHeader('Content-Type', 'image/jpeg')
       response.end(Buffer.from([255, 216, 255, 217]))
       return
@@ -65,12 +70,23 @@ test('La vitrine publie seulement la sélection et ses affiches', async (context
     200,
   )
   assert.equal(imageRequests, 1)
+  assert.equal(requestedWidth, '400')
   assert.equal(
     (await app.inject('/api/showcase/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/poster'))
       .statusCode,
     404,
   )
   assert.equal(imageRequests, 1)
+  assert.equal(
+    (await app.inject('/api/showcase/' + id + '/poster?width=240')).statusCode,
+    200,
+  )
+  assert.equal(requestedWidth, '240')
+  assert.equal(
+    (await app.inject('/api/showcase/' + id + '/poster?width=9000')).statusCode,
+    400,
+  )
+  assert.equal(imageRequests, 2)
   assert.equal(
     (await app.inject('/api/showcase/invalid/poster')).statusCode,
     400,

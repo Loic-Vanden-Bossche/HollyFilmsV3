@@ -359,17 +359,20 @@ export function PlaybackPlayer({
   )
   const video = videoRef.current
   const targetId = target?.id ?? (item.kind === 'Série' ? undefined : item.id)
+  // Chapters, skip markers and the queue can arrive under the playing film.
+  // An explicit menu request or a remote player still gets them immediately.
+  const metadataReady = Boolean(player.hasFrame || devices.destination || menu)
   const details = useQuery({
-    queryKey: ['playback-details', session.deviceId, targetId],
+    queryKey: ['playback-details', session.deviceId, userId, targetId],
     queryFn: ({ signal }) => api.details(targetId!, signal),
-    enabled: Boolean(targetId),
+    enabled: metadataReady && Boolean(targetId),
     retry: false,
     staleTime: 60_000,
   })
   const segments = useQuery({
-    queryKey: ['playback-segments', session.deviceId, targetId],
+    queryKey: ['playback-segments', session.deviceId, userId, targetId],
     queryFn: ({ signal }) => api.segments(targetId!, signal),
-    enabled: Boolean(targetId),
+    enabled: metadataReady && Boolean(targetId),
     retry: false,
     staleTime: 60_000,
   })
@@ -377,21 +380,22 @@ export function PlaybackPlayer({
     queryKey: [
       'playback-queue',
       session.deviceId,
+      userId,
       target?.seriesId ?? target?.id,
     ],
     queryFn: ({ signal }) => api.queue(target!, signal),
-    enabled: Boolean(target),
+    enabled: metadataReady && Boolean(target) && !initialQueue,
     retry: false,
     staleTime: 60_000,
   })
   const trailers = useQuery({
-    queryKey: ['playback-trailers', session.deviceId, item.id],
+    queryKey: ['playback-trailers', session.deviceId, userId, item.id],
     queryFn: () => api.trailers(item.id),
     enabled: menu === 'trailers',
     retry: false,
   })
   const lyrics = useQuery({
-    queryKey: ['playback-lyrics', session.deviceId, targetId],
+    queryKey: ['playback-lyrics', session.deviceId, userId, targetId],
     queryFn: ({ signal }) => api.lyrics(targetId!, signal),
     enabled: menu === 'lyrics' && Boolean(targetId),
     retry: false,

@@ -2,7 +2,10 @@ import type { FastifyInstance } from 'fastify'
 import { getLibraryApi } from '@jellyfin/sdk/lib/utils/api/library-api.js'
 import { getImageApi } from '@jellyfin/sdk/lib/utils/api/image-api.js'
 import { createJellyfinApi } from '@hollyfilms/shared/jellyfin'
-import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
+import {
+  showcasePosterWidths,
+  type ShowcaseItem,
+} from '@hollyfilms/shared/showcase'
 import type { ServerConfig } from './config.ts'
 import { ApiError } from './errors.ts'
 
@@ -60,10 +63,16 @@ export function addShowcaseRoutes(app: FastifyInstance, config: ServerConfig) {
     async () => ({ items: await selection() }),
   )
 
-  app.get<{ Params: { id: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { width?: string } }>(
     '/api/showcase/:id/poster',
     {
       schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            width: { type: 'string', enum: showcasePosterWidths.map(String) },
+          },
+        },
         params: {
           type: 'object',
           required: ['id'],
@@ -84,7 +93,7 @@ export function addShowcaseRoutes(app: FastifyInstance, config: ServerConfig) {
         {
           itemId: item.id,
           imageType: 'Primary',
-          maxWidth: 400,
+          maxWidth: Number(request.query.width ?? 400),
           quality: 80,
           format: 'Jpg',
         },

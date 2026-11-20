@@ -1,5 +1,8 @@
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
+import {
+  showcasePosterWidths,
+  type ShowcaseItem,
+} from '@hollyfilms/shared/showcase'
 import { useEffect, useRef } from 'react'
 import { animate } from 'motion/react'
 import { Film } from 'lucide-react'
@@ -19,6 +22,12 @@ const positions = [
   'north-east',
   'south-west',
   'south-east',
+]
+// The constellation fills the right half on desktop and sits below the title on mobile.
+const slotSizes = [
+  '(max-width: 900px) and (orientation: portrait) 33vw, 20vw',
+  '(max-width: 900px) and (orientation: portrait) 26vw, 16vw',
+  '(max-width: 900px) and (orientation: portrait) 22vw, 13vw',
 ]
 export function CatalogueGallery({
   items,
@@ -128,6 +137,18 @@ export function CatalogueGallery({
                     <img
                       key={item.poster}
                       src={item.poster}
+                      srcSet={
+                        item.poster.startsWith('/api/showcase/')
+                          ? showcasePosterWidths
+                              .map(
+                                (width) =>
+                                  `${item.poster}?width=${width} ${width}w`,
+                              )
+                              .join(', ')
+                          : undefined
+                      }
+                      sizes={slotSizes[index === 0 ? 0 : index < 3 ? 1 : 2]}
+                      fetchPriority={index === 0 ? 'high' : 'low'}
                       alt=""
                       draggable={false}
                       decoding="async"

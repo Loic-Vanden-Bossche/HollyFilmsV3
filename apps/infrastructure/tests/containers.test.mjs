@@ -169,10 +169,21 @@ test(
       /no-store/,
     )
     const asset = html.match(/src="(\/assets\/[^"]+\.js)"/)[1]
-    assert.match(
-      (await fetch(base + asset)).headers.get('cache-control'),
-      /immutable/,
+    const compressed = await fetch(base + asset, {
+      headers: { 'Accept-Encoding': 'gzip', Via: '1.1 ingress' },
+    })
+    const identity = await fetch(base + asset, {
+      headers: { 'Accept-Encoding': 'identity' },
+    })
+    assert.match(compressed.headers.get('cache-control'), /immutable/)
+    assert.match(compressed.headers.get('vary'), /accept-encoding/i)
+    assert.equal(compressed.headers.get('content-encoding'), 'gzip')
+    assert.equal(identity.headers.get('content-encoding'), null)
+    assert.ok(
+      Number(compressed.headers.get('content-length')) <
+        Number(identity.headers.get('content-length')),
     )
+    assert.equal(await compressed.text(), await identity.text())
     assert.equal((await fetch(base + '/assets/missing.js')).status, 404)
     assert.equal(
       (

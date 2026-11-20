@@ -4,6 +4,9 @@
   view-transition-name: none;
   --artwork-travel: var(--hf-scene, 420ms);
 }
+:root[data-artwork-flight]::view-transition {
+  pointer-events: none;
+}
 :root[data-artwork-destination='catalogue'] {
   --artwork-travel: var(--hf-panel, 270ms);
 }

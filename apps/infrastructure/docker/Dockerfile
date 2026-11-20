@@ -14,7 +14,9 @@ RUN corepack yarn install --immutable
 FROM dependencies AS web-build
 COPY apps/web apps/web
 COPY apps/shared apps/shared
-RUN corepack yarn build:web
+RUN corepack yarn build:web && \
+    find apps/web/dist/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.wasm' -o -name '*.svg' -o -name '*.ttf' \) \
+      -size +1024c -exec gzip -6 -n -k {} +
 
 FROM dependencies AS api-build
 COPY apps/api apps/api

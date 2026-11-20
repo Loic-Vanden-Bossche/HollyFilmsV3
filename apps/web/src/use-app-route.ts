@@ -4,6 +4,30 @@ import { appRouteUrl, readAppRoute, type AppRoute } from './app-route.ts'
 const routeEvent = 'hollyfilms:navigate'
 const authReturnKey = 'hollyfilms-auth-return'
 const deferredHistory = new WeakSet<Event>()
+const publishRoute = () => window.dispatchEvent(new Event(routeEvent))
+let scheduleRender = (action: () => void) => action()
+
+export function onRouteRender(action: () => void) {
+  scheduleRender(action)
+}
+
+// Commit history and begin data work at activation. Batch only the visual
+// state (seed and route subscribers) when the browser has captured the old art.
+export function holdRouteRender(action: () => void) {
+  const previous = scheduleRender
+  const queued: Array<() => void> = []
+  scheduleRender = (render) => {
+    queued.push(render)
+  }
+  try {
+    action()
+  } finally {
+    scheduleRender = previous
+  }
+  return () => {
+    queued.forEach(previous)
+  }
+}
 
 /** Let the browser capture the outgoing dialog before route subscribers render Back. */
 export function deferHistoryRender(
@@ -62,7 +86,7 @@ export function navigateApp(
     '',
     next,
   )
-  if (mode !== 'progress') window.dispatchEvent(new Event(routeEvent))
+  if (mode !== 'progress') onRouteRender(publishRoute)
 }
 
 function readLocation(

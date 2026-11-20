@@ -53,7 +53,7 @@ async function writeInContainer(name, destination, text) {
 
 test(
   'HollyFilms player decodes video, changes streams, resumes and controls other sessions',
-  { timeout: 240_000 },
+  { timeout: process.env.HOLLYFILMS_PLAYER_PERF ? 1_800_000 : 240_000 },
   async (t) => {
     const name = `hollyfilms-player-e2e-${process.pid}`
     await exec('docker', [
@@ -266,6 +266,14 @@ test(
     })
     const apiOrigin = await accountApi.listen({ port: 0, host: '127.0.0.1' })
     t.after(() => accountApi.close())
+    const preview =
+      process.env.HOLLYFILMS_PLAYER_PERF ||
+      process.env.HOLLYFILMS_PLAYER_PREVIEW
+    const serve = []
+    if (preview && preview !== '0') {
+      serve.push('preview')
+      if (preview !== '1') serve.push('--outDir', path.resolve(preview))
+    }
     const vite = spawn(
       process.execPath,
       [
@@ -273,7 +281,7 @@ test(
           path.dirname(require.resolve('vite/package.json')),
           'bin/vite.js',
         ),
-        ...(process.env.HOLLYFILMS_PLAYER_PREVIEW === '1' ? ['preview'] : []),
+        ...serve,
         '--port',
         String(httpPort),
         '--host',
@@ -301,6 +309,11 @@ test(
       args: ['--disable-gpu', '--disable-features=HardwareMediaKeyHandling'],
     })
     t.after(() => browser.close())
+    if (process.env.HOLLYFILMS_PLAYER_PERF) {
+      const { benchmarkPlayer } = await import('./player-performance.mjs')
+      await benchmarkPlayer({ browser, origin, name, auth, item, api, headers })
+      return
+    }
     const page = await browser.newPage({
       locale: 'fr-FR',
       viewport: { width: 1440, height: 900 },
@@ -1532,6 +1545,64 @@ test(
       .filter({ hasText: /French|Français|SRT/i })
       .first()
       .click()
+    stage = 'subtitle rendering fallback'
+    // Simulate a local renderer failure, then exercise both real negotiations
+    // through the buttons offered to the viewer.
+    await movie.locator('track').first().dispatchEvent('error')
+    for (const [label, method] of [
+      ['Incruster dans la vidéo', 'Encode'],
+      ['Afficher dans le navigateur', 'External'],
+    ]) {
+      const [negotiation, master] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname.endsWith('/PlaybackInfo') &&
+            Boolean(
+              response.request().postDataJSON()
+                .AlwaysBurnInSubtitleWhenTranscoding,
+            ) ===
+              (method === 'Encode'),
+        ),
+        method === 'Encode'
+          ? page.waitForRequest((request) => {
+              const url = new URL(request.url())
+              return (
+                url.pathname.endsWith('.m3u8') &&
+                url.searchParams.get('SubtitleMethod') === 'Encode'
+              )
+            })
+          : Promise.resolve(null),
+        options().getByRole('button', { name: label }).click(),
+      ])
+      const dto = negotiation.request().postDataJSON()
+      const source = (await negotiation.json()).MediaSources[0]
+      const chosen = source.MediaStreams.find(
+        (track) => track.Index === dto.SubtitleStreamIndex,
+      )
+      assert.equal(chosen?.DeliveryMethod, method)
+      assert.match(chosen.Language, /fra|fre/)
+      if (master) {
+        const stream = new URL(source.TranscodingUrl, origin)
+        assert.equal(stream.searchParams.get('SubtitleMethod'), 'Encode')
+        assert.equal(source.DefaultSubtitleStreamIndex, chosen.Index)
+        for (const url of [stream, new URL(master.url())]) {
+          assert.equal(
+            url.searchParams.get('SubtitleStreamIndex'),
+            String(chosen.Index),
+          )
+          assert.equal(
+            url.searchParams.get('AudioStreamIndex'),
+            String(dto.AudioStreamIndex),
+          )
+        }
+      }
+      await page
+        .locator(
+          '.player-viewport:is([data-state="ready"],[data-state="playing"])',
+        )
+        .waitFor()
+    }
     await options().getByRole('button', { name: 'Fermer les options' }).click()
     stage = 'HLS quality change'
     await playerView
@@ -2037,7 +2108,9 @@ test(
     const favoriteDetails = page.getByRole('button', {
       name: /Voir la fiche de Signal Test/,
     })
-    await favoriteDetails.scrollIntoViewIfNeeded().catch(async (error) => {
+    // Hover's actionability check follows the replacement when scrolling
+    // promotes an offscreen placeholder into the interactive tile.
+    await favoriteDetails.hover().catch(async (error) => {
       t.diagnostic(
         'Favorites page: ' + (await page.locator('body').innerText()),
       )
@@ -2046,7 +2119,6 @@ test(
     const favoriteCard = page
       .getByRole('article')
       .filter({ has: favoriteDetails })
-    await favoriteCard.hover()
     await favoriteCard
       .getByRole('button', { name: 'Retirer des favoris' })
       .click()
@@ -2062,10 +2134,15 @@ test(
         .innerText(),
       'Titre A–Z',
     )
+    // Keep this synthetic collection's metadata stable while Jellyfin scans.
     const created = await (
       await api(
         '/Collections?' +
-          new URLSearchParams({ name: 'Collection Test', ids: item.Id }),
+          new URLSearchParams({
+            name: 'Collection Test',
+            ids: item.Id,
+            isLocked: 'true',
+          }),
         { method: 'POST', headers },
       )
     ).json()
@@ -2291,6 +2368,47 @@ test(
     assert.equal(await video.evaluate((element) => element.videoWidth), 0)
     await playerView.locator('.player-artwork-hero').waitFor()
     assert.equal(await playerView.locator('.player-loading').count(), 0)
+    stage = 'direct HLS link with explicit tracks'
+    const fixture = await (
+      await api('/Items/' + item.Id + '?userId=' + auth.User.Id, { headers })
+    ).json()
+    const englishAudio = fixture.MediaStreams.find(
+      (track) => track.Type === 'Audio' && track.Language === 'eng',
+    ).Index
+    const frenchSub = fixture.MediaStreams.find(
+      (track) => track.Type === 'Subtitle' && /fra|fre/.test(track.Language),
+    ).Index
+    await page.evaluate(
+      (key) => localStorage.setItem(key, JSON.stringify({ bitrate: 100_000 })),
+      playbackKey,
+    )
+    const [playlist] = await Promise.all([
+      page.waitForRequest((request) =>
+        new URL(request.url()).pathname.endsWith('/master.m3u8'),
+      ),
+      page.goto(
+        origin +
+          '/app?' +
+          new URLSearchParams({
+            play: item.Id,
+            audio: String(englishAudio),
+            sub: String(frenchSub),
+            t: '42',
+          }),
+      ),
+    ])
+    const stream = new URL(playlist.url())
+    assert.equal(
+      stream.searchParams.get('AudioStreamIndex'),
+      String(englishAudio),
+    )
+    await until(
+      async () =>
+        (await playerView.locator('.player-captions').textContent()).includes(
+          'sous-titres de test',
+        ),
+      'requested French captions on a direct HLS link',
+    )
     assert.deepEqual(errors, [])
     t.diagnostic(
       'Verified on Jellyfin 12.4: decoded video, audio, SRT, HLS, resume, episode queue, retry, remote playback, SyncPlay, favorites, sorting and collection URL restoration.',

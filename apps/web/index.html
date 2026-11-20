@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HollyFilms 3.0</title>
+    <link
+      rel="preload"
+      href="/src/assets/fonts/HollyFont.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <script>
+      if (location.pathname === '/') {
+        const selection = document.createElement('link')
+        selection.rel = 'preload'
+        selection.as = 'fetch'
+        selection.crossOrigin = 'anonymous'
+        selection.href = '/api/showcase'
+        document.head.append(selection)
+      }
+    </script>
     <style media="(prefers-reduced-motion: no-preference)">
       @view-transition {
         navigation: auto;

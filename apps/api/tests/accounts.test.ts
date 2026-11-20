@@ -10,6 +10,7 @@ import { calculatePKCECodeChallenge } from 'openid-client'
 import { createApp } from '../src/app.ts'
 import { PrismaClient } from '../src/generated/prisma/client.ts'
 import type { GoogleProvider } from '../src/google.ts'
+import { getLibraryPage } from '@hollyfilms/shared/library'
 import {
   authenticateJellyfin,
   createJellyfinApi,
@@ -260,10 +261,11 @@ test(
         (user) => user.Name?.toUpperCase() === body.username.toUpperCase(),
       ),
     )
-    assert.equal(
-      (await post('/api/auth/password', body)).json<AuthResult>().status,
-      'pending',
-    )
+    const pending = (await post('/api/auth/password', body)).json<AuthResult>()
+    assert.equal(pending.status, 'pending')
+    assert.equal('session' in pending, false)
+    const catalogueUrl = `${jellyfinUrl}/Items?Recursive=true&Limit=1`
+    assert.equal((await fetch(catalogueUrl)).status, 401)
     assert.equal(
       (await post('/api/auth/password', { ...body, password: 'incorrect' }))
         .statusCode,
@@ -316,6 +318,15 @@ test(
     const login = activated.json<AuthResult>()
     assert.equal(login.status, 'authenticated')
     if (login.status !== 'authenticated') throw new Error('Session attendue')
+    const catalogue = await getLibraryPage(
+      jellyfinUrl,
+      login.session,
+      partial.jellyfinId,
+      'movies',
+      '',
+      0,
+    )
+    assert.deepEqual(catalogue.items, [])
     assert.equal(
       (await getJellyfinUser(jellyfinUrl, login.session)).isAdministrator,
       false,

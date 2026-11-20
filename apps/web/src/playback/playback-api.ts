@@ -69,6 +69,7 @@ export function itemTarget(item: BaseItemDto): PlaybackTarget | undefined {
 function browserProfile(
   video: HTMLVideoElement,
   bitrate: number,
+  burnSubtitle = false,
 ): DeviceProfile {
   const formats = [
     ['mp4,m4v,mov', 'video/mp4', 'h264', 'avc1.640028', 'aac', 'mp4a.40.2'],
@@ -146,19 +147,20 @@ function browserProfile(
       },
     ],
     SubtitleProfiles: [
-      ...[
-        'vtt',
-        'srt',
-        'subrip',
-        'ass',
-        'ssa',
-        'ttml',
-        'pgssub',
-        'hdmv_pgs_subtitle',
-        'dvdsub',
-        'dvd_subtitle',
-      ].map((Format) => ({ Format, Method: 'External' as const })),
-    ],
+      'vtt',
+      'srt',
+      'subrip',
+      'ass',
+      'ssa',
+      'ttml',
+      'pgssub',
+      'hdmv_pgs_subtitle',
+      'dvdsub',
+      'dvd_subtitle',
+    ].map((Format) => ({
+      Format,
+      Method: burnSubtitle ? 'Encode' : 'External',
+    })),
   }
 }
 
@@ -274,7 +276,7 @@ export function createPlaybackApi(session: JellyfinSession, userId: string) {
           itemId: target.id,
           playbackInfoDto: {
             UserId: userId,
-            DeviceProfile: browserProfile(video, bitrate),
+            DeviceProfile: browserProfile(video, bitrate, options.burnSubtitle),
             StartTimeTicks: Math.round(target.start * ticksPerSecond),
             MaxStreamingBitrate: bitrate,
             MediaSourceId: options.sourceId,
@@ -312,20 +314,30 @@ export function createPlaybackApi(session: JellyfinSession, userId: string) {
         (track) => track.Type === 'Audio',
       )?.Index
       const selectedAudio = options.audio ?? source.DefaultAudioStreamIndex
-      if (
+      const switchAudio =
         direct &&
         selectedAudio != null &&
         firstAudio != null &&
         selectedAudio !== firstAudio
-      ) {
+      // On a source-less HLS request Jellyfin 12 can choose its defaults even
+      // when the body specifies other tracks. Bind those choices to the actual
+      // source before requesting any playlist or starting an encoder.
+      const bindTracks =
+        !direct &&
+        !options.sourceId &&
+        ((options.audio != null &&
+          options.audio !== source.DefaultAudioStreamIndex) ||
+          (options.subtitle != null &&
+            options.subtitle !== (source.DefaultSubtitleStreamIndex ?? -1)))
+      if (switchAudio || bindTracks) {
         const selected = await this.stream(
           video,
           target,
           {
             ...options,
             sourceId: source.Id,
-            audio: selectedAudio,
-            forceTranscode: true,
+            audio: selectedAudio ?? undefined,
+            forceTranscode: switchAudio || options.forceTranscode,
           },
           signal,
         )

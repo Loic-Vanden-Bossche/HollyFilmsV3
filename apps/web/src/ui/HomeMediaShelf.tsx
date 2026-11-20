@@ -43,13 +43,13 @@ export function HomeMediaShelf({
   const { running } = useMotionPolicy()
   const shelf = useRef<HTMLElement>(null)
   const seen = useRef(new WeakSet<Element>())
-  const near = useInView(shelf, { once: true, margin: '500px 0px' })
+  const near = useInView(shelf, { once: true, margin: '200px 0px' })
   const [interacted, setInteracted] = useState(false)
   const pendingFocus = useRef<string>(undefined)
   const poster = id === 'recent' || id === 'series'
   const ranked = id === 'acclaimed'
   const resume = id === 'resume'
-  const active = resume || id === 'recent' || near || interacted
+  const active = resume || near || interacted
   const headingId = 'home-shelf-' + id
 
   useLayoutEffect(() => {

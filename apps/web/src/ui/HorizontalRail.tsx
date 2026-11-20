@@ -41,13 +41,28 @@ export function HorizontalRail({
     const observer = new ResizeObserver(measure)
     observer.observe(node)
     for (const child of node.children) observer.observe(child)
+    let frame = 0
+    const childrenObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const child of record.removedNodes)
+          if (child instanceof Element) observer.unobserve(child)
+        for (const child of record.addedNodes)
+          if (child instanceof Element) observer.observe(child)
+      }
+      // Removing or reordering cards can change the scroll extent without
+      // resizing any remaining card. Coalesce that measurement before paint.
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    })
+    childrenObserver.observe(node, { childList: true })
     node.addEventListener('scroll', measure, { passive: true })
-    measure()
     return () => {
+      cancelAnimationFrame(frame)
+      childrenObserver.disconnect()
       observer.disconnect()
       node.removeEventListener('scroll', measure)
     }
-  }, [children])
+  }, [])
 
   useLayoutEffect(() => {
     focusAfterScroll.current?.focus({ preventScroll: true })

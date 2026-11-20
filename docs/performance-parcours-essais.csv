@@ -1,0 +1,201 @@
+parcours,version,profil,cache,essai,duree_ms
+Connexion utilisable,before,desktop,cold,1,1146
+Affiche centrale,before,desktop,cold,1,1933.2
+Connexion utilisable,before,desktop,warm,1,241.1
+Affiche centrale,before,desktop,warm,1,498.2
+Connexion utilisable,before,mobile,cold,1,1145.2
+Affiche centrale,before,mobile,cold,1,1766.4
+Connexion utilisable,before,mobile,warm,1,248.9
+Affiche centrale,before,mobile,warm,1,505.8
+Connexion utilisable,after,desktop,cold,1,680.9
+Affiche centrale,after,desktop,cold,1,1063.3
+Connexion utilisable,after,desktop,warm,1,239.9
+Affiche centrale,after,desktop,warm,1,419.1
+Connexion utilisable,after,mobile,cold,1,688.8
+Affiche centrale,after,mobile,cold,1,1078.8
+Connexion utilisable,after,mobile,warm,1,253.7
+Affiche centrale,after,mobile,warm,1,431.2
+Connexion utilisable,after,desktop,cold,2,684.5
+Affiche centrale,after,desktop,cold,2,1085.7
+Connexion utilisable,after,desktop,warm,2,230.8
+Affiche centrale,after,desktop,warm,2,408.4
+Connexion utilisable,after,mobile,cold,2,692.2
+Affiche centrale,after,mobile,cold,2,1081.4
+Connexion utilisable,after,mobile,warm,2,247.9
+Affiche centrale,after,mobile,warm,2,424.6
+Connexion utilisable,before,desktop,cold,2,1166
+Affiche centrale,before,desktop,cold,2,1814.3
+Connexion utilisable,before,desktop,warm,2,244.5
+Affiche centrale,before,desktop,warm,2,492.9
+Connexion utilisable,before,mobile,cold,2,1182.6
+Affiche centrale,before,mobile,cold,2,1807.6
+Connexion utilisable,before,mobile,warm,2,250
+Affiche centrale,before,mobile,warm,2,510.5
+Connexion utilisable,before,desktop,cold,3,1138.6
+Affiche centrale,before,desktop,cold,3,1779.4
+Connexion utilisable,before,desktop,warm,3,244.3
+Affiche centrale,before,desktop,warm,3,503.3
+Connexion utilisable,before,mobile,cold,3,1149.3
+Affiche centrale,before,mobile,cold,3,1785.6
+Connexion utilisable,before,mobile,warm,3,255.2
+Affiche centrale,before,mobile,warm,3,502.9
+Connexion utilisable,after,desktop,cold,3,706
+Affiche centrale,after,desktop,cold,3,1106.4
+Connexion utilisable,after,desktop,warm,3,226.5
+Affiche centrale,after,desktop,warm,3,402.6
+Connexion utilisable,after,mobile,cold,3,699.6
+Affiche centrale,after,mobile,cold,3,1091
+Connexion utilisable,after,mobile,warm,3,258
+Affiche centrale,after,mobile,warm,3,440.4
+Connexion utilisable,after,desktop,cold,4,829.1
+Affiche centrale,after,desktop,cold,4,1308.1
+Connexion utilisable,after,desktop,warm,4,242.4
+Affiche centrale,after,desktop,warm,4,430.3
+Connexion utilisable,after,mobile,cold,4,738.8
+Affiche centrale,after,mobile,cold,4,1142.2
+Connexion utilisable,after,mobile,warm,4,282.8
+Affiche centrale,after,mobile,warm,4,474.7
+Connexion utilisable,before,desktop,cold,4,1163.9
+Affiche centrale,before,desktop,cold,4,1858.9
+Connexion utilisable,before,desktop,warm,4,253.8
+Affiche centrale,before,desktop,warm,4,521.2
+Connexion utilisable,before,mobile,cold,4,1177.2
+Affiche centrale,before,mobile,cold,4,1824.3
+Connexion utilisable,before,mobile,warm,4,235.6
+Affiche centrale,before,mobile,warm,4,498.6
+Connexion utilisable,before,desktop,cold,5,1169.3
+Affiche centrale,before,desktop,cold,5,1806.2
+Connexion utilisable,before,desktop,warm,5,247.6
+Affiche centrale,before,desktop,warm,5,507.1
+Connexion utilisable,before,mobile,cold,5,1175.6
+Affiche centrale,before,mobile,cold,5,1864
+Connexion utilisable,before,mobile,warm,5,262.8
+Affiche centrale,before,mobile,warm,5,511.1
+Connexion utilisable,after,desktop,cold,5,718.7
+Affiche centrale,after,desktop,cold,5,1125.4
+Connexion utilisable,after,desktop,warm,5,258.9
+Affiche centrale,after,desktop,warm,5,459.9
+Connexion utilisable,after,mobile,cold,5,729.7
+Affiche centrale,after,mobile,cold,5,1113.6
+Connexion utilisable,after,mobile,warm,5,272
+Affiche centrale,after,mobile,warm,5,462.9
+Première rangée,before,desktop,cold,1,2183
+Dernière recherche,before,desktop,cold,1,459
+Affiche → fiche utilisable,before,desktop,cold,1,558
+Première rangée,before,desktop,warm,1,1744
+Dernière recherche,before,desktop,warm,1,451
+Affiche → fiche utilisable,before,desktop,warm,1,741
+Première rangée,after,desktop,cold,1,1935
+Dernière recherche,after,desktop,cold,1,322
+Affiche → fiche utilisable,after,desktop,cold,1,354
+Première rangée,after,desktop,warm,1,1519
+Dernière recherche,after,desktop,warm,1,324
+Affiche → fiche utilisable,after,desktop,warm,1,583
+Première rangée,after,mobile,cold,1,1727
+Dernière recherche,after,mobile,cold,1,323
+Affiche → fiche utilisable,after,mobile,cold,1,666
+Première rangée,after,mobile,warm,1,1488
+Dernière recherche,after,mobile,warm,1,308
+Affiche → fiche utilisable,after,mobile,warm,1,581
+Première rangée,before,mobile,cold,1,1878
+Dernière recherche,before,mobile,cold,1,465
+Affiche → fiche utilisable,before,mobile,cold,1,616
+Première rangée,before,mobile,warm,1,1645
+Dernière recherche,before,mobile,warm,1,437
+Affiche → fiche utilisable,before,mobile,warm,1,635
+Première rangée,after,desktop,cold,2,1936
+Dernière recherche,after,desktop,cold,2,323
+Affiche → fiche utilisable,after,desktop,cold,2,345
+Première rangée,after,desktop,warm,2,1561
+Dernière recherche,after,desktop,warm,2,319
+Affiche → fiche utilisable,after,desktop,warm,2,596
+Première rangée,before,desktop,cold,2,2175
+Dernière recherche,before,desktop,cold,2,483
+Affiche → fiche utilisable,before,desktop,cold,2,416
+Première rangée,before,desktop,warm,2,1902
+Dernière recherche,before,desktop,warm,2,465
+Affiche → fiche utilisable,before,desktop,warm,2,820
+Première rangée,before,mobile,cold,2,2340
+Dernière recherche,before,mobile,cold,2,461
+Affiche → fiche utilisable,before,mobile,cold,2,737
+Première rangée,before,mobile,warm,2,1750
+Dernière recherche,before,mobile,warm,2,448
+Affiche → fiche utilisable,before,mobile,warm,2,447
+Première rangée,after,mobile,cold,2,2004
+Dernière recherche,after,mobile,cold,2,320
+Affiche → fiche utilisable,after,mobile,cold,2,706
+Première rangée,after,mobile,warm,2,1439
+Dernière recherche,after,mobile,warm,2,318
+Affiche → fiche utilisable,after,mobile,warm,2,599
+Première rangée,before,desktop,cold,3,1974
+Dernière recherche,before,desktop,cold,3,420
+Affiche → fiche utilisable,before,desktop,cold,3,399
+Première rangée,before,desktop,warm,3,1459
+Dernière recherche,before,desktop,warm,3,444
+Affiche → fiche utilisable,before,desktop,warm,3,631
+Première rangée,after,desktop,cold,3,1818
+Dernière recherche,after,desktop,cold,3,328
+Affiche → fiche utilisable,after,desktop,cold,3,321
+Première rangée,after,desktop,warm,3,1528
+Dernière recherche,after,desktop,warm,3,302
+Affiche → fiche utilisable,after,desktop,warm,3,617
+Première rangée,after,mobile,cold,3,1699
+Dernière recherche,after,mobile,cold,3,325
+Affiche → fiche utilisable,after,mobile,cold,3,349
+Première rangée,after,mobile,warm,3,1449
+Dernière recherche,after,mobile,warm,3,315
+Affiche → fiche utilisable,after,mobile,warm,3,593
+Première rangée,before,mobile,cold,3,1902
+Dernière recherche,before,mobile,cold,3,455
+Affiche → fiche utilisable,before,mobile,cold,3,492
+Première rangée,before,mobile,warm,3,1624
+Dernière recherche,before,mobile,warm,3,443
+Affiche → fiche utilisable,before,mobile,warm,3,666
+Lecture directe → première image,before,desktop,cold,1,1092
+Lecture directe → première image,before,desktop,warm,1,841
+Incrustation → première image,before,desktop,cold,1,1977
+Incrustation → première image,before,desktop,warm,1,1607
+Lecture directe → première image,before,mobile,cold,1,949
+Lecture directe → première image,before,mobile,warm,1,878
+Incrustation → première image,before,mobile,cold,1,1891
+Incrustation → première image,before,mobile,warm,1,1620
+Lecture directe → première image,before,desktop,cold,2,916
+Lecture directe → première image,before,desktop,warm,2,745
+Incrustation → première image,before,desktop,cold,2,1792
+Incrustation → première image,before,desktop,warm,2,1627
+Lecture directe → première image,before,mobile,cold,2,877
+Lecture directe → première image,before,mobile,warm,2,611
+Incrustation → première image,before,mobile,cold,2,1872
+Incrustation → première image,before,mobile,warm,2,1651
+Lecture directe → première image,before,desktop,cold,3,964
+Lecture directe → première image,before,desktop,warm,3,671
+Incrustation → première image,before,desktop,cold,3,1877
+Incrustation → première image,before,desktop,warm,3,1576
+Lecture directe → première image,before,mobile,cold,3,924
+Lecture directe → première image,before,mobile,warm,3,655
+Incrustation → première image,before,mobile,cold,3,1845
+Incrustation → première image,before,mobile,warm,3,1566
+Lecture directe → première image,after,desktop,cold,1,798
+Lecture directe → première image,after,desktop,warm,1,615
+Incrustation → première image,after,desktop,cold,1,1476
+Incrustation → première image,after,desktop,warm,1,1223
+Lecture directe → première image,after,mobile,cold,1,591
+Lecture directe → première image,after,mobile,warm,1,664
+Incrustation → première image,after,mobile,cold,1,1388
+Incrustation → première image,after,mobile,warm,1,1313
+Lecture directe → première image,after,desktop,cold,2,663
+Lecture directe → première image,after,desktop,warm,2,495
+Incrustation → première image,after,desktop,cold,2,1462
+Incrustation → première image,after,desktop,warm,2,1178
+Lecture directe → première image,after,mobile,cold,2,668
+Lecture directe → première image,after,mobile,warm,2,477
+Incrustation → première image,after,mobile,cold,2,1555
+Incrustation → première image,after,mobile,warm,2,1282
+Lecture directe → première image,after,desktop,cold,3,645
+Lecture directe → première image,after,desktop,warm,3,462
+Incrustation → première image,after,desktop,cold,3,1459
+Incrustation → première image,after,desktop,warm,3,1241
+Lecture directe → première image,after,mobile,cold,3,774
+Lecture directe → première image,after,mobile,warm,3,450
+Incrustation → première image,after,mobile,cold,3,1403
+Incrustation → première image,after,mobile,warm,3,1263

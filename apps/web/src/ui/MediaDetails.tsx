@@ -1,7 +1,15 @@
 import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   useInfiniteQuery,
   useQuery,
@@ -29,7 +37,6 @@ import { ArtworkPreview } from './ArtworkPreview.tsx'
 import { CardVideoPreview } from './CardVideoPreview.tsx'
 import { formatDuration } from '../format-duration.ts'
 import { AudioLanguages } from './AudioLanguages.tsx'
-import { SubtitlePanel } from './SubtitlePanel.tsx'
 import {
   getMediaDetails,
   getMediaRelations,
@@ -45,6 +52,7 @@ import { MediaRail } from './MediaRail.tsx'
 import { MediaCommunity } from './MediaCommunity.tsx'
 import { MediaTile } from './MediaTile.tsx'
 import { useMediaDetailsMotion } from './use-media-details-motion.ts'
+import { useBackdropWidth } from './use-backdrop-width.ts'
 import {
   detailSections,
   scrollToDetailContent,
@@ -55,6 +63,12 @@ import './media-card.css'
 import '../home.css'
 import '../player.css'
 import './media-details.css'
+
+const SubtitlePanel = lazy(() =>
+  import('./SubtitlePanel.tsx').then((module) => ({
+    default: module.SubtitlePanel,
+  })),
+)
 
 export function MediaDetails({
   item: summary,
@@ -91,6 +105,7 @@ export function MediaDetails({
 }) {
   const { t } = useI18n()
   const navigateArtwork = useArtworkNavigation()
+  const backdropWidth = useBackdropWidth()
   const { scope, reduced, present, dismiss, sharedEntrance } =
     useMediaDetailsMotion()
   const marker = useId()
@@ -424,7 +439,7 @@ export function MediaDetails({
           <MediaArtwork
             source={item.backdrop ?? item.poster}
             session={session}
-            width={2560}
+            width={backdropWidth}
             reveal="shared"
             eager
           />
@@ -621,7 +636,9 @@ export function MediaDetails({
           >
             <summary>{t('Sous-titres externes')}</summary>
             {showSubtitles && (
-              <SubtitlePanel session={session} itemId={item.id} />
+              <Suspense fallback={<p role="status">{t('Chargement…')}</p>}>
+                <SubtitlePanel session={session} itemId={item.id} />
+              </Suspense>
             )}
           </details>
         )}

@@ -140,7 +140,10 @@ export function HomePage({
         control !== document.body &&
         !control.closest('dialog')
       )
-        catalogueInvoker.current = control
+        catalogueInvoker.current =
+          control
+            .closest('.artwork-preview')
+            ?.querySelector<HTMLElement>('.artwork-preview-trigger') ?? control
       const select = onSelectItem ?? setLocalSelected
       select(item)
     },

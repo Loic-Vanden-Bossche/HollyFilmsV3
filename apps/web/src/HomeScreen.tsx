@@ -1,7 +1,7 @@
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { DiscoveryResults } from './ui/DiscoveryResults.tsx'
 import type { InfiniteData } from '@tanstack/react-query'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   useInfiniteQuery,
   useQuery,
@@ -11,7 +11,6 @@ import {
   getLibraryPage,
   getCollectionsPage,
   getCollection,
-  getResumeItems,
   setMediaFavorite,
   setMediaWatched,
 } from '@hollyfilms/shared/library'
@@ -24,18 +23,22 @@ import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { getMediaDetails } from '@hollyfilms/shared/media-details'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { HomePage } from './HomePage.tsx'
+import { homeShelfQuery, resumeQuery } from './home-queries.ts'
+import { ArtworkRoutes } from './ui/artwork-hero-context.ts'
 import { useProfile } from './use-profile.ts'
 import { useNotificationInbox } from './notification-inbox.ts'
 import { useRemoteCommands } from './playback/remote-commands.ts'
 import type { RemoteControlMessage } from './playback/remote-commands.ts'
 import type { PlaybackTarget, StreamOptions } from './playback/playback-api.ts'
-import { navigateApp, useAppRoute } from './use-app-route.ts'
+import { navigateApp, onRouteRender, useAppRoute } from './use-app-route.ts'
 import type { AppRoute } from './app-route.ts'
 
-const loadPlayer = () => import('./PlaybackPlayer.tsx')
-const PlaybackPlayer = lazy(() =>
-  loadPlayer().then((module) => ({ default: module.PlaybackPlayer })),
-)
+const playerModuleQuery = {
+  queryKey: ['player-module'],
+  queryFn: () => import('./PlaybackPlayer.tsx'),
+  staleTime: Infinity,
+  retry: false,
+}
 
 function savePlaybackLocation(location: Partial<AppRoute>, previousId: string) {
   // A queued player update must not reopen a player closed through browser Back.
@@ -62,13 +65,8 @@ function useHomeShelfPage(
   enabled: boolean,
 ) {
   return useQuery({
-    queryKey: ['home-shelf', session.deviceId, userId, filter, sort],
-    queryFn: ({ signal }) =>
-      getLibraryPage(baseUrl, session, userId, filter, '', 0, signal, { sort }),
+    ...homeShelfQuery(baseUrl, session, userId, filter, sort),
     enabled,
-    staleTime: 60_000,
-    retry: false,
-    refetchOnWindowFocus: false,
   })
 }
 
@@ -88,10 +86,24 @@ export function HomeScreen({
   const { t } = useI18n()
   const client = useQueryClient()
   const route = useAppRoute(routeOpenedAt)
+  // Mount at chunk readiness, including on touch where there is no hover lead.
+  const playerModule = useQuery({ ...playerModuleQuery, enabled: !!route.play })
+  const PlaybackPlayer = playerModule.data?.PlaybackPlayer
   useEffect(() => {
-    // On a direct link the player's code and the film metadata can arrive together.
-    if (route.play) void loadPlayer().catch(() => {})
-  }, [route.play])
+    if (route.play || PlaybackPlayer) return
+    // Only the play controls express intent. Browsing artwork must stay cheap.
+    const events = new AbortController()
+    const onIntent = (event: Event) => {
+      if (!(event.target instanceof Element)) return
+      if (!event.target.closest('[data-artwork-open="player"]')) return
+      void client.prefetchQuery(playerModuleQuery)
+      events.abort()
+    }
+    for (const type of ['pointerover', 'pointerdown', 'focusin']) {
+      document.addEventListener(type, onIntent, { signal: events.signal })
+    }
+    return () => events.abort()
+  }, [client, route.play, PlaybackPlayer])
   // Keep an existing catalogue and its scroll position. A direct player link
   // only needs the catalogue after the viewer returns to it.
   const [libraryMounted, setLibraryMounted] = useState(!route.play)
@@ -157,10 +169,21 @@ export function HomeScreen({
       ? selectedSeed
       : (selectedDetails.data?.item ?? null)
     : null
-  const selectItem = useCallback((item: MediaItem | null) => {
-    setSelectedSeed(item)
-    navigateApp({ media: item?.id })
-  }, [])
+  const selectItem = useCallback(
+    (item: MediaItem | null) => {
+      onRouteRender(() => setSelectedSeed(item))
+      navigateApp({ media: item?.id })
+      if (item)
+        void client.prefetchQuery({
+          queryKey: ['media-details', session.deviceId, user.id, item.id],
+          queryFn: ({ signal }) =>
+            getMediaDetails(baseUrl, session, user.id, item.id, signal),
+          staleTime: 60_000,
+          retry: false,
+        })
+    },
+    [baseUrl, client, session, user.id],
+  )
   const [remoteCommand, setRemoteCommand] = useState<RemoteControlMessage>()
   useRemoteCommands(session, user.id, {
     control: setRemoteCommand,
@@ -250,13 +273,15 @@ export function HomeScreen({
     staleTime: 300_000,
     retry: false,
   })
-  const [debouncedSearch, setDebouncedSearch] = useState(search.trim())
+  const searchTerm = search.trim()
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm)
   useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    const timeout = setTimeout(() => setDebouncedSearch(searchTerm), 120)
     return () => clearTimeout(timeout)
-  }, [search])
+  }, [searchTerm])
+  const searchSettled = searchTerm === debouncedSearch
   const collections = useInfiniteQuery({
-    queryKey: ['collections', session.deviceId, user.id, debouncedSearch],
+    queryKey: ['collections', session.deviceId, user.id, searchTerm],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
       getCollectionsPage(
@@ -264,12 +289,12 @@ export function HomeScreen({
         session,
         user.id,
         pageParam,
-        debouncedSearch,
+        searchTerm,
         signal,
       ),
     getNextPageParam: (page, pages) =>
       pages.length * 24 < page.total ? pages.length * 24 : undefined,
-    enabled: libraryMounted && collectionsIndex,
+    enabled: libraryMounted && collectionsIndex && searchSettled,
     staleTime: 60_000,
     gcTime: 300_000,
     retry: false,
@@ -316,7 +341,7 @@ export function HomeScreen({
       session.deviceId,
       user.id,
       filter,
-      debouncedSearch,
+      searchTerm,
       sort,
       route.collection,
     ],
@@ -327,25 +352,18 @@ export function HomeScreen({
         session,
         user.id,
         filter,
-        debouncedSearch,
+        searchTerm,
         pageParam,
         signal,
         { sort, collectionId: route.collection },
       ),
-    placeholderData: (previous, query) =>
-      Boolean(query?.queryKey[4]) &&
-      query?.queryKey[1] === session.deviceId &&
-      query.queryKey[2] === user.id &&
-      query.queryKey[3] === filter &&
-      query.queryKey[6] === route.collection
-        ? previous
-        : undefined,
     getNextPageParam: (page, pages) =>
       pages.length * 36 < page.total ? pages.length * 36 : undefined,
     enabled:
       libraryMounted &&
       !collectionsIndex &&
-      Boolean(search.trim() && debouncedSearch) &&
+      Boolean(searchTerm) &&
+      searchSettled &&
       (!route.collection || collection.isSuccess),
     retry: false,
     gcTime: 60_000,
@@ -353,21 +371,8 @@ export function HomeScreen({
     refetchOnWindowFocus: false,
   })
   const resume = useQuery({
-    queryKey: [
-      'library-resume',
-      session.deviceId,
-      user.id,
-      filter === 'series' ? 'episodes' : 'all',
-    ],
-    queryFn: ({ signal }) =>
-      getResumeItems(baseUrl, session, user.id, signal, {
-        episodesOnly: filter === 'series',
-      }),
-    retry: false,
-    gcTime: 300_000,
+    ...resumeQuery(baseUrl, session, user.id, filter === 'series'),
     enabled: libraryMounted && (filter === 'all' || filter === 'series'),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
   })
   const items = home
     ? (recent.data?.items ?? [])
@@ -378,52 +383,116 @@ export function HomeScreen({
             .map((item) => [item.id, item]),
         ).values(),
       ].filter((item) => filter !== 'favorites' || item.favorite)
-  function patchItem(
-    id: string,
-    patch: Partial<MediaItem>,
-    removeResume = false,
-  ) {
-    const patchPage = (page: LibraryPage) => ({
-      ...page,
-      items: page.items.map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
-    })
-    client.setQueriesData<LibraryPage>(
-      { queryKey: ['home-shelf', session.deviceId, user.id] },
-      (data) => data && patchPage(data),
-    )
-    client.setQueriesData<InfiniteData<LibraryPage>>(
-      { queryKey: ['library', session.deviceId, user.id] },
-      (data) =>
-        data
-          ? {
-              ...data,
-              pages: data.pages.map(patchPage),
-            }
-          : data,
-    )
-    client.setQueriesData<MediaItem[]>(
-      { queryKey: ['library-resume', session.deviceId, user.id] },
-      (data) =>
-        data?.flatMap((item) =>
-          item.id === id
-            ? removeResume
-              ? []
-              : [{ ...item, ...patch }]
-            : [item],
+  const patchItem = useCallback(
+    (id: string, patch: Partial<MediaItem>, removeResume = false) => {
+      const patchPage = (page: LibraryPage) => ({
+        ...page,
+        items: page.items.map((item) =>
+          item.id === id ? { ...item, ...patch } : item,
         ),
-    )
-  }
-  const searching = search.trim() !== debouncedSearch
+      })
+      client.setQueriesData<LibraryPage>(
+        { queryKey: ['home-shelf', session.deviceId, user.id] },
+        (data) => data && patchPage(data),
+      )
+      client.setQueriesData<InfiniteData<LibraryPage>>(
+        { queryKey: ['library', session.deviceId, user.id] },
+        (data) =>
+          data
+            ? {
+                ...data,
+                pages: data.pages.map(patchPage),
+              }
+            : data,
+      )
+      client.setQueriesData<MediaItem[]>(
+        { queryKey: ['library-resume', session.deviceId, user.id] },
+        (data) =>
+          data?.flatMap((item) =>
+            item.id === id
+              ? removeResume
+                ? []
+                : [{ ...item, ...patch }]
+              : [item],
+          ),
+      )
+    },
+    [client, session.deviceId, user.id],
+  )
+  const onPlay = useCallback(
+    (item: MediaItem, resume: boolean, queue?: MediaItem[]) => {
+      onRouteRender(() => {
+        setRemoteCommand(undefined)
+        setPlayback({
+          item,
+          resume,
+          openedAt: Date.now(),
+          queue: queue?.map(toTarget),
+        })
+      })
+      navigateApp({
+        play: item.id,
+        time: resume ? (item.playbackPosition ?? 0) : 0,
+        source: undefined,
+        audio: undefined,
+        subtitle: undefined,
+        paused: false,
+      })
+    },
+    [],
+  )
+  const onFavorite = useCallback(
+    async (item: MediaItem, favorite: boolean) => {
+      const saved = await setMediaFavorite(
+        baseUrl,
+        session,
+        user.id,
+        item.id,
+        favorite,
+      )
+      patchItem(item.id, { favorite: saved })
+      void client.invalidateQueries({
+        queryKey: ['library', session.deviceId, user.id, 'favorites'],
+      })
+      return saved
+    },
+    [baseUrl, client, patchItem, session, user.id],
+  )
+  const onWatched = useCallback(
+    async (item: MediaItem, watched: boolean) => {
+      const saved = await setMediaWatched(
+        baseUrl,
+        session,
+        user.id,
+        item.id,
+        watched,
+      )
+      patchItem(
+        item.id,
+        {
+          watched: saved,
+          progress: saved ? 1 : 0,
+          playbackPosition: 0,
+          remainingMinutes: undefined,
+        },
+        true,
+      )
+      void client.invalidateQueries({
+        queryKey: ['library', session.deviceId, user.id],
+      })
+      void client.invalidateQueries({
+        queryKey: ['library-resume', session.deviceId, user.id],
+      })
+      return saved
+    },
+    [baseUrl, client, patchItem, session, user.id],
+  )
   const pageData = collectionsIndex ? collections : library
   const visibleQuery = home ? recent : pageData
   const pageState =
     route.collection && collection.isError
       ? 'error'
-      : (collectionsIndex && searching) ||
-          visibleQuery.isPending ||
-          (route.collection && collection.isPending)
+      : visibleQuery.isPending || (route.collection && collection.isPending)
         ? 'loading'
         : visibleQuery.isError && !visibleQuery.data
           ? 'error'
@@ -440,17 +509,22 @@ export function HomeScreen({
       }
       onClose={() => navigateApp({ play: undefined })}
       failure={
-        playingDetails.isError
+        playerModule.isError
           ? {
-              message: t('Ce média est indisponible ou tu n’y as pas accès.'),
-              retry: () => void playingDetails.refetch(),
+              message: t('Chargement indisponible'),
+              retry: () => void playerModule.refetch(),
             }
-          : undefined
+          : playingDetails.isError
+            ? {
+                message: t('Ce média est indisponible ou tu n’y as pas accès.'),
+                retry: () => void playingDetails.refetch(),
+              }
+            : undefined
       }
     />
   ) : null
-  const player = playback ? (
-    <Suspense fallback={openingPlayer}>
+  const player =
+    playback && PlaybackPlayer ? (
       <PlaybackPlayer
         key={JSON.stringify([
           route.play,
@@ -489,14 +563,13 @@ export function HomeScreen({
           })
         }}
       />
-    </Suspense>
-  ) : (
-    openingPlayer
-  )
+    ) : (
+      openingPlayer
+    )
 
   if (!libraryMounted) return player
   return (
-    <>
+    <ArtworkRoutes value>
       <HomePage
         avatarUrl={profile.avatarUrl}
         collectionId={route.collection}
@@ -515,23 +588,7 @@ export function HomeScreen({
             sort: undefined,
           })
         }
-        onPlay={(item, resume, queue) => {
-          setRemoteCommand(undefined)
-          setPlayback({
-            item,
-            resume,
-            openedAt: Date.now(),
-            queue: queue?.map(toTarget),
-          })
-          navigateApp({
-            play: item.id,
-            time: resume ? (item.playbackPosition ?? 0) : 0,
-            source: undefined,
-            audio: undefined,
-            subtitle: undefined,
-            paused: false,
-          })
-        }}
+        onPlay={onPlay}
         username={profile.data?.name ?? user.name}
         unreadNotifications={inbox.data?.pages[0]?.unread}
         isAdmin={user.isAdministrator}
@@ -540,53 +597,15 @@ export function HomeScreen({
         playbackOpen={Boolean(route.play)}
         selectedItem={route.play ? null : selected}
         onSelectItem={selectItem}
-        onFavorite={async (item, favorite) => {
-          const saved = await setMediaFavorite(
-            baseUrl,
-            session,
-            user.id,
-            item.id,
-            favorite,
-          )
-          patchItem(item.id, { favorite: saved })
-          void client.invalidateQueries({
-            queryKey: ['library', session.deviceId, user.id, 'favorites'],
-          })
-          return saved
-        }}
-        onWatched={async (item, watched) => {
-          const saved = await setMediaWatched(
-            baseUrl,
-            session,
-            user.id,
-            item.id,
-            watched,
-          )
-          patchItem(
-            item.id,
-            {
-              watched: saved,
-              progress: saved ? 1 : 0,
-              playbackPosition: 0,
-              remainingMinutes: undefined,
-            },
-            true,
-          )
-          void client.invalidateQueries({
-            queryKey: ['library', session.deviceId, user.id],
-          })
-          void client.invalidateQueries({
-            queryKey: ['library-resume', session.deviceId, user.id],
-          })
-          return saved
-        }}
+        onFavorite={onFavorite}
+        onWatched={onWatched}
         items={items}
         ratedMovies={supplement ? ratedMovies.data?.items : undefined}
         loadingRatings={supplement && ratedMovies.isLoading}
         recentSeries={supplement ? recentSeries.data?.items : undefined}
         loadingSeries={supplement && recentSeries.isLoading}
         searchResults={{
-          items: !debouncedSearch
+          items: !searchTerm
             ? []
             : [
                 ...new Map(
@@ -595,25 +614,17 @@ export function HomeScreen({
                     .map((item) => [item.id, item]),
                 ).values(),
               ].filter((item) => filter !== 'favorites' || item.favorite),
-          total: debouncedSearch
-            ? (searchLibrary.data?.pages[0].total ?? 0)
-            : 0,
-          state:
-            searching ||
-            searchLibrary.isPending ||
-            searchLibrary.isPlaceholderData
-              ? 'loading'
-              : searchLibrary.isError && !searchLibrary.data
-                ? 'error'
-                : 'ready',
-          hasMore:
-            !searching &&
-            !searchLibrary.isPlaceholderData &&
-            searchLibrary.hasNextPage,
+          total: searchTerm ? (searchLibrary.data?.pages[0].total ?? 0) : 0,
+          state: searchLibrary.isPending
+            ? 'loading'
+            : searchLibrary.isError && !searchLibrary.data
+              ? 'error'
+              : 'ready',
+          hasMore: searchLibrary.hasNextPage,
           loadingMore: searchLibrary.isFetchingNextPage,
           loadMoreError: searchLibrary.isFetchNextPageError,
           onLoadMore: () => {
-            if (!searching && !searchLibrary.isPlaceholderData)
+            if (searchLibrary.hasNextPage)
               void searchLibrary.fetchNextPage({ cancelRefetch: false })
           },
           onRetry: () => void searchLibrary.refetch(),
@@ -687,6 +698,6 @@ export function HomeScreen({
         </div>
       )}
       {player}
-    </>
+    </ArtworkRoutes>
   )
 }

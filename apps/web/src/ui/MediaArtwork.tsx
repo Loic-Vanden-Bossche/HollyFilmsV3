@@ -19,16 +19,18 @@ import { distance, duration, ease } from '../motion/tokens.ts'
 import { artworkIdentity } from './artwork-hero-context.ts'
 import {
   acquireArtworkUrl,
+  artworkPixelWidth,
   cachedArtwork,
   imageQueryKey,
   markArtworkDecoded,
+  observeArtworkSize,
   whenArtworkIsNear,
 } from './artwork-resources.ts'
 
 type MediaArtworkProps = {
   source?: LibraryImage | string
   session?: JellyfinSession
-  width?: number
+  width?: number | 'display'
   eager?: boolean
   className?: string
   fallback?: ReactNode
@@ -67,16 +69,26 @@ export const MediaArtwork = memo(function MediaArtwork(
 function RemoteArtwork({
   source,
   session,
-  width = 400,
+  width: requestedWidth = 400,
   eager = false,
   ...props
 }: MediaArtworkProps & { source: LibraryImage; session: JellyfinSession }) {
   const ref = useRef<HTMLDivElement>(null)
   const [near, setNear] = useState(false)
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+  const responsive = requestedWidth === 'display'
   useEffect(() => {
     if (!eager && !near && ref.current)
-      return whenArtworkIsNear(ref.current, () => setNear(true))
-  }, [eager, near])
+      return whenArtworkIsNear(ref.current, (width) => {
+        if (responsive && width > 0) setMeasuredWidth(artworkPixelWidth(width))
+        setNear(true)
+      })
+  }, [eager, near, responsive])
+  useEffect(() => {
+    if (responsive && (near || eager) && ref.current)
+      return observeArtworkSize(ref.current, setMeasuredWidth)
+  }, [responsive, near, eager])
+  const width = responsive ? measuredWidth : requestedWidth
   const client = useQueryClient()
   const { itemId, type, tag, index } = source
   const key = useMemo(
@@ -84,7 +96,7 @@ function RemoteArtwork({
     [session.deviceId, itemId, type, tag, index, width],
   )
   const placeholder = useCallback(
-    () => cachedArtwork(client, key, 'placeholder'),
+    () => (key[5] ? cachedArtwork(client, key, 'placeholder') : undefined),
     [client, key],
   )
   const image = useQuery({
@@ -98,7 +110,7 @@ function RemoteArtwork({
         width,
         signal,
       ),
-    enabled: eager || near,
+    enabled: (eager || near) && width > 0,
     retry: false,
     staleTime: Infinity,
     gcTime: 60_000,

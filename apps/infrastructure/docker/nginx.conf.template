@@ -61,6 +61,9 @@ http {
       proxy_send_timeout 3600s;
     }
     location /assets/ {
+      gzip_static on;
+      gzip_vary on;
+      gzip_proxied any;
       try_files $uri =404;
       expires 1y;
       add_header Cache-Control 'public, immutable';
