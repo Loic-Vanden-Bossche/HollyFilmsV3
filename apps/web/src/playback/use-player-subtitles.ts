@@ -51,7 +51,7 @@ function useTrack(
     selected: MediaStream
     playback: CaptionsInput['playback']
     plainText: boolean
-    cues: SourceCue[]
+    getCues: () => SourceCue[]
   }>()
   const updateOffset = useRef<(() => void) | undefined>(undefined)
   const scale = styles[slot].scale
@@ -199,23 +199,34 @@ function useTrack(
         selected.DisplayTitle ?? selected.Language ?? 'Sous-titres'
       element.srclang = selected.Language ?? 'und'
       element.src = api.mediaUrl(subPath + 'vtt', revision)
-      const read = () => {
-        const cues = Array.from(element.track.cues ?? []).filter(
-          (cue) =>
-            cue.startTime <= video.currentTime &&
-            cue.endTime > video.currentTime,
+      const cueText = new WeakMap<TextTrackCue, string>()
+      const textOf = (cue: TextTrackCue) => {
+        let text = cueText.get(cue)
+        if (text === undefined) {
+          text =
+            cue instanceof VTTCue ? (cue.getCueAsHTML().textContent ?? '') : ''
+          cueText.set(cue, text)
+        }
+        return text
+      }
+      let lastText: string | undefined
+      const display = (cues: TextTrackCue[]) => {
+        const text = cues.map(textOf).filter(Boolean).join('\n')
+        if (text !== lastText) {
+          lastText = text
+          setCaption({ track: selected, playback, plainText, text })
+        }
+      }
+      const read = () => display(Array.from(element.track.activeCues ?? []))
+      // A seek or timing edit can run before the browser updates activeCues,
+      // especially on a paused frame. Reflect that change synchronously.
+      const readAtPosition = () => {
+        const time = video.currentTime
+        display(
+          Array.from(element.track.cues ?? []).filter(
+            (cue) => cue.startTime <= time && cue.endTime > time,
+          ),
         )
-        setCaption({
-          track: selected,
-          playback,
-          plainText,
-          text: cues
-            .map((cue) =>
-              cue instanceof VTTCue ? cue.getCueAsHTML().textContent : '',
-            )
-            .filter(Boolean)
-            .join('\n'),
-        })
       }
       // Retain original timestamps so repeated adjustments never accumulate drift,
       // and cues shifted before zero can be restored without a network reload.
@@ -238,51 +249,54 @@ function useTrack(
             if (entry.attached) element.track.removeCue(entry.cue)
             entry.attached = false
           } else {
-            entry.cue.endTime = interval.end
-            entry.cue.startTime = interval.start
+            if (entry.cue.endTime !== interval.end)
+              entry.cue.endTime = interval.end
+            if (entry.cue.startTime !== interval.start)
+              entry.cue.startTime = interval.start
             if (!entry.attached) element.track.addCue(entry.cue)
             entry.attached = true
           }
         }
-        read()
+        readAtPosition()
       }
       updateOffset.current = adjust
       element.addEventListener('load', () => {
+        if (cancelled) return
         originals = Array.from(element.track.cues ?? []).map((cue) => ({
           cue,
           start: Math.round(cue.startTime * 1000),
           end: Math.round(cue.endTime * 1000),
           attached: true,
         }))
-        if (cancelled) return
+        let transcriptCues: SourceCue[] | undefined
         setTranscript({
           plainText,
           selected,
           playback,
-          cues: originals.map(({ cue, start, end }, id) => ({
-            id,
-            startMs: start,
-            endMs: end,
-            text:
-              cue instanceof VTTCue
-                ? (cue.getCueAsHTML().textContent ?? '')
-                : '',
-          })),
+          // Only the sync editor needs the complete source transcript.
+          getCues: () =>
+            (transcriptCues ??= originals.map(({ cue, start, end }, id) => ({
+              id,
+              startMs: start,
+              endMs: end,
+              text: textOf(cue),
+            }))),
         })
         adjust()
       })
       element.addEventListener('error', fail)
       element.track.addEventListener('cuechange', read)
       video.addEventListener('durationchange', adjust)
-      video.addEventListener('seeked', read)
+      video.addEventListener('seeked', readAtPosition)
       video.appendChild(element)
       element.track.mode = 'hidden'
       dispose = () => {
         element.track.removeEventListener('cuechange', read)
         video.removeEventListener('durationchange', adjust)
-        video.removeEventListener('seeked', read)
+        video.removeEventListener('seeked', readAtPosition)
         element.track.mode = 'disabled'
         element.remove()
+        setTranscript(undefined)
       }
     }
     return () => {
@@ -293,11 +307,11 @@ function useTrack(
     }
   }, [api, videoRef, playback, selected, onError, plainText, slot, split])
   return {
-    cues:
+    getCues:
       transcript?.selected === selected &&
       transcript?.playback === playback &&
       transcript?.plainText === plainText
-        ? transcript?.cues
+        ? transcript?.getCues
         : undefined,
     text:
       selected &&
@@ -323,6 +337,6 @@ export function usePlayerSubtitles(
   return {
     primary: primary.text,
     secondary: secondary.text,
-    cues: { primary: primary.cues, secondary: secondary.cues },
+    getCues: { primary: primary.getCues, secondary: secondary.getCues },
   }
 }

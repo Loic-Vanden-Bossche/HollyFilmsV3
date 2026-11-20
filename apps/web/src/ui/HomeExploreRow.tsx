@@ -2,11 +2,12 @@ import { useId } from 'react'
 import { motion } from 'motion/react'
 import { ArrowDownRight } from 'lucide-react'
 import type { HomeShelf } from '../home-shelves.ts'
+import { homeShelfTitle } from '../home-shelf-title.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
-import { localizeText } from '../i18n/messages.ts'
 import { duration, ease } from '../motion/tokens.ts'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { HorizontalRail } from './HorizontalRail.tsx'
+import { allowPageScrollInterruption } from './page-scroll.ts'
 import './home-explore-row.css'
 
 export function HomeExploreRow({ shelves }: { shelves: readonly HomeShelf[] }) {
@@ -35,8 +36,17 @@ export function HomeExploreRow({ shelves }: { shelves: readonly HomeShelf[] }) {
           <motion.a
             key={shelf.id}
             className="home-explore-tile"
-            data-theme={shelf.id}
+            data-theme={shelf.genre ? 'genre' : shelf.id}
             href={'#home-shelf-' + shelf.id}
+            onClick={(event) => {
+              if (
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.shiftKey &&
+                !event.altKey
+              )
+                allowPageScrollInterruption()
+            }}
             initial="rest"
             animate="rest"
             variants={{ rest: { scale: 1 }, active: { scale: 1.035 } }}
@@ -59,12 +69,7 @@ export function HomeExploreRow({ shelves }: { shelves: readonly HomeShelf[] }) {
               transition={transition}
             />
             <span className="home-explore-label">
-              {t(
-                shelf.title,
-                shelf.genre
-                  ? { genre: localizeText(t, shelf.genre) }
-                  : undefined,
-              )}
+              {homeShelfTitle(t, shelf)}
             </span>
             <motion.span
               className="home-explore-direction"

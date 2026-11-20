@@ -2,11 +2,18 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, waitFor, within } from 'storybook/test'
 import { homeShelfItems } from '../home-fixtures.ts'
 import { buildHomeShelves } from '../home-shelves.ts'
+import { homeShelfTitle } from '../home-shelf-title.ts'
+import { useI18n } from '../i18n/I18nProvider.tsx'
 import { HomeExploreRow } from './HomeExploreRow.tsx'
 import '../home.css'
 
 const shelves = buildHomeShelves(homeShelfItems).filter(
   (shelf) => shelf.id !== 'recent' && shelf.id !== 'acclaimed',
+)
+const fourSelections = shelves.filter(
+  (shelf) =>
+    ['suspense', 'adventure', 'imagination'].includes(shelf.id) ||
+    shelf.genre === 'Drame',
 )
 
 const meta = {
@@ -14,34 +21,37 @@ const meta = {
   component: HomeExploreRow,
   parameters: { layout: 'fullscreen' },
   args: { shelves },
-  render: (args) => (
-    <main className="home-content home-shelves">
-      <HomeExploreRow {...args} />
-      {args.shelves.map((shelf) => (
-        <section key={shelf.id} className="home-shelf">
-          <div className="home-section-header">
-            <h2 id={'home-shelf-' + shelf.id} tabIndex={-1}>
-              {shelf.title}
-            </h2>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
-            {shelf.items.slice(0, 3).map((item) => (
-              <img
-                key={item.id}
-                alt={item.title}
-                src={String(item.thumb)}
-                style={{
-                  width: 'clamp(120px, 22%, 280px)',
-                  aspectRatio: '16 / 9',
-                  borderRadius: '0.65rem',
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </main>
-  ),
+  render: function Render(args) {
+    const { t } = useI18n()
+    return (
+      <main className="home-content home-shelves">
+        <HomeExploreRow {...args} />
+        {args.shelves.map((shelf) => (
+          <section key={shelf.id} className="home-shelf">
+            <div className="home-section-header">
+              <h2 id={'home-shelf-' + shelf.id} tabIndex={-1}>
+                {homeShelfTitle(t, shelf)}
+              </h2>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
+              {shelf.items.slice(0, 3).map((item) => (
+                <img
+                  key={item.id}
+                  alt={item.title}
+                  src={String(item.thumb)}
+                  style={{
+                    width: 'clamp(120px, 22%, 280px)',
+                    aspectRatio: '16 / 9',
+                    borderRadius: '0.65rem',
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </main>
+    )
+  },
 } satisfies Meta<typeof HomeExploreRow>
 export default meta
 type Story = StoryObj<typeof meta>
@@ -89,5 +99,39 @@ export const SingleSelection: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.queryByRole('navigation')).toBeNull()
     await expect(canvas.getByRole('heading')).toBeVisible()
+  },
+}
+
+export const FourSelections: Story = {
+  name: 'Quatre sélections sur toute la largeur',
+  args: { shelves: fourSelections },
+  play: async ({ canvas }) => {
+    const nav = canvas.getByRole('navigation', {
+      name: 'Explorer les sélections',
+    })
+    const links = within(nav).getAllByRole('link')
+    await expect(links).toHaveLength(4)
+    const rail = links[0].parentElement!
+    const last = links[3]
+    if (rail.clientWidth >= 1200) {
+      const gutter = parseFloat(getComputedStyle(rail).paddingInlineEnd)
+      const end = rail.getBoundingClientRect().right - gutter
+      await expect(
+        Math.abs(last.getBoundingClientRect().right - end),
+      ).toBeLessThan(2)
+      await expect(rail.scrollWidth).toBeLessThanOrEqual(rail.clientWidth + 1)
+    } else if (rail.clientWidth <= 480) {
+      await expect(rail.scrollWidth).toBeGreaterThan(rail.clientWidth)
+      last.scrollIntoView({
+        block: 'nearest',
+        inline: 'end',
+        behavior: 'instant',
+      })
+      await waitFor(() => expect(rail.scrollLeft).toBeGreaterThan(0))
+      await expect(last.getBoundingClientRect().right).toBeLessThanOrEqual(
+        rail.getBoundingClientRect().right + 1,
+      )
+      rail.scrollTo({ left: 0, behavior: 'instant' })
+    }
   },
 }

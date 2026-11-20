@@ -36,6 +36,66 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+export const OffscreenKeyboard: Story = {
+  name: 'Rangée hors écran accessible au clavier',
+  decorators: [
+    (Story) => (
+      <div style={{ paddingBlockStart: '200vh' }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvas, userEvent, args }) => {
+    const section = canvas.getByRole('region', { name: args.title })
+    const track = section.querySelector<HTMLElement>('.home-shelf-track')!
+    const railHeight = track.getBoundingClientRect().height
+    const scrollWidth = track.scrollWidth
+    const first = within(section).getByRole('article', {
+      name: args.items[0].title,
+    })
+    await expect(first.querySelector('.artwork-preview-surface')).toBeNull()
+    within(first).getByRole('button').focus({ preventScroll: true })
+    await waitFor(() =>
+      expect(section.querySelector('.artwork-preview-trigger')).toHaveFocus(),
+    )
+    await expect(track.getBoundingClientRect().height).toBeCloseTo(
+      railHeight,
+      0,
+    )
+    await expect(track.scrollWidth).toBe(scrollWidth)
+    await userEvent.keyboard('{Enter}')
+    await expect(args.onSelect).toHaveBeenCalledWith(args.items[0])
+  },
+}
+
+export const OffscreenPointer: Story = {
+  name: 'Première interaction sur une rangée hors écran',
+  decorators: OffscreenKeyboard.decorators,
+  play: async ({ canvas, args }) => {
+    const section = canvas.getByRole('region', { name: args.title })
+    const slot = section.querySelector('.home-shelf-cover-slot')!
+    slot.dispatchEvent(
+      new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }),
+    )
+    await within(section).findByRole('group', { name: args.items[0].title })
+
+    // A browser may retarget only the final click when a touch starts on a
+    // placeholder. The first tap must still open the preview for this title.
+    const next = within(section).getByRole('article', {
+      name: args.items[1].title,
+    })
+    next.querySelector('button')!.dispatchEvent(
+      new PointerEvent('click', {
+        bubbles: true,
+        detail: 1,
+        pointerType: 'touch',
+      }),
+    )
+    await within(next).findByRole('group', { name: args.items[1].title })
+    await expect(args.onSelect).not.toHaveBeenCalled()
+  },
+}
+
 export const Ranked: Story = {
   name: 'Les dix places du classement',
   play: async ({ canvas, userEvent, args }) => {
@@ -91,20 +151,22 @@ export const RankedPreview: Story = {
     const panel = await within(card).findByRole('group', { name: item.title })
     await expect(panel).toHaveAttribute('data-presentation', 'ranked')
     const art = panel.querySelector('.artwork-preview-hero')!
-    const heading = within(panel).getByRole('heading', { name: item.title })
     const play = within(panel).getByRole('button', {
       name: /^(Lire|Reprendre) /,
     })
-    await expect(art.querySelector('.artwork-watermark')).toBeVisible()
+    await waitFor(() =>
+      expect(art.querySelector(':scope > .artwork-watermark')).toBeVisible(),
+    )
+    await expect(panel.querySelector('.artwork-preview-title')).toBeNull()
     await waitFor(() => {
       expect(art.querySelector('img')).toHaveAttribute('src', item.thumb)
       const frame = art.getBoundingClientRect()
       expect(frame.width / frame.height).toBeCloseTo(16 / 9, 1)
-      expect(heading.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-        frame.bottom - 1,
-      )
-      expect(play.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-        frame.bottom - 1,
+      const content = panel.querySelector('.artwork-preview-content')!
+      const gap = play.getBoundingClientRect().top - frame.bottom
+      expect(gap).toBeGreaterThanOrEqual(0)
+      expect(gap).toBeLessThanOrEqual(
+        parseFloat(getComputedStyle(content).paddingTop) + 1,
       )
     })
     await expect(args.onSelect).not.toHaveBeenCalled()
@@ -112,6 +174,64 @@ export const RankedPreview: Story = {
     await expect(args.onPlay).toHaveBeenCalledWith(item, true)
     await userEvent.unhover(card)
     await userEvent.hover(card)
-    await within(card).findByRole('heading', { name: item.title })
+    await within(card).findByRole('group', { name: item.title })
+  },
+}
+
+export const RankedFallbackTitles: Story = {
+  name: 'Classement — titre sur le décor de remplacement',
+  args: {
+    onPlay: fn(),
+    items: [
+      { ...homeShelfItems[0], thumb: undefined },
+      {
+        ...homeShelfItems[1],
+        thumb: 'data:image/png;base64,AAAA',
+        logo: undefined,
+      },
+    ],
+  },
+  play: async ({ canvas, userEvent, args }) => {
+    // Use the keyboard so opening and dismissing each preview also checks focus.
+    await userEvent.tab()
+    for (const item of args.items) {
+      const card = canvas.getByRole('article', { name: item.title })
+      const trigger = within(card).getByRole('button', {
+        name: /^Voir la fiche/,
+      })
+      trigger.focus()
+      const panel = await within(card).findByRole('group', { name: item.title })
+      const art = panel.querySelector<HTMLElement>('.artwork-preview-hero')!
+      const heading = await within(art).findByRole('heading', {
+        name: item.title,
+      })
+      await expect(
+        panel.querySelector('.artwork-preview-content .artwork-preview-title'),
+      ).toBeNull()
+      await waitFor(() => {
+        const backdrop =
+          art.querySelector('.artwork-preview-backdrop img') ??
+          trigger.querySelector('img')
+        expect(backdrop).toHaveAttribute('src', item.backdrop)
+        if (item.logo)
+          expect(heading.querySelector('img')).toHaveAttribute('src', item.logo)
+        else expect(heading).toHaveTextContent(item.title)
+        const title = heading.getBoundingClientRect()
+        const image = art.getBoundingClientRect()
+        expect(title.width).toBeGreaterThan(0)
+        expect(title.top).toBeGreaterThanOrEqual(image.top - 1)
+        expect(title.bottom).toBeLessThanOrEqual(image.bottom + 1)
+      })
+      await userEvent.keyboard('{Escape}')
+      await expect(trigger).toHaveFocus()
+      await waitFor(() =>
+        expect(trigger).toHaveAttribute('aria-expanded', 'false'),
+      )
+    }
+    const first = canvas.getByRole('article', { name: args.items[0].title })
+    within(first)
+      .getByRole('button', { name: /^Voir la fiche/ })
+      .focus()
+    await within(first).findByRole('heading', { name: args.items[0].title })
   },
 }

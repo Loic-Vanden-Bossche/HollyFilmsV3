@@ -4,7 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, fn, mocked, waitFor, within } from 'storybook/test'
 import { getLibraryImage } from '@hollyfilms/shared/library'
 import { HomePage } from './HomePage.tsx'
-import { homeItems, homeResume, homeShelfItems } from './home-fixtures.ts'
+import {
+  homeItems,
+  homeResume,
+  homeShelfItems,
+  mixedGenreFilms,
+} from './home-fixtures.ts'
 import type { LibraryFilter } from '@hollyfilms/shared/library'
 import { avatarFixture } from './profile-fixtures.ts'
 import { collectionFixtures, episodeFixtures } from './library-fixtures.ts'
@@ -111,12 +116,19 @@ export const ThematicShelves: Story = {
       canvas.getByRole('heading', { name: 'Sous tension' }),
     ).toBeInTheDocument()
     await expect(canvasElement.querySelector('.virtual-media-grid')).toBeNull()
-    const explore = await canvas.findByRole('link', { name: 'Sous tension' })
+    const exploreNav = await canvas.findByRole('navigation', {
+      name: 'Explorer les sélections',
+    })
+    const selections = within(exploreNav).getAllByRole('link')
+    await expect(selections.length).toBeGreaterThanOrEqual(8)
+    const explore = within(exploreNav).getByRole('link', {
+      name: 'Western à l’affiche',
+    })
     explore.focus({ preventScroll: true })
     await userEvent.keyboard('{Enter}')
     await waitFor(() =>
       expect(
-        canvas.getByRole('heading', { name: 'Sous tension' }),
+        canvas.getByRole('heading', { name: 'Western à l’affiche' }),
       ).toHaveFocus(),
     )
     await expect(
@@ -150,11 +162,96 @@ export const ThematicShelves: Story = {
     await userEvent.click(
       await within(last).findByRole('button', { name: /^Lire / }),
     )
-    await expect(args.onPlay).toHaveBeenCalledWith(
-      expect.objectContaining({ title: last.getAttribute('aria-label') }),
-      true,
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenCalledWith(
+        expect.objectContaining({ title: last.getAttribute('aria-label') }),
+        true,
+      ),
     )
     rail.scrollTo({ left: 0, behavior: 'instant' })
+  },
+}
+
+export const SectionNavigation: Story = {
+  name: 'Défilement vers une sélection au clavier',
+  args: { items: homeShelfItems },
+  play: async ({ canvas, userEvent }) => {
+    const navigation = await canvas.findByRole('navigation', {
+      name: 'Explorer les sélections',
+    })
+    const name = 'Western à l’affiche'
+    const link = within(navigation).getByRole('link', { name })
+    const heading = canvas.getByRole('heading', { name })
+    navigation.scrollIntoView({ block: 'center', behavior: 'instant' })
+    link.focus({ preventScroll: true })
+
+    const start = window.scrollY
+    const margin = parseFloat(getComputedStyle(heading).scrollMarginTop) || 0
+    const destination = Math.min(
+      document.documentElement.scrollHeight - window.innerHeight,
+      start + heading.getBoundingClientRect().top - margin,
+    )
+    const positions: number[] = []
+    const sample = () => positions.push(window.scrollY)
+    window.addEventListener('scroll', sample)
+    try {
+      await userEvent.keyboard('{Enter}')
+      await waitFor(
+        () => expect(Math.abs(window.scrollY - destination)).toBeLessThan(2),
+        { timeout: 3000 },
+      )
+      await expect(heading).toHaveFocus()
+      await expect(window.location.hash).toBe('#' + heading.id)
+      const intermediate = positions.some(
+        (position) => position > start + 2 && position < destination - 2,
+      )
+      const minimalMotion =
+        matchMedia('(prefers-reduced-motion: reduce)').matches ||
+        ['light', 'essential'].includes(
+          document.documentElement.dataset.performance ?? '',
+        )
+      await expect(intermediate).toBe(!minimalMotion)
+    } finally {
+      window.removeEventListener('scroll', sample)
+    }
+  },
+}
+
+export const OverlappingGenres: Story = {
+  name: 'Douze films, plusieurs genres par film',
+  args: { items: mixedGenreFilms, resumeItems: [] },
+  play: async ({ canvas, userEvent, args }) => {
+    const nav = await canvas.findByRole('navigation', {
+      name: 'Explorer les sélections',
+    })
+    const links = within(nav).getAllByRole('link')
+    await expect(links.length).toBeGreaterThan(4)
+    for (const genre of ['Animation', 'Famille', 'Horreur', 'Comédie']) {
+      const link = within(nav).getByRole('link', {
+        name: genre + ' à l’affiche',
+      })
+      await expect(link).toBeVisible()
+    }
+    const animation = within(nav).getByRole('link', {
+      name: 'Animation à l’affiche',
+    })
+    animation.focus()
+    await userEvent.keyboard('{Enter}')
+    const section = canvas.getByRole('region', {
+      name: 'Animation à l’affiche',
+    })
+    await waitFor(() =>
+      expect(within(section).getByRole('heading')).toHaveFocus(),
+    )
+    const eligible = args.items.filter((item) =>
+      item.genres.includes('Animation'),
+    )
+    const cards = within(section).getAllByRole('article')
+    await expect(cards.length).toBeGreaterThanOrEqual(2)
+    for (const card of cards)
+      await expect(eligible.map((item) => item.title)).toContain(
+        card.getAttribute('aria-label'),
+      )
   },
 }
 
@@ -422,7 +519,7 @@ export const CardPlayback: Story = {
     onPlay: fn(),
     resumeItems: [
       ...homeResume,
-      ...homeItems.slice(4).map((item) => ({
+      ...homeShelfItems.slice(0, 14).map((item) => ({
         ...item,
         progress: 0.28,
         remainingMinutes: 85,
@@ -445,7 +542,9 @@ export const CardPlayback: Story = {
     await userEvent.click(
       within(card).getByRole('button', { name: 'Lire ' + args.items[0].title }),
     )
-    await expect(args.onPlay).toHaveBeenCalledWith(args.items[0], true)
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenCalledWith(args.items[0], true),
+    )
     await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument()
     const resumeSection = canvas.getByRole('region', {
       name: /En cours de lecture/,
@@ -454,6 +553,13 @@ export const CardPlayback: Story = {
       '.horizontal-rail-track',
     )!
     const [resume] = within(resumeSection).getAllByRole('article')
+    const bounds = resume.getBoundingClientRect()
+    await expect(bounds.width / bounds.height).toBeCloseTo(16 / 9, 1)
+    await expect(bounds.width).toBeLessThanOrEqual(384)
+    if (rail.clientWidth >= 1440)
+      await expect(bounds.width).toBeGreaterThanOrEqual(300)
+    if (rail.clientWidth >= 390)
+      await expect(bounds.width).toBeLessThan(rail.clientWidth / 2)
     await userEvent.click(
       within(resumeSection).getByRole('button', {
         name: 'Titres en cours suivants',
@@ -473,9 +579,8 @@ export const CardPlayback: Story = {
         name: 'Reprendre ' + args.resumeItems[0].title,
       }),
     )
-    await expect(args.onPlay).toHaveBeenLastCalledWith(
-      args.resumeItems[0],
-      true,
+    await waitFor(() =>
+      expect(args.onPlay).toHaveBeenLastCalledWith(args.resumeItems[0], true),
     )
   },
 }

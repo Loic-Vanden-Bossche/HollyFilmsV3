@@ -53,7 +53,7 @@ export async function createApp(
   app.addHook('onClose', () => db.$disconnect())
   await app.register(cookie)
   await app.register(rateLimit, { global: false })
-  const accounts = accountService(db, config)
+  const accounts = accountService(db, config, app.log)
 
   const acceptedOrigins = new Set([config.publicOrigin])
   const publicUrl = new URL(config.publicOrigin)

@@ -1,6 +1,6 @@
 import { usePerformanceReducedMotion as useReducedMotion } from './performance/PerformanceProvider.tsx'
 import { useI18n } from './i18n/I18nProvider.tsx'
-import { localizeText } from './i18n/messages.ts'
+import { homeShelfTitle } from './home-shelf-title.ts'
 import { Tooltip } from './ui/Tooltip.tsx'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, useAnimate } from 'motion/react'
@@ -23,6 +23,7 @@ import { CatalogueBackdrop } from './ui/CatalogueBackdrop.tsx'
 import { SearchBar } from './ui/SearchBar.tsx'
 import { SearchResults, type SearchPageData } from './ui/SearchResults.tsx'
 import { useCatalogueReturn } from './ui/use-catalogue-return.ts'
+import { allowPageScrollInterruption, scrollPageTo } from './ui/page-scroll.ts'
 import { LibraryTransition } from './ui/LibraryTransition.tsx'
 import { LibraryView } from './ui/LibraryView.tsx'
 import { GooeyNav, ShinyText } from './components/reactbits/Effects.tsx'
@@ -160,7 +161,7 @@ export function HomePage({
   const closeSearch = () => {
     setSearchFocused(false)
     onSearch('')
-    window.scrollTo({ top: 0, behavior: 'instant' })
+    scrollPageTo(0)
   }
   const content = useRef<HTMLElement>(null)
   const rememberPlace = useCatalogueReturn(
@@ -297,6 +298,7 @@ export function HomePage({
     return buildHomeShelves(items, ratings, recentSeries)
   }, [browsing, searchActive, state, items, ratedMovies, recentSeries, total])
   const entryShelf = useRef(window.location.hash)
+  const entryShelfY = useRef<number>(undefined)
   useLayoutEffect(() => {
     // The browser's initial fragment lookup can precede Jellyfin's response.
     const hash = entryShelf.current
@@ -314,10 +316,27 @@ export function HomePage({
       cancel()
       return
     }
-    const heading = document.getElementById(hash.slice(1))
+    // Older bookmarks pointed to the first library genre under one shared ID.
+    const heading =
+      hash === '#home-shelf-genre'
+        ? content.current?.querySelector<HTMLElement>(
+            'h2[id^="home-shelf-genre-"]',
+          )
+        : document.getElementById(hash.slice(1))
     if (heading && content.current?.contains(heading)) {
-      heading.scrollIntoView({ block: 'start', behavior: 'instant' })
-      heading.focus({ preventScroll: true })
+      const y = heading.getBoundingClientRect().top + window.scrollY
+      // Re-align if more shelves arrive above the target. A data refresh at
+      // the same position must not restart a scroll that is already moving.
+      if (
+        entryShelfY.current == null ||
+        Math.abs(y - entryShelfY.current) > 1
+      ) {
+        entryShelfY.current = y
+        allowPageScrollInterruption()
+        heading.scrollIntoView({ block: 'start' })
+      }
+      if (document.activeElement !== heading)
+        heading.focus({ preventScroll: true })
       if (!loadingRatings && !loadingSeries) {
         cancel()
         return
@@ -325,7 +344,13 @@ export function HomePage({
     }
     // A slow library response must never pull someone back after they've moved on.
     const listeners = new AbortController()
-    for (const event of ['wheel', 'pointerdown', 'keydown', 'hashchange'])
+    for (const event of [
+      'wheel',
+      'pointerdown',
+      'touchmove',
+      'keydown',
+      'hashchange',
+    ])
       window.addEventListener(event, cancel, {
         passive: true,
         signal: listeners.signal,
@@ -344,6 +369,34 @@ export function HomePage({
   const themes = selections.filter(
     ({ id }) => id !== 'recent' && id !== 'acclaimed',
   )
+  const pendingReplay = useRef<AbortController | null>(null)
+  useLayoutEffect(
+    () => () => pendingReplay.current?.abort(),
+    [filter, searchActive, selected, playbackOpen],
+  )
+
+  function replayOpening() {
+    pendingReplay.current?.abort()
+    const controller = new AbortController()
+    pendingReplay.current = controller
+    const cancel = () => controller.abort()
+    const atTop = () => {
+      if (window.scrollY > 1) return
+      cancel()
+      content.current?.focus({ preventScroll: true })
+      setSkipEntrance(false)
+      setIntroElapsed(false)
+      setEntranceKey((value) => value + 1)
+      setOpening(true)
+    }
+    const options = { signal: controller.signal, passive: true }
+    window.addEventListener('scroll', atTop, options)
+    for (const event of ['wheel', 'pointerdown', 'touchmove', 'keydown'])
+      window.addEventListener(event, cancel, options)
+    scrollPageTo(0)
+    // An already visible hero or a reduced-motion scroll needs no scroll event.
+    atTop()
+  }
   const tileActions = {
     session,
     userId,
@@ -353,12 +406,13 @@ export function HomePage({
     onWatched,
   }
 
-  function renderShelf({ id, title, items, genre, browse }: HomeShelf) {
+  function renderShelf(shelf: HomeShelf) {
+    const { id, items, browse } = shelf
     return (
       <HomeMediaShelf
         key={id}
         id={id}
-        title={t(title, genre ? { genre: localizeText(t, genre) } : undefined)}
+        title={homeShelfTitle(t, shelf)}
         items={items}
         browse={browse}
         onBrowse={
@@ -437,7 +491,7 @@ export function HomePage({
               .querySelector<HTMLButtonElement>(
                 '.rb-gooey-nav button[aria-current]',
               )
-              ?.focus()
+              ?.focus({ preventScroll: true })
           }
         }}
       >
@@ -743,16 +797,7 @@ export function HomePage({
                         </button>
                       )}
                       {!reduced && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: 'instant' })
-                            setSkipEntrance(false)
-                            setIntroElapsed(false)
-                            setEntranceKey((value) => value + 1)
-                            setOpening(true)
-                          }}
-                        >
+                        <button type="button" onClick={replayOpening}>
                           <RotateCcw size={13} />
                           {t('Revoir l’ouverture')}
                         </button>

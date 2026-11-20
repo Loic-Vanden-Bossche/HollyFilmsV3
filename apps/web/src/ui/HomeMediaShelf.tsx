@@ -1,5 +1,12 @@
-import { useEffect, useRef, type ComponentProps } from 'react'
-import { animate } from 'motion/react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from 'react'
+import { animate, useInView } from 'motion/react'
+import { flushSync } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
 import type { MediaItem } from '@hollyfilms/shared/library'
 import type { HomeShelfBrowse, HomeShelfId } from '../home-shelves.ts'
@@ -36,13 +43,27 @@ export function HomeMediaShelf({
   const { running } = useMotionPolicy()
   const shelf = useRef<HTMLElement>(null)
   const seen = useRef(new WeakSet<Element>())
+  const near = useInView(shelf, { once: true, margin: '500px 0px' })
+  const [interacted, setInteracted] = useState(false)
+  const pendingFocus = useRef<string>(undefined)
   const poster = id === 'recent' || id === 'series'
   const ranked = id === 'acclaimed'
   const resume = id === 'resume'
+  const active = resume || id === 'recent' || near || interacted
   const headingId = 'home-shelf-' + id
 
+  useLayoutEffect(() => {
+    if (!active || !pendingFocus.current) return
+    shelf.current
+      ?.querySelector<HTMLButtonElement>(
+        `[data-media-id="${CSS.escape(pendingFocus.current)}"] .media-tile-select`,
+      )
+      ?.focus({ preventScroll: true })
+    pendingFocus.current = undefined
+  }, [active])
+
   useEffect(() => {
-    if (loading) return
+    if (loading || !active) return
     const controls = new Set<ReturnType<typeof animate>>()
     const observer = new IntersectionObserver(
       (entries) => {
@@ -104,7 +125,7 @@ export function HomeMediaShelf({
       observer.disconnect()
       controls.forEach((control) => control.complete())
     }
-  }, [items, loading, poster, running])
+  }, [active, items, loading, poster, running])
 
   return (
     <section
@@ -114,6 +135,44 @@ export function HomeMediaShelf({
       data-shelf-format={poster ? 'poster' : ranked ? 'ranked' : 'landscape'}
       aria-hidden={loading || undefined}
       aria-labelledby={loading ? undefined : headingId}
+      onPointerOverCapture={
+        active
+          ? undefined
+          : (event) => {
+              const id =
+                event.target instanceof Element
+                  ? event.target.closest<HTMLElement>('[data-media-id]')
+                      ?.dataset.mediaId
+                  : undefined
+              flushSync(() => setInteracted(true))
+              if (id) {
+                // Deliver the original entry to the mounted card: a stationary
+                // mouse needs the dwell timer and a tap needs its input modality.
+                shelf.current
+                  ?.querySelector<HTMLButtonElement>(
+                    `[data-media-id="${CSS.escape(id)}"] .media-tile-select`,
+                  )
+                  ?.dispatchEvent(
+                    new PointerEvent('pointerover', {
+                      pointerType: event.pointerType,
+                      bubbles: true,
+                    }),
+                  )
+              }
+            }
+      }
+      onFocusCapture={
+        active
+          ? undefined
+          : (event) => {
+              // A keyboard or catalogue return can focus a title before scroll
+              // brings the shelf into view. Restore it during the mount commit.
+              pendingFocus.current =
+                event.target.closest<HTMLElement>('[data-media-id]')?.dataset
+                  .mediaId
+              setInteracted(true)
+            }
+      }
     >
       <div className="home-section-header">
         <h2 id={loading ? undefined : headingId} tabIndex={-1}>
@@ -157,7 +216,7 @@ export function HomeMediaShelf({
           step={resume ? 'card' : 'page'}
         >
           {items.map((item, index) => {
-            const tile = (
+            const tile = active ? (
               <MediaTile
                 key={item.id}
                 item={item}
@@ -165,6 +224,24 @@ export function HomeMediaShelf({
                 ranked={ranked}
                 {...tileProps}
               />
+            ) : (
+              <article
+                key={item.id}
+                className="media-tile"
+                data-media-id={item.id}
+                aria-label={item.title}
+              >
+                <button
+                  type="button"
+                  className="media-tile-select home-shelf-cover-slot"
+                  aria-label={t('Voir la fiche de {title}', {
+                    title: [item.title, item.episode]
+                      .filter(Boolean)
+                      .join(', '),
+                  })}
+                  onClick={() => tileProps.onSelect(item)}
+                />
+              </article>
             )
             return ranked ? (
               <div

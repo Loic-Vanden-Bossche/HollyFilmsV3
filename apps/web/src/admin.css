@@ -1,9 +1,5 @@
 @reference './index.css';
 
-.admin-page {
-  width: 100%;
-  font-family: 'DM Sans', sans-serif;
-}
 .admin-back {
   @apply text-muted-foreground;
   display: inline-flex;
@@ -66,6 +62,16 @@
 }
 .admin-section-heading {
   margin-bottom: 22px;
+}
+.admin-accounts-heading,
+.admin-account-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.admin-accounts-heading {
+  justify-content: space-between;
 }
 .admin-section-heading h2,
 .admin-content .requests-embedded h2:first-child {
@@ -162,6 +168,16 @@
   border-radius: 24px;
   padding: 28px;
 }
+.admin-registration-inbox {
+  margin-bottom: 20px;
+}
+.admin-registration-inbox .admin-filters {
+  padding-bottom: 8px;
+}
+.admin-registration-inbox .admin-empty {
+  padding: 12px 0 0;
+  text-align: start;
+}
 .admin-inbox-heading {
   display: flex;
   align-items: center;
@@ -174,9 +190,8 @@
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-.admin-inbox-heading > span {
-  @apply text-muted-foreground;
-  font-size: 12px;
+.admin-filter-count {
+  font-variant-numeric: tabular-nums;
 }
 .admin-filters {
   display: flex;
@@ -282,9 +297,6 @@
   }
   .admin-inbox-heading {
     align-items: start;
-  }
-  .admin-inbox-heading > span {
-    white-space: nowrap;
   }
   .admin-filters {
     gap: 0;

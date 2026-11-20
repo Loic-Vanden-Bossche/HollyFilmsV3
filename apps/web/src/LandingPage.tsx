@@ -23,7 +23,7 @@ import {
 import type { AuthOptions } from '@hollyfilms/shared/accounts'
 import type { ShowcaseItem } from '@hollyfilms/shared/showcase'
 import { LoginForm } from './LoginForm.tsx'
-import googleLogo from './assets/logos/google-gradient.png'
+import googleLogo from './assets/logos/google-gradient-96.png'
 import { LanguageSelect } from './ui/LanguageSelect.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
 import { ProjectorBackdrop } from './ui/ProjectorBackdrop.tsx'
@@ -226,16 +226,13 @@ export function LandingPage({
                         className="google-entry glass-control"
                         href={options.googleStartUrl}
                       >
-                        <svg
+                        <img
+                          src={googleLogo}
+                          alt=""
                           width={18}
                           height={18}
-                          viewBox="940 940 940 940"
-                          aria-hidden="true"
-                          focusable="false"
                           className="shrink-0"
-                        >
-                          <image href={googleLogo} width={2820} height={2820} />
-                        </svg>
+                        />
                         {t('Continuer avec Google')}
                       </a>
                     )}

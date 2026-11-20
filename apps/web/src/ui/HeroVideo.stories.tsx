@@ -44,6 +44,24 @@ export const Paused: Story = {
     await expect(canvasElement.querySelector('video')?.paused).toBe(true)
   },
 }
+export const BoundedExcerpt: Story = {
+  name: 'Fin de l’extrait et retour au visuel',
+  args: {
+    source: { kind: 'video', url: previewVideo + '#t=0,1.5' },
+    onExcerptEnd: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const video = canvasElement.querySelector('video')!
+    await waitFor(() => expect(args.onStatus).toHaveBeenCalledWith('playing'))
+    await expect(video.loop).toBe(false)
+    await waitFor(() => expect(args.onExcerptEnd).toHaveBeenCalledTimes(1), {
+      timeout: 5000,
+    })
+    await expect(video.paused).toBe(true)
+    await expect(video).not.toHaveAttribute('src')
+    await expect(args.onStatus).not.toHaveBeenCalledWith('unavailable')
+  },
+}
 export const Unavailable: Story = {
   args: { source: { kind: 'video', url: 'data:video/webm;base64,broken' } },
   play: async ({ args }) => {

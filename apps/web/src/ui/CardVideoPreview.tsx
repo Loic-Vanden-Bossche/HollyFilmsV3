@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import {
@@ -26,6 +26,8 @@ export function CardVideoPreview({
   const [clipFailed, setClipFailed] = useState(false)
   const [trailerFailed, setTrailerFailed] = useState(false)
   const [finished, setFinished] = useState(false)
+  const frame = useRef<HTMLDivElement>(null)
+  const titledArt = useRef<HTMLElement | null>(null)
   const deadline = useRef<ReturnType<typeof setTimeout>>(undefined)
   const preferClip = !!clip && !clipFailed && (resume || startSeconds != null)
   const trailer = useQuery({
@@ -43,17 +45,33 @@ export function CardVideoPreview({
     ? clip
     : availableTrailer || (!trailer.isPending && !clipFailed ? clip : null)
   const active = !!source && !finished
+  useLayoutEffect(() => {
+    const hero = frame.current?.closest<HTMLElement>(
+      '.artwork-preview-hero[data-titled-image]',
+    )
+    titledArt.current = hero ?? null
+    return () => {
+      hero?.style.removeProperty('--preview-video-opacity')
+      titledArt.current = null
+    }
+  }, [source?.url, active])
   useEffect(() => (active ? holdBannerVideo() : undefined), [active])
   useEffect(() => () => clearTimeout(deadline.current), [])
   if (!source || finished) return null
   const excerpt = source === clip
   return (
-    <div className="card-video-preview">
+    <div className="card-video-preview" ref={frame}>
       <HeroVideo
         key={excerpt ? 'clip' : 'trailer'}
         source={source}
         running
         muted
+        onFade={(opacity) =>
+          titledArt.current?.style.setProperty(
+            '--preview-video-opacity',
+            String(opacity),
+          )
+        }
         onStatus={(status) => {
           if (status === 'unavailable') {
             if (excerpt) setClipFailed(true)

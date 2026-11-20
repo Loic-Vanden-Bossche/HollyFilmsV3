@@ -310,14 +310,37 @@ export const ScrollTracking: Story = {
         nav.querySelectorAll('[aria-current="location"]'),
       ).toHaveLength(1)
     }
-    await userEvent.click(within(nav).getByRole('button', { name: 'Scènes' }))
-    await waitFor(
-      () =>
-        expect(
-          within(nav).getByRole('button', { name: 'Scènes' }),
-        ).toHaveAttribute('aria-current', 'location'),
-      { timeout: 2000 },
-    )
+    const scenes = within(nav).getByRole('button', { name: 'Scènes' })
+    const section = dialog.querySelector<HTMLElement>('#detail-scenes')!
+    const before = dialog.scrollTop
+    const pageTop = window.scrollY
+    const positions: number[] = []
+    const record = () => positions.push(dialog.scrollTop)
+    dialog.addEventListener('scroll', record)
+    try {
+      await userEvent.click(scenes)
+      await waitFor(
+        () => {
+          const inset = parseFloat(getComputedStyle(dialog).scrollPaddingTop)
+          const offset =
+            section.getBoundingClientRect().top -
+            dialog.getBoundingClientRect().top -
+            dialog.clientTop -
+            inset
+          expect(Math.abs(offset)).toBeLessThan(2)
+        },
+        { timeout: 3000 },
+      )
+      await expect(scenes).toHaveAttribute('aria-current', 'location')
+      await expect(scenes).toHaveFocus()
+      await expect(window.scrollY).toBe(pageTop)
+      if (getComputedStyle(dialog).scrollBehavior === 'smooth')
+        await expect(
+          positions.some((y) => y > before + 1 && y < dialog.scrollTop - 1),
+        ).toBe(true)
+    } finally {
+      dialog.removeEventListener('scroll', record)
+    }
     dialog.scrollTo({ top: dialog.scrollHeight, behavior: 'instant' })
     await waitFor(() =>
       expect(

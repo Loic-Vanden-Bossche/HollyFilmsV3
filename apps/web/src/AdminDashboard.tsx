@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react'
-import {
-  ArrowLeft,
-  Captions,
-  Clapperboard,
-  ClipboardList,
-  Users,
-} from 'lucide-react'
+import { ArrowLeft, Captions, Clapperboard, Users } from 'lucide-react'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { useI18n } from './i18n/I18nProvider.tsx'
-import { AdminPage } from './AdminPage.tsx'
 import { AdminUsers } from './AdminUsers.tsx'
 import { RequestsPage } from './RequestsPage.tsx'
 import { SubtitleRequests } from './SubtitleRequests.tsx'
@@ -18,7 +11,6 @@ import './admin.css'
 
 const sections = {
   users: { label: 'Utilisateurs', icon: Users },
-  registrations: { label: 'Inscriptions', icon: ClipboardList },
   media: { label: 'Demandes de médias', icon: Clapperboard },
   subtitles: { label: 'Demandes de sous-titres', icon: Captions },
 } as const
@@ -29,12 +21,8 @@ function sectionFromLocation(): Section {
   const section = new URLSearchParams(search).get('section')
   if (/^\/admin\/requests\/?$/.test(pathname))
     return section === 'subtitles' ? 'subtitles' : 'media'
-  if (
-    section === 'registrations' ||
-    section === 'media' ||
-    section === 'subtitles'
-  )
-    return section
+  if (section === 'media' || section === 'subtitles') return section
+  // Existing ?section=registrations bookmarks open the combined account screen.
   return 'users'
 }
 
@@ -106,7 +94,6 @@ export function AdminDashboard({
         </aside>
         <div className="admin-content">
           {section === 'users' && <AdminUsers session={session} />}
-          {section === 'registrations' && <AdminPage session={session} />}
           {section === 'media' && (
             <RequestsPage session={session} administrator embedded />
           )}

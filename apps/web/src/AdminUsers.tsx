@@ -1,5 +1,10 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useIsFetching,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   RotateCcw,
   Search,
@@ -14,6 +19,7 @@ import { localizeText } from './i18n/messages.ts'
 import { Button } from './ui/Button.tsx'
 import { lockBodyScroll } from './ui/body-scroll-lock.ts'
 import { AdminUserEditor } from './AdminUserEditor.tsx'
+import { AdminPage } from './AdminPage.tsx'
 import './admin.css'
 
 const filters = {
@@ -28,6 +34,12 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
   const { t, locale } = useI18n()
   const cache = useQueryClient()
   const queryKey = ['admin-users', session.deviceId]
+  const registrationsKey = ['registrations', session.deviceId]
+  const fetchingRegistrations = useIsFetching({ queryKey: registrationsKey })
+  function refreshAccounts() {
+    void cache.invalidateQueries({ queryKey })
+    void cache.invalidateQueries({ queryKey: registrationsKey })
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<UserFilter>('all')
   const [selected, setSelected] = useState<AdminUser>()
@@ -100,25 +112,12 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
 
   return (
     <section aria-labelledby="admin-users-heading">
-      <header className="admin-section-heading">
+      <header className="admin-section-heading admin-accounts-heading">
         <h2 id="admin-users-heading">{t('Utilisateurs')}</h2>
-      </header>
-      <div className="admin-inbox">
-        <div className="admin-user-toolbar">
-          <label className="admin-user-search glass-control">
-            <Search size={17} aria-hidden="true" />
-            <input
-              type="search"
-              ref={searchInput}
-              placeholder={t('Rechercher un utilisateur')}
-              aria-label={t('Rechercher un utilisateur')}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
+        <div className="admin-account-actions">
           <Button
-            onClick={() => void users.refetch()}
-            disabled={users.isFetching}
+            onClick={refreshAccounts}
+            disabled={users.isFetching || fetchingRegistrations > 0}
             className="admin-refresh"
           >
             <RotateCcw size={15} aria-hidden="true" />
@@ -132,6 +131,28 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
             <UserRoundPlus size={16} aria-hidden="true" />
             {t('Ajouter un utilisateur')}
           </Button>
+        </div>
+      </header>
+      <AdminPage session={session} />
+      <section
+        className="admin-inbox"
+        aria-labelledby="admin-directory-heading"
+      >
+        <div className="admin-inbox-heading">
+          <h3 id="admin-directory-heading">{t('Tous les comptes')}</h3>
+        </div>
+        <div className="admin-user-toolbar">
+          <label className="admin-user-search glass-control">
+            <Search size={17} aria-hidden="true" />
+            <input
+              type="search"
+              ref={searchInput}
+              placeholder={t('Rechercher un utilisateur')}
+              aria-label={t('Rechercher un utilisateur')}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
         </div>
         <div
           className="admin-filters"
@@ -271,7 +292,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
             )}
           </>
         )}
-      </div>
+      </section>
       {selected && (
         <dialog
           ref={dialog}
@@ -331,7 +352,7 @@ export function AdminUsers({ session }: { session: JellyfinSession }) {
           session={session}
           account={editor === 'create' ? undefined : editor}
           onClose={() => setEditor(undefined)}
-          onChanged={() => void cache.invalidateQueries({ queryKey })}
+          onChanged={refreshAccounts}
         />
       )}
     </section>

@@ -9,7 +9,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -34,13 +33,15 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { getHeroPreview } from '@hollyfilms/shared/library'
+import { getHeroPreview, getItemPreviewClip } from '@hollyfilms/shared/library'
 import type { MediaItem } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { useArtworkNavigation } from './artwork-hero-context.ts'
 import { formatDuration } from '../format-duration.ts'
 import { HeroVideo } from './HeroVideo.tsx'
 import { useCardVideoActive } from './card-video-activity.ts'
+import { useBackdropWidth } from './use-backdrop-width.ts'
 import {
   BlurText,
   Magnet,
@@ -55,21 +56,61 @@ import {
   staggerDelay,
 } from '../motion/tokens.ts'
 const ease = curves.out
+type PreviewKind = 'trailer' | 'clip'
 
-function subscribeViewport(notify: () => void) {
-  window.addEventListener('resize', notify)
-  return () => window.removeEventListener('resize', notify)
-}
-function backdropResolution() {
-  // Cover the zoomed hero at native display density, without decoding a 4K
-  // image on every small screen. Buckets keep resized images in the same cache.
-  return Math.min(
-    3840,
-    Math.max(
-      1280,
-      Math.ceil((window.innerWidth * window.devicePixelRatio * 1.08) / 640) *
-        640,
-    ),
+// Keyed to the featured item. A failed source is tried only once per visit.
+function FeaturedVideo({
+  item,
+  session,
+  userId,
+  running,
+  muted,
+  onPlaying,
+}: {
+  item: MediaItem
+  session: JellyfinSession
+  userId: string
+  running: boolean
+  muted: boolean
+  onPlaying: (kind: PreviewKind | null) => void
+}) {
+  const base = new URL('/jellyfin', window.location.origin).href
+  const [trailerFailed, setTrailerFailed] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const trailer = useQuery({
+    queryKey: ['native-preview', session.deviceId, userId, item.id],
+    queryFn: ({ signal }) =>
+      getHeroPreview(base, session, userId, item, signal),
+    retry: false,
+    staleTime: 300_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+  })
+  useLayoutEffect(() => () => onPlaying(null), [onPlaying])
+  if (finished || trailer.isPending) return null
+  const native = !trailerFailed && trailer.data
+  const source = native || getItemPreviewClip(base, session, item)
+  if (!source) return null
+
+  function finish() {
+    onPlaying(null)
+    setFinished(true)
+  }
+  return (
+    <HeroVideo
+      key={native ? 'trailer' : 'clip'}
+      source={source}
+      running={running}
+      muted={muted}
+      onExcerptEnd={native ? undefined : finish}
+      onStatus={(status) => {
+        if (status === 'playing') onPlaying(native ? 'trailer' : 'clip')
+        else if (native) {
+          onPlaying(null)
+          setTrailerFailed(true)
+        } else finish()
+      }}
+    />
   )
 }
 
@@ -99,13 +140,10 @@ export function HomeCarousel({
   onFavorite?: (item: MediaItem, favorite: boolean) => Promise<boolean>
 }) {
   const { t, locale } = useI18n()
+  const navigateArtwork = useArtworkNavigation()
   const reduced = useReducedMotion()
   const profile = usePerformanceProfile()
-  const backdropWidth = useSyncExternalStore(
-    subscribeViewport,
-    backdropResolution,
-    () => 1920,
-  )
+  const backdropWidth = useBackdropWidth()
   const root = useRef<HTMLElement>(null)
   const restoreControl = useRef<string | null>(null)
   const inView = useInView(root, { amount: 0.3 })
@@ -115,10 +153,7 @@ export function HomeCarousel({
   const [hovered, setHovered] = useState(false)
   const [visible, setVisible] = useState(!document.hidden)
   const [muted, setMuted] = useState(true)
-  const [previewStatus, setPreviewStatus] = useState<{
-    id: string
-    playing: boolean
-  }>()
+  const [playingPreview, setPlayingPreview] = useState<PreviewKind | null>(null)
   const [saving, setSaving] = useState<string>()
   const [burst, setBurst] = useState(0)
   const [favoriteError, setFavoriteError] = useState<string>()
@@ -159,26 +194,11 @@ export function HomeCarousel({
   const enabled =
     active && reveal && visible && inView && !reduced && !cardVideoActive
   const running = enabled && !paused
-  const preview = useQuery({
-    queryKey: ['native-preview', session?.deviceId, userId, item?.id],
-    queryFn: ({ signal }) =>
-      getHeroPreview(
-        new URL('/jellyfin', window.location.origin).href,
-        session!,
-        userId!,
-        item,
-        signal,
-      ),
-    enabled: Boolean(item && session && userId && enabled && profile.trailers),
-    retry: false,
-    staleTime: 300000,
-    gcTime: 0,
-    refetchOnWindowFocus: false,
-  })
-  const previewSource = enabled && profile.trailers ? preview.data : null
-  const playingPreview =
-    previewSource && previewStatus?.id === item?.id && previewStatus.playing
-  const duration = playingPreview ? 30 : 10
+  const { connection } = navigator as Navigator & {
+    connection?: { saveData?: boolean }
+  }
+  const allowPreview = enabled && profile.trailers && !connection?.saveData
+  const duration = playingPreview === 'trailer' ? 30 : playingPreview ? 15 : 10
 
   useEffect(() => {
     const changed = () => setVisible(!document.hidden)
@@ -287,15 +307,15 @@ export function HomeCarousel({
             />
           </motion.div>
         </AnimatePresence>
-        {previewSource && (
-          <HeroVideo
-            key={item.id}
-            source={previewSource}
+        {allowPreview && session && userId && (
+          <FeaturedVideo
+            key={session.deviceId + '/' + item.id}
+            item={item}
+            session={session}
+            userId={userId}
             running={running}
             muted={muted}
-            onStatus={(status) =>
-              setPreviewStatus({ id: item.id, playing: status === 'playing' })
-            }
+            onPlaying={setPlayingPreview}
           />
         )}
       </div>
@@ -318,6 +338,7 @@ export function HomeCarousel({
               <MediaArtwork
                 source={item.logo}
                 onReady={settleLogo}
+                reveal="logo"
                 session={session}
                 width={1600}
                 eager
@@ -374,7 +395,11 @@ export function HomeCarousel({
                     whileHover={reduced ? undefined : { y: -3 }}
                     whileTap={reduced ? undefined : { scale: 0.97 }}
                     data-artwork-open="player"
-                    onClick={() => onPlay(item, true)}
+                    onClick={(event) =>
+                      navigateArtwork(event.currentTarget, 'player', () =>
+                        onPlay(item, true),
+                      )
+                    }
                   >
                     <Play size={20} fill="currentColor" />
                     <Magnet>
@@ -389,7 +414,11 @@ export function HomeCarousel({
                 whileHover={reduced ? undefined : { y: -3 }}
                 whileTap={reduced ? undefined : { scale: 0.97 }}
                 data-artwork-open="details"
-                onClick={() => onSelect(item)}
+                onClick={(event) =>
+                  navigateArtwork(event.currentTarget, 'details', () =>
+                    onSelect(item),
+                  )
+                }
               >
                 <Info size={20} />
                 {t('Voir la fiche')}
@@ -433,7 +462,11 @@ export function HomeCarousel({
         transition={{ duration: 0.45, delay: 0.2, ease }}
       >
         <span className="hero-preview-label">
-          {playingPreview ? t('BANDE-ANNONCE') : t('LA SÉLECTION HOLLYFILMS')}
+          {playingPreview === 'clip'
+            ? t('EXTRAIT')
+            : playingPreview === 'trailer'
+              ? t('BANDE-ANNONCE')
+              : t('LA SÉLECTION HOLLYFILMS')}
         </span>
         {playingPreview && (
           <Tooltip>

@@ -859,6 +859,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource-variable/dm-sans@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/dm-sans@npm:5.3.0"
+  checksum: 10c0/95c74b19fff2b4b1d669e61d481ede2186e28b92d7e1950748db94b9c3b2598aa38ff852e45ffd9955ea0a51386acdc90a8c4267783d45dd5f05e2430b24ad4e
+  languageName: node
+  linkType: hard
+
 "@hollyfilms/api@workspace:apps/api":
   version: 0.0.0-use.local
   resolution: "@hollyfilms/api@workspace:apps/api"
@@ -903,6 +910,7 @@ __metadata:
   resolution: "@hollyfilms/web@workspace:apps/web"
   dependencies:
     "@base-ui/react": "npm:^1.9.0"
+    "@fontsource-variable/dm-sans": "npm:^5.3.0"
     "@hollyfilms/shared": "workspace:*"
     "@jellyfin/sdk": "npm:^1.0.2"
     "@storybook/addon-docs": "npm:^10.6.7"

@@ -293,3 +293,55 @@ sélection, Échap, restitution du focus et vrai clic extérieur ; grille de
 1 000 titres, arrivée de contenu au-dessus et animations d’introduction.
 Les tests unitaires couvrent aussi l’isolation des comptes/serveurs et le
 stockage invalide ou indisponible.
+
+## Catalogue, images et lecture — 20 novembre 2026
+
+Les deux versions ont été comparées dans Chrome avec les mêmes données et les
+animations activées. Les valeurs de temps sont des médianes locales.
+
+| Scénario                                                               |    Avant |    Après |
+| ---------------------------------------------------------------------- | -------: | -------: |
+| Montage React de 13 rangées, 89 emplacements                           | 29,65 ms |  9,50 ms |
+| Du montage à la deuxième frame du navigateur                           | 43,55 ms | 21,40 ms |
+| Cartes complètes au premier affichage                                  |       89 |       25 |
+| Éléments DOM dans ces rangées au premier affichage                     |    1 542 |      654 |
+| Requêtes d’image pour 12 fonds et 48 vignettes reprenant ces fonds     |       24 |       12 |
+| Octets transférés pour ces images JPEG de test                         |  421 536 |  335 088 |
+| Textes de sous-titres extraits au chargement et au premier déplacement |    1 803 |        2 |
+| Mutations DOM dans les commandes masquées, sur 8 s de lecture          |      286 |        0 |
+
+La vitrine publique avec le bouton Google a transféré **368 570 octets** de
+ressources au lieu de **468 919**. Sur `/app/movies`, le JavaScript et le CSS
+transférés pour afficher le catalogue passent de **465 286 à 423 676 octets**.
+Le code du lecteur se charge à la demande, en parallèle des données du film.
+Dans ce scénario, la première carte sélectionnable est apparue après **1 633 ms**
+contre **1 693 ms** auparavant.
+
+Ces mesures d’ouverture comparent cinq passages alternés par version, sur des
+builds de production servis en gzip, dans des contextes Chrome neufs à 1 366 × 850. Le réseau simulé fournit 500 ko/s avec 60 ms de latence et le CPU est
+ralenti d’un facteur deux. Le catalogue contient un film de test. La police et
+les réponses des services sont servies localement. Les octets proviennent de
+`PerformanceResourceTiming.encodedBodySize`, avec le service worker désactivé
+pour mesurer une première visite.
+
+Les rangées ont été mesurées en version de production sur huit passages par
+version à 1 440 × 900. Elles gardent la même hauteur de page de 4 082 px et
+montent les cartes complètes à proximité du viewport ou dès la première
+interaction. Une rangée visitée reste montée pour le retour au catalogue.
+La grille conserve aussi son index pendant le défilement. Sur vingt déplacements
+avec 1 000 titres, les lectures d’identifiants ont diminué d’environ 91 %.
+
+Le test d’images affiche d’abord douze fonds de 960 px, puis quarante-huit
+vignettes de 320 px. Le cache réutilise le fond déjà décodé pour la vignette du
+même titre. Le nombre d’URL de blob créées pendant ce parcours passe de 108 à 12. Le gain réseau dépend des titres et des résolutions déjà en cache.
+
+Le test de lecture utilise une vidéo de deux heures et une piste WebVTT de
+1 800 répliques. Le lecteur extrait le texte des répliques actives pendant la
+lecture et construit la transcription complète à l’ouverture de l’éditeur de
+synchronisation. Les 30 événements de progression vidéo arrivent toujours
+pendant les huit secondes où les commandes sont masquées.
+
+Les stories `OffscreenKeyboard`, `OffscreenPointer`, `ThousandTitles` et
+`ResolutionUpgrade` couvrent la première interaction, le maintien du focus
+et le remplacement d’une image par une résolution supérieure.
+`corepack yarn test:player` exerce le lecteur avec Jellyfin 12.4 et Chrome.

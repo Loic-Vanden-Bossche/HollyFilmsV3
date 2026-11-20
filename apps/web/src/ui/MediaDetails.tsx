@@ -1,7 +1,7 @@
 import { localizeText } from '../i18n/messages.ts'
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Tooltip } from './Tooltip.tsx'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useQuery,
@@ -24,6 +24,7 @@ import {
 import type { MediaItem, LibraryPage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import { useArtworkNavigation } from './artwork-hero-context.ts'
 import { ArtworkPreview } from './ArtworkPreview.tsx'
 import { CardVideoPreview } from './CardVideoPreview.tsx'
 import { formatDuration } from '../format-duration.ts'
@@ -44,7 +45,11 @@ import { MediaRail } from './MediaRail.tsx'
 import { MediaCommunity } from './MediaCommunity.tsx'
 import { MediaTile } from './MediaTile.tsx'
 import { useMediaDetailsMotion } from './use-media-details-motion.ts'
-import { detailSections, useDetailSections } from './use-detail-sections.ts'
+import {
+  detailSections,
+  scrollToDetailContent,
+  useDetailSections,
+} from './use-detail-sections.ts'
 import { formatTime } from '../playback/format-time.ts'
 import './media-card.css'
 import '../home.css'
@@ -85,9 +90,11 @@ export function MediaDetails({
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const { scope, reduced, present, dismiss } = useMediaDetailsMotion()
+  const navigateArtwork = useArtworkNavigation()
+  const { scope, reduced, present, dismiss, sharedEntrance } =
+    useMediaDetailsMotion()
   const marker = useId()
-  const activeSection = useDetailSections(scope, reduced)
+  const { active: activeSection, selectSection } = useDetailSections(scope)
   const collectionRequest = useRef<AbortController | null>(null)
   const outside = useRef(false)
   const queryClient = useQueryClient()
@@ -169,6 +176,7 @@ export function MediaDetails({
     })
   }
   const browser = useRef<HTMLDivElement>(null)
+  const returnTo = useRef<HTMLElement | null>(null)
   const members = useInfiniteQuery({
     queryKey: [...key, 'browse', browsing?.type, browsing?.id],
     initialPageParam: 0,
@@ -199,15 +207,14 @@ export function MediaDetails({
     retry: false,
   })
   const memberItems = members.data?.pages.flatMap((p) => p.items) ?? []
-  useEffect(() => {
-    if (browsing) {
-      browser.current?.focus({ preventScroll: true })
-      browser.current?.scrollIntoView({
-        behavior: reduced ? 'instant' : 'smooth',
-        block: 'start',
-      })
-    }
-  }, [browsing, reduced])
+  useLayoutEffect(() => {
+    const dialog = scope.current
+    const target = browsing ? browser.current : returnTo.current
+    returnTo.current = null
+    if (!dialog || !target || !dialog.contains(target)) return
+    target.focus({ preventScroll: true })
+    scrollToDetailContent(dialog, target, browsing ? 'start' : 'nearest')
+  }, [browsing, scope])
   async function update(
     target: MediaItem,
     kind: 'favorite' | 'watched',
@@ -312,7 +319,7 @@ export function MediaDetails({
   }
   return (
     <motion.dialog
-      initial={{ opacity: 0 }}
+      initial={sharedEntrance ? false : { opacity: 0 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{
         opacity: 0,
@@ -384,12 +391,7 @@ export function MediaDetails({
               key={id}
               aria-controls={id}
               aria-current={activeSection === id ? 'location' : undefined}
-              onClick={() =>
-                scope.current.querySelector('#' + id)?.scrollIntoView({
-                  behavior: reduced ? 'instant' : 'smooth',
-                  block: 'start',
-                })
-              }
+              onClick={() => selectSection(id)}
             >
               {activeSection === id && (
                 <motion.i
@@ -423,6 +425,7 @@ export function MediaDetails({
             source={item.backdrop ?? item.poster}
             session={session}
             width={2560}
+            reveal="shared"
             eager
           />
         </div>
@@ -435,6 +438,7 @@ export function MediaDetails({
               source={item.poster}
               session={session}
               width={400}
+              reveal="shared"
               eager
             />
           </div>
@@ -484,7 +488,11 @@ export function MediaDetails({
               <motion.button
                 className="home-primary"
                 data-artwork-open="player"
-                onClick={() => onPlay(item, true)}
+                onClick={(event) =>
+                  navigateArtwork(event.currentTarget, 'player', () =>
+                    onPlay(item, true),
+                  )
+                }
                 whileTap={reduced ? undefined : { scale: 0.97 }}
               >
                 <Play size={18} fill="currentColor" />{' '}
@@ -499,7 +507,11 @@ export function MediaDetails({
               <button
                 className="glass-control"
                 data-artwork-open="player"
-                onClick={() => onPlay(item, false)}
+                onClick={(event) =>
+                  navigateArtwork(event.currentTarget, 'player', () =>
+                    onPlay(item, false),
+                  )
+                }
               >
                 {t('Depuis le début')}
               </button>
@@ -788,8 +800,8 @@ export function MediaDetails({
                   aria-label={t('Fermer cette sélection')}
                   onClick={() => {
                     collectionRequest.current?.abort()
+                    returnTo.current = browsing.opener
                     setBrowsing(undefined)
-                    browsing.opener?.focus()
                   }}
                 >
                   <X size={18} />
@@ -973,6 +985,7 @@ export function MediaDetails({
                   }
                   previewImage={{
                     source: backdrop ?? poster,
+                    matchesCover: !backdrop || backdrop === poster,
                     compactWidth: backdrop ? 600 : 420,
                   }}
                 >

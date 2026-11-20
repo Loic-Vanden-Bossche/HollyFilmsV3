@@ -1,6 +1,17 @@
 @reference "../index.css";
 
 /* Keep the shelf's document-edge gutters and the partial next tile. */
+.home-shelf-cover-slot {
+  @apply bg-card;
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0.65rem;
+}
+.home-shelves [data-shelf-format='poster'] .home-shelf-cover-slot {
+  aspect-ratio: 2 / 3;
+}
 .home-shelves [data-shelf-format='poster'] .home-shelf-track {
   grid-auto-columns: calc(
     (100% + var(--spacing-stage) - var(--shelf-peek)) /

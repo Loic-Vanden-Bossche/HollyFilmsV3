@@ -96,7 +96,7 @@ test('ranks accessible films independently of editorial picks and never extrapol
   )
 })
 
-test('large libraries remain finite and can supply their own genre', () => {
+test('several genres can supply distinct selections without repeating titles or alternate spellings', () => {
   const recent = Array.from({ length: 36 }, (_, i) =>
     movie('film-' + i, {
       genres: i % 3 ? ['Comédie', 'COMÉDIE'] : ['Drame'],
@@ -106,10 +106,97 @@ test('large libraries remain finite and can supply their own genre', () => {
     movie('rated-' + i, { rating: 8.5 }),
   )
   const shelves = buildHomeShelves(recent, rated)
-  assert(shelves.length <= 7)
   assert(shelves.every((shelf) => shelf.items.length <= 12))
-  const genre = shelves.find((shelf) => shelf.id === 'genre')
-  assert.equal(genre?.genre, 'Comédie')
-  assert.equal(genre.items.length, 12)
+  const genres = shelves.filter((shelf) => shelf.genre)
+  assert.deepEqual(
+    genres.map(({ id, genre, items }) => [id, genre, items.length]),
+    [
+      ['genre-comedie', 'Comédie', 12],
+      ['genre-drame', 'Drame', 12],
+    ],
+  )
   assert.deepEqual(buildHomeShelves(recent, rated), shelves)
+})
+
+test('genre links are stable across reordering and only lead to distinct, populated selections', () => {
+  const arrivals = [movie('first'), movie('second')]
+  const archive = [
+    movie('one', { genres: ['A/B', 'Overlap'] }),
+    movie('two', { genres: ['A/B', 'Overlap'] }),
+    movie('three', { genres: ['A B'] }),
+    movie('four', { genres: ['A B'] }),
+    movie('five', { genres: ['喜剧'] }),
+    movie('six', { genres: ['喜剧'] }),
+    movie('only', { genres: ['Solo', '  '] }),
+  ]
+  const genres = (items: MediaItem[]) =>
+    buildHomeShelves(arrivals, items).filter((shelf) => shelf.genre)
+  const first = genres(archive)
+  assert.deepEqual(
+    first.map((shelf) => shelf.genre),
+    ['A/B', 'A B', '喜剧'],
+  )
+  assert.equal(new Set(first.map(({ id }) => id)).size, 3)
+  const rearranged = genres(archive.toReversed())
+  for (const shelf of first) {
+    assert.match(shelf.id, /^genre-[a-z0-9_-]+$/)
+    assert.equal(rearranged.find((s) => s.genre === shelf.genre)?.id, shelf.id)
+  }
+})
+
+test('the home page keeps discovery finite even in a diverse library', () => {
+  const archive = Array.from({ length: 30 }, (_, i) =>
+    movie('archive-' + i, { genres: ['Genre ' + Math.floor(i / 2)] }),
+  )
+  const shelves = buildHomeShelves([movie('arrival')], archive)
+  const themes = shelves.filter(
+    ({ id }) => id !== 'recent' && id !== 'acclaimed',
+  )
+  assert.equal(themes.length, 14)
+  assert(themes.every((shelf) => shelf.items.length === 2))
+})
+
+test('a genre can draw from multiple editorial shelves even when all its films are already shown', () => {
+  const archive = [
+    movie('quest', { genres: ['Aventure', 'Animation', 'Famille'] }),
+    movie('voyage', { genres: ['Aventure'] }),
+    movie('dream', { genres: ['Fantastique', 'Animation', 'Famille'] }),
+    movie('magic', { genres: ['Fantastique'] }),
+  ]
+  const shelves = buildHomeShelves([movie('first'), movie('second')], archive)
+  const animation = shelves.find(({ id }) => id === 'genre-animation')
+  assert.deepEqual(
+    animation?.items.map(({ id }) => id),
+    ['quest', 'dream'],
+  )
+  assert(shelves.some(({ id }) => id === 'adventure'))
+  assert(shelves.some(({ id }) => id === 'imagination'))
+  // In this library Famille has exactly the same membership as Animation.
+  assert(!shelves.some(({ id }) => id === 'genre-famille'))
+})
+
+test('duration, picture quality and decade picks follow the films’ metadata', () => {
+  const archive = [
+    movie('a', { minutes: 150, quality: '4K UHD', year: 2009 }),
+    movie('b', { minutes: 149, quality: '1080p', year: 2000 }),
+    movie('c', { minutes: 160, quality: '1080p', year: 2010 }),
+    movie('d', { quality: '4K UHD', year: 2019 }),
+    movie('unknown'),
+    movie('series', {
+      kind: 'Série',
+      minutes: 160,
+      quality: '4K UHD',
+      year: 2009,
+    }),
+  ]
+  const shelves = buildHomeShelves([], archive)
+  const ids = (id: string) =>
+    shelves
+      .find((s) => s.id === id)
+      ?.items.map((i) => i.id)
+      .sort()
+  assert.deepEqual(ids('epics'), ['a', 'c'])
+  assert.deepEqual(ids('uhd'), ['a', 'd'])
+  assert.deepEqual(ids('decade-2000'), ['a', 'b'])
+  assert.deepEqual(ids('decade-2010'), ['c', 'd'])
 })

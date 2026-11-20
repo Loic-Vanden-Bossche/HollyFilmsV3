@@ -53,40 +53,62 @@ export const Movies: Story = {
       }),
     )
     await expect(args.onSort).toHaveBeenCalledWith('rating')
-    const featured = within(canvas.getByRole('banner'))
-    const trigger = featured.getByRole('button', { name: args.items[0].title })
+    const banner = canvas.getByRole('banner')
+    const featured = within(banner)
+    const film = args.items[0]
     await expect(
-      featured.queryByRole('button', { name: 'Voir la fiche' }),
-    ).toBeNull()
-    await userEvent.hover(trigger)
-    const preview = await featured.findByRole('group', {
-      name: args.items[0].title,
+      featured.getByRole('heading', { level: 1, name: /Les films/ }),
+    ).toBeVisible()
+    const title = featured.getByRole('heading', { level: 2, name: film.title })
+    await expect(title).toBeVisible()
+    await waitFor(async () => {
+      const backdrop = Array.from(banner.querySelectorAll('img')).find(
+        (image) => image.getAttribute('src') === film.backdrop,
+      )
+      if (!backdrop) throw new Error('Waiting for the featured backdrop')
+      await expect(backdrop).toBeVisible()
+      const bounds = backdrop.getBoundingClientRect()
+      await expect(bounds.width).toBeGreaterThan(banner.clientWidth / 2)
+      await expect(bounds.height).toBeGreaterThan(0)
+      await expect(title.querySelector('img')).toHaveAttribute('src', film.logo)
     })
-    await expect(preview).toHaveAttribute('data-presentation', 'cinema')
-    await expect(preview.querySelector('.artwork-watermark')).toBeVisible()
-    const heading = await featured.findByRole('heading', {
-      name: args.items[0].title,
-      level: 2,
-    })
+    const play = featured.getByRole('button', { name: 'Lire' })
+    const details = featured.getByRole('button', { name: 'Voir la fiche' })
+    await expect(play).toBeVisible()
+    await expect(details).toBeVisible()
+    await userEvent.click(play)
+    await expect(args.onPlay).toHaveBeenCalledWith(film, false)
+    await userEvent.click(details)
+    await expect(args.onSelect).toHaveBeenCalledWith(film)
+  },
+}
+export const MovieWithPosterOnly: Story = {
+  args: {
+    items: [
+      {
+        ...meta.args.items[0],
+        backdrop: undefined,
+        thumb: undefined,
+        logo: undefined,
+        progress: 0.4,
+      },
+    ],
+    total: 1,
+  },
+  play: async ({ canvas, args }) => {
+    const film = args.items[0]
+    const banner = canvas.getByRole('banner')
+    const featured = within(banner)
+    await expect(
+      featured.getByRole('heading', { level: 2, name: film.title }),
+    ).toHaveTextContent(film.title)
+    await expect(featured.getByText('1 film disponible')).toBeVisible()
     await waitFor(() =>
-      expect(heading.querySelector('img')).toHaveAttribute(
-        'src',
-        args.items[0].logo,
-      ),
+      expect(banner.querySelector('img')).toHaveAttribute('src', film.poster),
     )
-    await userEvent.click(
-      await featured.findByRole('button', { name: /^(Lire|Reprendre)$/ }),
-    )
-    await expect(args.onPlay).toHaveBeenCalledWith(
-      args.items[0],
-      args.items[0].progress > 0,
-    )
-    await userEvent.unhover(trigger)
-    await userEvent.hover(trigger)
-    await userEvent.click(
-      await featured.findByRole('button', { name: 'Voir la fiche' }),
-    )
-    await expect(args.onSelect).toHaveBeenCalledWith(args.items[0])
+    const resume = featured.getByRole('button', { name: 'Reprendre' })
+    await userEvent.click(resume)
+    await expect(args.onPlay).toHaveBeenCalledWith(film, true)
   },
 }
 export const Series: Story = {
@@ -133,22 +155,40 @@ export const Collections: Story = {
     total: collectionFixtures.length,
   },
   play: async ({ canvas, args }) => {
-    const trigger = canvas.getByRole('button', {
-      name: collectionFixtures[0].title,
+    const collection = collectionFixtures[0]
+    const card = canvas.getByRole('article', { name: collection.title })
+    const compact = within(card)
+    const trigger = compact.getByRole('button', { name: collection.title })
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() =>
+      expect(compact.getByText(collection.title)).toBeVisible(),
+    )
+    await expect(compact.getByText('COLLECTION · 2 TITRES')).toBeVisible()
+    await expect(compact.getByText('Explorer')).toBeVisible()
+    await waitFor(async () => {
+      const artwork = Array.from(card.querySelectorAll('img'))
+      const poster = artwork.find(
+        (image) => image.getAttribute('src') === collection.poster,
+      )
+      const backdrop = artwork.find(
+        (image) => image.getAttribute('src') === collection.backdrop,
+      )
+      await expect(poster).toBeVisible()
+      await expect(backdrop).toBeVisible()
+      const posterBounds = poster!.getBoundingClientRect()
+      await expect(posterBounds.width).toBeGreaterThan(0)
+      await expect(posterBounds.height).toBeGreaterThan(posterBounds.width)
     })
-    await expect(
-      canvas.queryByRole('heading', { name: collectionFixtures[0].title }),
-    ).toBeNull()
     await userEvent.hover(trigger)
-    await expect(
-      await canvas.findByRole('heading', { name: collectionFixtures[0].title }),
-    ).toBeVisible()
-    await userEvent.click(
-      await canvas.findByRole('button', { name: 'Explorer' }),
+    const preview = within(
+      await compact.findByRole('group', { name: collection.title }),
     )
-    await expect(args.onCollection).toHaveBeenCalledWith(
-      collectionFixtures[0].id,
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() =>
+      expect(preview.getByText(collection.overview)).toBeVisible(),
     )
+    await userEvent.click(preview.getByRole('button', { name: 'Explorer' }))
+    await expect(args.onCollection).toHaveBeenCalledWith(collection.id)
   },
 }
 export const CollectionContents: Story = {

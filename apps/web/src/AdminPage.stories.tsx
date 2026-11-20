@@ -97,12 +97,14 @@ export const ApproveAndFilter: Story = {
   beforeEach: Requests.beforeEach,
   play: async ({ canvas, userEvent }) => {
     await canvas.findByText('Camille')
-    await userEvent.click(canvas.getByRole('button', { name: 'À traiter' }))
+    await expect(
+      canvas.getByRole('button', { name: /^À traiter/ }),
+    ).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(canvas.getByRole('button', { name: 'Approuver' }))
     await waitFor(() =>
       expect(canvas.queryByText('Camille')).not.toBeInTheDocument(),
     )
-    await userEvent.click(canvas.getByRole('button', { name: 'Approuvées' }))
+    await userEvent.click(canvas.getByRole('button', { name: /^Approuvées/ }))
     await expect(await canvas.findByText('Camille')).toBeVisible()
     await expect(
       canvas.getByText('Approuvée · Première connexion requise'),
@@ -121,13 +123,15 @@ export const RejectAndRetry: Story = {
     await expect(canvas.getByText('Jo Martin')).toBeVisible()
     await expect(canvas.getByText('jo@example.com')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Refuser' }))
-    await waitFor(() => expect(canvas.getByText('Refusée')).toBeVisible())
+    await waitFor(() => expect(canvas.queryByText('Camille')).toBeNull())
     await userEvent.click(canvas.getByRole('button', { name: 'Réessayer' }))
-    await waitFor(() => expect(canvas.getByText('Active')).toBeVisible())
+    await waitFor(() => expect(canvas.queryByText('Jo Martin')).toBeNull())
+    await userEvent.click(canvas.getByRole('button', { name: /^Approuvées/ }))
+    await expect(await canvas.findByText('Active')).toBeVisible()
     await expect(
       canvas.queryByText('Impossible de consulter les comptes.'),
     ).not.toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: 'Refusées' }))
+    await userEvent.click(canvas.getByRole('button', { name: /^Refusées/ }))
     await expect(canvas.getByText('Camille')).toBeVisible()
     await waitFor(() =>
       expect(canvas.queryByText('jo@example.com')).not.toBeInTheDocument(),

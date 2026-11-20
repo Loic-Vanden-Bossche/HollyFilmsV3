@@ -1,26 +1,31 @@
 import { usePerformanceReducedMotion as useReducedMotion } from '../performance/PerformanceProvider.tsx'
-import { memo, useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion, useInView } from 'motion/react'
+import { motion } from 'motion/react'
 import { Film } from 'lucide-react'
 import { getLibraryImage } from '@hollyfilms/shared/library'
 import type { LibraryImage } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { distance, duration, ease } from '../motion/tokens.ts'
-import { useArtworkHero } from './artwork-hero-context.ts'
+import { artworkIdentity } from './artwork-hero-context.ts'
+import {
+  acquireArtworkUrl,
+  cachedArtwork,
+  imageQueryKey,
+  markArtworkDecoded,
+  whenArtworkIsNear,
+} from './artwork-resources.ts'
 
-export const MediaArtwork = memo(function MediaArtwork({
-  source,
-  session,
-  width = 400,
-  eager = false,
-  className = '',
-  fallback,
-  reveal = 'fade',
-  onReady,
-  onUnavailable,
-}: {
+type MediaArtworkProps = {
   source?: LibraryImage | string
   session?: JellyfinSession
   width?: number
@@ -28,107 +33,167 @@ export const MediaArtwork = memo(function MediaArtwork({
   className?: string
   fallback?: ReactNode
   /** A title logo reserves its space until decoded, using its fallback only on failure. */
-  reveal?: 'fade' | 'logo'
+  reveal?: 'fade' | 'logo' | 'shared'
   /** Called once this source is decoded, or its fallback is ready. */
   onReady?: () => void
   /** Called when the requested image cannot be fetched or displayed. */
   onUnavailable?: () => void
-}) {
+}
+
+export const MediaArtwork = memo(function MediaArtwork(
+  props: MediaArtworkProps,
+) {
+  // A resolution change keeps the current bitmap, while changing account or title releases it.
+  const { session, source } = props
+  if (source && typeof source === 'object' && session) {
+    return (
+      <RemoteArtwork
+        key={JSON.stringify([session.deviceId, artworkIdentity(source)])}
+        {...props}
+        session={session}
+        source={source}
+      />
+    )
+  }
+  return (
+    <ArtworkFrame
+      key={artworkIdentity(source)}
+      {...props}
+      fetchFailed={typeof source === 'object'}
+    />
+  )
+})
+
+function RemoteArtwork({
+  source,
+  session,
+  width = 400,
+  eager = false,
+  ...props
+}: MediaArtworkProps & { source: LibraryImage; session: JellyfinSession }) {
   const ref = useRef<HTMLDivElement>(null)
-  const reduced = useReducedMotion()
-  const inView = useInView(ref, { once: true, margin: '200px' })
-  const remote = typeof source === 'object' ? source : undefined
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    if (!eager && !near && ref.current)
+      return whenArtworkIsNear(ref.current, () => setNear(true))
+  }, [eager, near])
   const client = useQueryClient()
+  const { itemId, type, tag, index } = source
+  const key = useMemo(
+    () => imageQueryKey(session.deviceId, { itemId, type, tag, index }, width),
+    [session.deviceId, itemId, type, tag, index, width],
+  )
+  const placeholder = useCallback(
+    () => cachedArtwork(client, key, 'placeholder'),
+    [client, key],
+  )
   const image = useQuery({
-    queryKey: [
-      'library-image',
-      session?.deviceId,
-      remote?.itemId,
-      remote?.type,
-      remote?.tag,
-      width,
-      remote?.index,
-    ],
+    queryKey: key,
     queryFn: ({ signal }) =>
+      cachedArtwork(client, key, 'final') ??
       getLibraryImage(
         new URL('/jellyfin', window.location.origin).href,
-        session!,
-        remote!,
+        session,
+        source,
         width,
         signal,
       ),
-    enabled: Boolean(remote && session && (eager || inView)),
+    enabled: eager || near,
     retry: false,
     staleTime: Infinity,
     gcTime: 60_000,
-    placeholderData: () =>
-      remote && session
-        ? client
-            .getQueriesData<Blob>({
-              queryKey: [
-                'library-image',
-                session.deviceId,
-                remote.itemId,
-                remote.type,
-                remote.tag,
-              ],
-            })
-            .filter(
-              (entry) =>
-                entry[1] instanceof Blob && entry[0][6] === remote.index,
-            )
-            .sort((a, b) => Number(b[0][5]) - Number(a[0][5]))[0]?.[1]
-        : undefined,
+    placeholderData: placeholder,
   })
-  useArtworkHero(ref, source, image.data)
+  return (
+    <ArtworkFrame
+      {...props}
+      source={source}
+      eager={eager}
+      elementRef={ref}
+      blob={image.data}
+      fetchFailed={image.isError}
+      placeholder={image.isPlaceholderData}
+    />
+  )
+}
+
+function ArtworkFrame({
+  source,
+  eager = false,
+  className = '',
+  fallback,
+  reveal = 'fade',
+  onReady,
+  onUnavailable,
+  elementRef,
+  blob,
+  fetchFailed,
+  placeholder,
+}: MediaArtworkProps & {
+  elementRef?: RefObject<HTMLDivElement | null>
+  blob?: Blob
+  fetchFailed?: boolean
+  placeholder?: boolean
+}) {
+  const reduced = useReducedMotion()
   const [objectUrl, setObjectUrl] = useState<{ blob: Blob; url: string }>()
   const [failedSource, setFailedSource] = useState<string>()
-  const [loadedSource, setLoadedSource] = useState<string>()
+  const [painted, setPainted] = useState<{
+    src: string
+    sharedReveal: boolean
+    blob?: Blob
+  }>()
+  const loadedSource = painted?.src
   useEffect(() => {
-    if (!image.data) return
-    const url = URL.createObjectURL(image.data)
-    // Object URLs are external browser resources, created and revoked with the effect.
+    if (!blob) return
+    const lease = acquireArtworkUrl(blob)
     // oxlint-disable-next-line react/set-state-in-effect
-    setObjectUrl({ blob: image.data, url })
-    return () => URL.revokeObjectURL(url)
-  }, [image.data])
+    setObjectUrl({ blob, url: lease.url })
+    return lease.release
+  }, [blob])
+  useLayoutEffect(() => {
+    if (painted?.blob) return acquireArtworkUrl(painted.blob).release
+  }, [painted?.blob])
   const src =
     typeof source === 'string'
       ? source
-      : objectUrl?.blob === image.data
+      : objectUrl?.blob === blob
         ? objectUrl?.url
         : undefined
-  const settled =
-    !source ||
-    (remote && !session) ||
-    image.isError ||
-    (!image.isPlaceholderData &&
-      Boolean(src && (loadedSource === src || failedSource === src)))
+  const decoded = Boolean(loadedSource)
+  const unavailable =
+    !decoded &&
+    Boolean(fetchFailed || (src && failedSource === src && !placeholder))
+  const settled = !source || decoded || unavailable
   useEffect(() => {
     if (settled) onReady?.()
   }, [settled, onReady])
-  const unavailable = Boolean(
-    (remote && !session) || image.isError || (src && failedSource === src),
-  )
   useEffect(() => {
     if (unavailable) onUnavailable?.()
   }, [unavailable, onUnavailable])
 
-  const decoded = Boolean(src && loadedSource === src && !unavailable)
-  const showFallback = !decoded && (reveal === 'fade' || !source || unavailable)
+  const showFallback = !decoded && (reveal !== 'logo' || !source || unavailable)
   const logoMotion = reveal === 'logo' && !reduced
+  const frames = loadedSource ? [loadedSource] : []
+  if (src && src !== loadedSource && src !== failedSource) frames.push(src)
   return (
-    <div ref={ref} className={'media-artwork ' + className}>
+    <div
+      ref={elementRef}
+      className={'media-artwork ' + className}
+      data-decoded={decoded || undefined}
+    >
       {showFallback && (
         <div className="media-artwork-fallback" aria-hidden="true">
           {fallback ?? <Film strokeWidth={1} />}
         </div>
       )}
-      {src && failedSource !== src && (
+      {frames.map((frame) => (
         <motion.img
-          src={src}
+          key={frame}
+          src={frame}
+          hidden={decoded && frame !== loadedSource}
           alt=""
-          loading={eager ? 'eager' : 'lazy'}
+          loading={eager || decoded ? 'eager' : 'lazy'}
           decoding="async"
           initial={false}
           animate={{
@@ -141,22 +206,34 @@ export const MediaArtwork = memo(function MediaArtwork({
           transition={
             logoMotion
               ? { duration: duration.scene, ease: ease.out }
-              : { duration: reduced ? 0 : duration.panel }
+              : {
+                  duration:
+                    reduced || painted?.sharedReveal ? 0 : duration.panel,
+                }
           }
           onLoad={(event) => {
             const element = event.currentTarget
-            // Decode before declaring the hero ready, including cached images.
-            void element
-              .decode()
-              .catch(() => undefined)
-              .then(() => {
-                if (element.isConnected && element.getAttribute('src') === src)
-                  setLoadedSource(src)
-              })
+            void element.decode().then(
+              () => {
+                if (!element.isConnected) return
+                const sharedReveal =
+                  reveal === 'shared' &&
+                  element.ownerDocument.documentElement.hasAttribute(
+                    'data-artwork-flight',
+                  ) &&
+                  !element.closest('[data-artwork-endpoint="loading"]')
+                const frameBlob = frame === loadedSource ? painted?.blob : blob
+                if (frameBlob) markArtworkDecoded(frameBlob)
+                setPainted({ src: frame, sharedReveal, blob: frameBlob })
+              },
+              () => {
+                if (element.isConnected) setFailedSource(frame)
+              },
+            )
           }}
-          onError={() => setFailedSource(src)}
+          onError={() => setFailedSource(frame)}
         />
-      )}
+      ))}
     </div>
   )
-})
+}

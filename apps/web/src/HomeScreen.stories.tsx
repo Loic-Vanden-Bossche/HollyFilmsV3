@@ -261,9 +261,13 @@ export const SharedShelfLink: Story = {
       ) => {
         await (options?.sort === 'rating' ? ranking : recent)
         return {
-          items: homeShelfItems.filter((item) =>
-            filter === 'series' ? item.kind === 'Série' : item.kind === 'Film',
-          ),
+          items: homeShelfItems
+            .filter((item) =>
+              filter === 'series'
+                ? item.kind === 'Série'
+                : item.kind === 'Film',
+            )
+            .map((item) => ({ ...item, previewSource: null })),
           total: 2000,
         }
       },
@@ -278,17 +282,17 @@ export const SharedShelfLink: Story = {
       const heading = await canvas.findByRole('heading', {
         name: 'Sous tension',
       })
-      await waitFor(() => expect(heading).toHaveFocus())
-      const top = heading.getBoundingClientRect().top
-      await expect(
-        Math.abs(top - parseFloat(getComputedStyle(heading).scrollMarginTop)),
-      ).toBeLessThan(1)
+      const aligned = () => {
+        expect(heading).toHaveFocus()
+        const margin = parseFloat(getComputedStyle(heading).scrollMarginTop)
+        expect(
+          Math.abs(heading.getBoundingClientRect().top - margin),
+        ).toBeLessThan(1)
+      }
+      await waitFor(aligned, { timeout: 3000 })
       revealRanking()
       await canvas.findByRole('group', { name: 'Rang 1 sur 10' })
-      await expect(heading).toHaveFocus()
-      await expect(
-        Math.abs(heading.getBoundingClientRect().top - top),
-      ).toBeLessThan(1)
+      await waitFor(aligned, { timeout: 3000 })
     } finally {
       revealRecent()
       revealRanking()

@@ -149,7 +149,8 @@ test(
         )
       },
       async identity(url, checks) {
-        assert.equal(url.searchParams.get('code'), 'fixture-code')
+        const code = url.searchParams.get('code')
+        assert.ok(code === 'fixture-code' || code === 'second-fixture-code')
         assert.equal(url.searchParams.get('state'), checks.expectedState)
         assert.equal(url.searchParams.get('nonce'), checks.expectedNonce)
         assert.ok(checks.pkceCodeVerifier)
@@ -159,8 +160,9 @@ test(
         )
         return {
           issuer: 'https://accounts.google.com',
-          subject: 'fixture-subject',
-          email: 'test@example.org',
+          subject: code,
+          email:
+            code === 'fixture-code' ? 'test@example.org' : 'second@example.org',
           name: googleProfileName,
           picture: 'https://lh3.googleusercontent.com/fixture-avatar',
         }
@@ -441,7 +443,7 @@ test(
     assert.equal(refused.jellyfinId, null)
     assert.equal(refused.passwordHash, null)
 
-    async function googleFlow() {
+    async function googleFlow(code = 'fixture-code') {
       const start = await app.inject('/api/auth/google/start')
       assert.equal(start.statusCode, 303, start.body)
       const params = new URL(start.headers.location!).searchParams
@@ -450,7 +452,7 @@ test(
       const cookie = start.cookies[0]!
       assert.equal(cookie.httpOnly, true)
       const callback = new URLSearchParams({
-        code: 'fixture-code',
+        code,
         state: params.get('state')!,
         nonce: params.get('nonce')!,
         challenge: params.get('code_challenge')!,
@@ -478,37 +480,131 @@ test(
       (entry) => entry.googleEmail === 'test@example.org',
     )!
     assert.equal(google.googleName, null)
+    assert.match(google.username, /^Google-[0-9a-f]{24}$/)
     const approvedGoogle = await decide(google.id, 'approve')
     assert.equal(approvedGoogle.statusCode, 204, approvedGoogle.body)
+    const legacy = await db.registration.findUniqueOrThrow({
+      where: { id: google.id },
+    })
+    assert.ok(legacy.jellyfinId && legacy.technicalPassword)
     assert.equal(
       (await directory()).find((user) => user.username === google.username)
         ?.displayName,
       'test@example.org',
+    )
+    const beforeRename = await googleFlow()
+    assert.equal(beforeRename.status, 'authenticated')
+    assert.equal(
+      (await getJellyfinUser(jellyfinUrl, beforeRename.session)).name,
+      google.username,
     )
     googleProfileName = 'Élodie Moreau'
     const googleLogin = await googleFlow()
     assert.equal(googleLogin.status, 'authenticated')
     if (googleLogin.status !== 'authenticated')
       throw new Error('Session Google attendue')
-    assert.equal(
-      (await list()).find((entry) => entry.id === google.id)?.googleName,
-      googleProfileName,
-    )
-    assert.equal(
-      (await directory()).find((user) => user.username === google.username)
-        ?.displayName,
-      googleProfileName,
-    )
-    assert.deepEqual(await getJellyfinUser(jellyfinUrl, googleLogin.session), {
-      id: (
-        await db.registration.findUniqueOrThrow({ where: { id: google.id } })
-      ).jellyfinId,
-      name: google.username,
-      isAdministrator: false,
+    const renamed = await db.registration.findUniqueOrThrow({
+      where: { id: google.id },
     })
+    assert.equal(renamed.googleName, googleProfileName)
+    assert.equal(renamed.username, googleProfileName)
+    assert.equal(renamed.usernameKey, googleProfileName.toUpperCase())
+    assert.equal(renamed.jellyfinId, legacy.jellyfinId)
+    assert.ok(renamed.technicalPassword === legacy.technicalPassword)
+    const directoryEntry = (await directory()).find(
+      (user) => user.id === legacy.jellyfinId,
+    )
+    assert.equal(directoryEntry?.username, googleProfileName)
+    assert.equal(directoryEntry.displayName, googleProfileName)
+    for (const { session } of [beforeRename, googleLogin]) {
+      assert.deepEqual(await getJellyfinUser(jellyfinUrl, session), {
+        id: legacy.jellyfinId,
+        name: googleProfileName,
+        isAdministrator: false,
+      })
+    }
     assert.equal(
       await db.registration.count({ where: { method: 'GOOGLE' } }),
       1,
+    )
+
+    await context.test(
+      'Google : homonymes et nom personnalisé dans Jellyfin',
+      async () => {
+        const reservedName = 'ÉLODIE MOREAU 2'
+        const pendingPassword = await post('/api/auth/register', {
+          username: reservedName,
+          password,
+        })
+        assert.equal(pendingPassword.statusCode, 201, pendingPassword.body)
+        const reserved = (await list()).find(
+          (entry) => entry.username === reservedName,
+        )!
+        assert.equal(reserved.status, 'PENDING')
+        assert.ok(
+          !(await directory()).some((entry) => entry.username === reservedName),
+        )
+        const secondCode = 'second-fixture-code'
+        assert.equal((await googleFlow(secondCode)).status, 'pending')
+        const second = (await list()).find(
+          (entry) => entry.googleEmail === 'second@example.org',
+        )!
+        const approval = await decide(second.id, 'approve')
+        assert.equal(approval.statusCode, 204, approval.body)
+        const approved = await db.registration.findUniqueOrThrow({
+          where: { id: second.id },
+        })
+        assert.ok(approved.jellyfinId)
+        assert.notEqual(approved.jellyfinId, legacy.jellyfinId)
+        assert.equal(approved.username, 'Élodie Moreau 3')
+        assert.deepEqual(
+          (await list()).find((entry) => entry.id === reserved.id),
+          reserved,
+        )
+        const secondLogin = await googleFlow(secondCode)
+        assert.equal(secondLogin.status, 'authenticated')
+        const secondUser = await getJellyfinUser(
+          jellyfinUrl,
+          secondLogin.session,
+        )
+        assert.equal(secondUser.name, approved.username)
+        assert.equal(secondUser.id, approved.jellyfinId)
+
+        // An administrator may already have renamed a legacy account directly
+        // in Jellyfin while HollyFilms still knows its generated username.
+        const oldUsername = 'Google-000000000000000000000002'
+        await db.registration.update({
+          where: { id: second.id },
+          data: {
+            username: oldUsername,
+            usernameKey: oldUsername.toUpperCase(),
+          },
+        })
+        const manualName = 'Compte personnalisé'
+        const account = (await users.getUserById({ userId: secondUser.id }))
+          .data
+        await users.updateUser({
+          userId: secondUser.id,
+          userDto: { ...account, Name: manualName },
+        })
+        const preserved = await googleFlow(secondCode)
+        assert.equal(preserved.status, 'authenticated')
+        assert.deepEqual(
+          await getJellyfinUser(jellyfinUrl, preserved.session),
+          {
+            ...secondUser,
+            name: manualName,
+          },
+        )
+        assert.equal(
+          (await list()).find((entry) => entry.id === second.id)?.username,
+          manualName,
+        )
+        assert.equal(
+          (await getJellyfinUser(jellyfinUrl, googleLogin.session)).name,
+          googleProfileName,
+        )
+      },
     )
 
     await context.test(

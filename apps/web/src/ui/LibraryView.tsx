@@ -2,7 +2,7 @@ import { usePerformanceReducedMotion as useReducedMotion } from '../performance/
 import { useI18n } from '../i18n/I18nProvider.tsx'
 import { Select } from './Select.tsx'
 import { motion, useIsPresent } from 'motion/react'
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -22,9 +22,16 @@ import type {
 } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import {
+  artworkIdentity,
+  useArtworkNavigation,
+} from './artwork-hero-context.ts'
 import { ArtworkPreview } from './ArtworkPreview.tsx'
 import { ArtworkWatermark } from './ArtworkWatermark.tsx'
 import { CardVideoPreview } from './CardVideoPreview.tsx'
+import { useBackdropWidth } from './use-backdrop-width.ts'
+import { useEffectActivity } from '../components/reactbits/policy.ts'
+import { formatDuration } from '../format-duration.ts'
 import { MediaTile } from './MediaTile.tsx'
 import { HorizontalRail } from './HorizontalRail.tsx'
 import { VirtualMediaGrid, CatalogueLoadTrigger } from './VirtualMediaGrid.tsx'
@@ -89,6 +96,7 @@ export function LibraryView({
   onRetry,
 }: LibraryViewProps) {
   const { t, locale } = useI18n()
+  const navigateArtwork = useArtworkNavigation()
   const reduced = useReducedMotion()
   const present = useIsPresent()
   const featured = items.find((item) => item.backdrop) ?? items[0]
@@ -106,13 +114,8 @@ export function LibraryView({
       ease: ease.out,
     },
   })
-  const featuredCard = featured && (page === 'movies' || page === 'series') && (
-    <motion.div
-      className={
-        page === 'movies' ? 'library-film-feature' : 'library-series-feature'
-      }
-      {...reveal(0.12)}
-    >
+  const seriesFeature = featured && page === 'series' && (
+    <motion.div className="library-series-feature" {...reveal(0.12)}>
       <ArtworkPreview
         title={featured.title}
         presentation="cinema"
@@ -146,27 +149,21 @@ export function LibraryView({
         }
         previewImage={{
           source: featured.backdrop ?? featured.poster,
+          matchesCover: true,
           compactWidth: 960,
         }}
       >
         <div className="library-featured-copy">
           <div className="library-feature-actions">
-            {page === 'movies' && onPlay && (
-              <button
-                type="button"
-                className="home-primary"
-                data-artwork-open="player"
-                onClick={() => onPlay(featured, featured.progress > 0)}
-              >
-                <Play size={16} fill="currentColor" />{' '}
-                {featured.progress > 0 ? t('Reprendre') : t('Lire')}
-              </button>
-            )}
             <button
               type="button"
               className="library-outline-button"
               data-artwork-open="details"
-              onClick={() => onSelect(featured)}
+              onClick={(event) =>
+                navigateArtwork(event.currentTarget, 'details', () =>
+                  onSelect(featured),
+                )
+              }
             >
               {t('Voir la fiche')} <ArrowUpRight size={16} />
             </button>
@@ -234,27 +231,15 @@ export function LibraryView({
       )}
 
       {page === 'movies' && (
-        <header className="library-movies-intro">
-          <div className="library-page-heading">
-            <motion.p className="library-kicker" {...reveal()}>
-              <Film size={15} /> {t('GRAND ÉCRAN')}
-            </motion.p>
-            <motion.h1 {...reveal(0.05)}>
-              {t('Les films')}
-              <span>.</span>
-            </motion.h1>
-            <motion.p className="library-lead" {...reveal(0.1)}>
-              {t('Tout votre cinéma, dans une seule bibliothèque.')}
-            </motion.p>
-            {ready && (
-              <motion.span className="library-total" {...reveal(0.15)}>
-                <strong>{total.toLocaleString(locale)}</strong>{' '}
-                {total === 1 ? t('film disponible') : t('films disponibles')}
-              </motion.span>
-            )}
-          </div>
-          {featuredCard}
-        </header>
+        <MoviesIntro
+          featured={featured}
+          count={ready ? total : undefined}
+          session={session}
+          userId={userId}
+          paused={paused || !present}
+          onPlay={onPlay}
+          onSelect={onSelect}
+        />
       )}
 
       {page === 'series' && (
@@ -280,7 +265,7 @@ export function LibraryView({
                 </motion.span>
               )}
             </div>
-            {featuredCard}
+            {seriesFeature}
           </header>
           {episodes.length > 0 && (
             <motion.section
@@ -510,63 +495,87 @@ export function LibraryView({
           >
             {collectionIndex ? (
               <div className="collection-gallery">
-                {collections.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    data-collection-id={item.id}
-                    initial={
-                      reduced ? false : { opacity: 0, y: distance.panel }
-                    }
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: '80px' }}
-                    transition={{
-                      duration: reduced ? 0 : duration.scene,
-                      delay: reduced ? 0 : staggerDelay(index % 4),
-                      ease: ease.out,
-                    }}
-                  >
-                    <ArtworkPreview
-                      className="collection-card"
-                      triggerClassName="collection-trigger"
-                      title={item.title}
-                      cinematic
-                      titleLogo={item.logo}
-                      session={session}
-                      selectLabel={item.title}
-                      wide
-                      artwork={
-                        <MediaArtwork
-                          source={item.backdrop ?? item.poster}
-                          session={session}
-                          width={720}
-                        />
+                {collections.map((item, index) => {
+                  const countLabel =
+                    item.count == null
+                      ? t('COLLECTION')
+                      : `${t('COLLECTION')} · ${item.count} ${item.count === 1 ? t('TITRE') : t('TITRES')}`
+                  return (
+                    <motion.div
+                      key={item.id}
+                      data-collection-id={item.id}
+                      initial={
+                        reduced ? false : { opacity: 0, y: distance.panel }
                       }
-                      previewImage={{
-                        source: item.backdrop ?? item.poster,
-                        compactWidth: 720,
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '80px' }}
+                      transition={{
+                        duration: reduced ? 0 : duration.scene,
+                        delay: reduced ? 0 : staggerDelay(index % 4),
+                        ease: ease.out,
                       }}
-                      onSelect={() => onCollection?.(item.id)}
                     >
-                      <div className="collection-card-copy">
-                        <button
-                          type="button"
-                          data-preview-select
-                          onClick={() => onCollection?.(item.id)}
-                          className="glass-control"
-                        >
-                          {t('Explorer')} <ArrowUpRight size={16} />
-                        </button>
-                        <small>
-                          {t('COLLECTION')}
-                          {item.count != null
-                            ? ` · ${item.count} ${item.count === 1 ? t('TITRE') : t('TITRES')}`
-                            : ''}
-                        </small>
-                        {item.overview && <p>{item.overview}</p>}
-                      </div>
-                    </ArtworkPreview>
-                  </motion.div>
-                ))}
+                      <ArtworkPreview
+                        className="collection-card"
+                        triggerClassName="collection-trigger"
+                        title={item.title}
+                        cinematic
+                        titleLogo={item.logo}
+                        session={session}
+                        selectLabel={item.title}
+                        wide
+                        artwork={
+                          <MediaArtwork
+                            source={item.backdrop ?? item.poster}
+                            session={session}
+                            width={720}
+                          />
+                        }
+                        triggerOverlay={
+                          <div
+                            className="collection-card-cover"
+                            data-reduced-motion={reduced || undefined}
+                          >
+                            {item.poster && (
+                              <MediaArtwork
+                                className="collection-card-poster"
+                                source={item.poster}
+                                session={session}
+                                width={400}
+                              />
+                            )}
+                            <div className="collection-card-copy">
+                              <small>{countLabel}</small>
+                              <h3>{item.title}</h3>
+                              <span aria-hidden="true">
+                                {t('Explorer')} <ArrowUpRight size={18} />
+                              </span>
+                            </div>
+                          </div>
+                        }
+                        previewImage={{
+                          source: item.backdrop ?? item.poster,
+                          matchesCover: true,
+                          compactWidth: 720,
+                        }}
+                        onSelect={() => onCollection?.(item.id)}
+                      >
+                        <div className="collection-preview-copy">
+                          <button
+                            type="button"
+                            data-preview-select
+                            onClick={() => onCollection?.(item.id)}
+                            className="glass-control"
+                          >
+                            {t('Explorer')} <ArrowUpRight size={16} />
+                          </button>
+                          <small>{countLabel}</small>
+                          {item.overview && <p>{item.overview}</p>}
+                        </div>
+                      </ArtworkPreview>
+                    </motion.div>
+                  )
+                })}
               </div>
             ) : (
               <VirtualMediaGrid
@@ -627,5 +636,158 @@ export function LibraryView({
         </span>
       </footer>
     </div>
+  )
+}
+
+function MoviesIntro({
+  featured,
+  count,
+  session,
+  userId,
+  paused,
+  onPlay,
+  onSelect,
+}: Pick<
+  LibraryViewProps,
+  'session' | 'userId' | 'paused' | 'onPlay' | 'onSelect'
+> & {
+  featured?: MediaItem
+  count?: number
+}) {
+  const { t, locale } = useI18n()
+  const navigateArtwork = useArtworkNavigation()
+  const backdropWidth = useBackdropWidth()
+  const { ref, running, fine, profile } = useEffectActivity(paused)
+  const [hovered, setHovered] = useState(false)
+  const [previewId, setPreviewId] = useState<string>()
+  const featuredId = featured?.id
+  const canPreview =
+    hovered && running && fine && profile.trailers && !!session && !!userId
+  useEffect(() => {
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection
+    if (!canPreview || !featuredId || connection?.saveData) return
+    const timer = setTimeout(() => setPreviewId(featuredId), 650)
+    return () => {
+      clearTimeout(timer)
+      setPreviewId(undefined)
+    }
+  }, [canPreview, featuredId])
+  const landscape = featured?.backdrop ?? featured?.thumb
+  const landscapeKey = artworkIdentity(landscape)
+  const [failedLandscape, setFailedLandscape] = useState<string>()
+  const hasLandscape = Boolean(landscapeKey && landscapeKey !== failedLandscape)
+  const artwork = hasLandscape ? landscape : featured?.poster
+  return (
+    <motion.header
+      className="library-movies-intro"
+      ref={ref}
+      data-featured={featured ? true : undefined}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+    >
+      {featured && (
+        <div
+          className="library-movie-scene"
+          data-poster-only={!hasLandscape || undefined}
+          aria-hidden="true"
+        >
+          {artwork && (
+            <MediaArtwork
+              source={artwork}
+              session={session}
+              width={hasLandscape ? backdropWidth : 720}
+              eager
+              onUnavailable={
+                hasLandscape
+                  ? () => setFailedLandscape(landscapeKey)
+                  : undefined
+              }
+            />
+          )}
+          {canPreview && previewId === featured.id && session && userId && (
+            <CardVideoPreview
+              key={featured.id}
+              item={featured}
+              session={session}
+              userId={userId}
+            />
+          )}
+        </div>
+      )}
+      <div className="library-movie-heading">
+        <h1>
+          {t('Les films')}
+          <span>.</span>
+        </h1>
+        {count != null && (
+          <span className="library-movie-count">
+            {count.toLocaleString(locale)}{' '}
+            {count === 1 ? t('film disponible') : t('films disponibles')}
+          </span>
+        )}
+      </div>
+      {featured && (
+        <div className="library-movie-copy" data-media-id={featured.id}>
+          <h2 aria-label={featured.title}>
+            {featured.logo ? (
+              <MediaArtwork
+                className="library-movie-logo"
+                source={featured.logo}
+                session={session}
+                reveal="logo"
+                width={720}
+                eager
+                fallback={<span>{featured.title}</span>}
+              />
+            ) : (
+              featured.title
+            )}
+          </h2>
+          <p className="library-movie-meta">
+            {[
+              featured.year,
+              featured.genres[0],
+              formatDuration(featured.minutes, t),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          {featured.overview && (
+            <p className="library-movie-synopsis">{featured.overview}</p>
+          )}
+          <div className="library-feature-actions">
+            {onPlay && (
+              <button
+                type="button"
+                className="home-primary"
+                data-artwork-open="player"
+                onClick={(event) =>
+                  navigateArtwork(event.currentTarget, 'player', () =>
+                    onPlay(featured, featured.progress > 0),
+                  )
+                }
+              >
+                <Play size={16} fill="currentColor" />{' '}
+                {featured.progress > 0 ? t('Reprendre') : t('Lire')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="library-outline-button media-tile-select"
+              data-artwork-open="details"
+              onClick={(event) =>
+                navigateArtwork(event.currentTarget, 'details', () =>
+                  onSelect(featured),
+                )
+              }
+            >
+              {t('Voir la fiche')} <ArrowUpRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+    </motion.header>
   )
 }

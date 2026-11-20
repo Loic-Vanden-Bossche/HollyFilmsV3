@@ -101,17 +101,35 @@ const shelfProgrammes = [
     'Onde longue',
     'Le Sillage',
   ],
+  [
+    'Western',
+    'La Dernière Frontière',
+    'Piste rouge',
+    'Les Cavaliers du lac',
+    'Un jour à Silver Creek',
+    'La Chevauchée',
+    'Le Convoi',
+  ],
+  [
+    'Documentaire',
+    'À marée basse',
+    'Le Peuple des arbres',
+    'Au fil du fleuve',
+    'Mémoires de glace',
+    'Les Maîtres verriers',
+    'Voyage sous terre',
+  ],
 ]
 
 export const homeShelfItems: MediaItem[] = Array.from(
-  { length: 36 },
+  { length: shelfProgrammes.length * 6 },
   (_, i) => {
     const group = i % shelfProgrammes.length
     const programme = shelfProgrammes[group]
     const title = programme[1 + Math.floor(i / shelfProgrammes.length)]
     const base = homeItems[i % homeItems.length]
     const illustration = String(base.poster)
-    const hue = [190, 55, 260, 310, 120, 0][group]
+    const hue = [190, 55, 260, 310, 120, 0, 28, 155][group]
     return {
       ...base,
       id: 'shelf-' + i,
@@ -142,4 +160,29 @@ export const homeShelfItems: MediaItem[] = Array.from(
         ),
     }
   },
+)
+
+// Only twelve films. Each can feature in more than one genuine selection.
+const mixedGenres = [
+  ['Animation', 'Famille', 'Comédie'],
+  ['Comédie', 'Romance'],
+  ['Horreur', 'Drame'],
+  ['Animation', 'Aventure'],
+  ['Thriller', 'Horreur'],
+  ['Thriller', 'Drame'],
+  ['Aventure', 'Animation', 'Famille'],
+  ['Aventure', 'Comédie'],
+  ['Fantastique', 'Animation', 'Famille'],
+  ['Fantastique', 'Horreur'],
+  ['Drame', 'Romance'],
+  ['Drame', 'Famille'],
+]
+const films = homeShelfItems.filter((item) => item.kind === 'Film')
+export const mixedGenreFilms: MediaItem[] = mixedGenres.map(
+  (genres, index) => ({
+    ...films[index],
+    genres,
+    year: 2003 + index,
+    minutes: [92, 107, 155, 129][index % 4],
+  }),
 )

@@ -1,6 +1,7 @@
 @reference "../index.css";
 
 .home-shelves .home-shelf-track.home-explore-track {
+  display: flex;
   padding-block: max(9px, 0.35vw);
 }
 
@@ -10,10 +11,11 @@
   @apply bg-card text-foreground;
   isolation: isolate;
   display: flex;
+  flex: 1 0 min(72%, clamp(12rem, 14.5vw, 18rem));
   position: relative;
   align-items: center;
   min-width: 0;
-  aspect-ratio: 16 / 9;
+  min-height: clamp(6rem, 8vw, 8.5rem);
   overflow: hidden;
   border-radius: 0.65rem;
   padding: clamp(1rem, 1.65vw, 2rem);
@@ -33,8 +35,29 @@
 .home-explore-tile[data-theme='short'] {
   --explore-hue: 162;
 }
+.home-explore-tile[data-theme='epics'] {
+  --explore-hue: 38;
+}
+.home-explore-tile[data-theme='uhd'] {
+  --explore-hue: 228;
+}
+.home-explore-tile[data-theme^='decade-'] {
+  --explore-hue: 85;
+}
+.home-explore-tile:nth-child(even of [data-theme^='decade-']) {
+  --explore-hue: 316;
+}
 .home-explore-tile[data-theme='genre'] {
   --explore-hue: 27;
+}
+.home-explore-tile:nth-child(4n + 2 of [data-theme='genre']) {
+  --explore-hue: 204;
+}
+.home-explore-tile:nth-child(4n + 3 of [data-theme='genre']) {
+  --explore-hue: 94;
+}
+.home-explore-tile:nth-child(4n of [data-theme='genre']) {
+  --explore-hue: 305;
 }
 .home-explore-light {
   position: absolute;

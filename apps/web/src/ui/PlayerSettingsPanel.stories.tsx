@@ -47,7 +47,12 @@ export const Scroll: Story = {
       'rgba(0, 0, 0, 0)',
     )
     last.focus()
-    await expect(list.scrollTop).toBeGreaterThan(0)
+    await waitFor(() => {
+      expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        list.getBoundingClientRect().bottom + 1,
+      )
+      expect(list.scrollTop).toBeGreaterThan(0)
+    })
     await expect(panel.scrollTop).toBe(0)
     await expect(header.getBoundingClientRect().bottom).toBeLessThanOrEqual(
       list.getBoundingClientRect().top + 1,

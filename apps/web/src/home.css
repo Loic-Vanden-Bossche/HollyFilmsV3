@@ -387,9 +387,10 @@
   margin-inline: -4px;
 }
 .home-resume-rail {
+  --resume-card-width: clamp(11rem, 8rem + 12.5vw, 24rem);
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: max(min(82%, 320px), 29%);
+  grid-auto-columns: var(--resume-card-width);
   gap: 18px;
   overflow-x: auto;
   padding: 4px;
@@ -457,8 +458,8 @@
 .home-shelf-track::-webkit-scrollbar {
   display: none;
 }
-.home-shelves .home-shelf-track.home-resume-rail {
-  grid-auto-columns: max(min(82%, 320px), 29%);
+.home-shelves .home-resume-rail {
+  grid-auto-columns: var(--resume-card-width);
 }
 .home-shelves .home-shelf-skeletons {
   overflow: clip;

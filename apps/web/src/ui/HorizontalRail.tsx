@@ -1,6 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import './horizontal-rail.css'
 
 export function HorizontalRail({
@@ -22,7 +21,6 @@ export function HorizontalRail({
   const next = useRef<HTMLButtonElement>(null)
   const focusAfterScroll = useRef<HTMLElement | null>(null)
   const [edges, setEdges] = useState({ back: false, forward: false })
-  const reduced = usePerformanceReducedMotion()
 
   useLayoutEffect(() => {
     const node = track.current!
@@ -66,10 +64,7 @@ export function HorizontalRail({
       second instanceof HTMLElement
         ? second.offsetLeft - first.offsetLeft
         : node.clientWidth * 0.85
-    node.scrollBy({
-      left: direction * distance,
-      behavior: reduced ? 'instant' : 'smooth',
-    })
+    node.scrollBy({ left: direction * distance })
   }
 
   return (

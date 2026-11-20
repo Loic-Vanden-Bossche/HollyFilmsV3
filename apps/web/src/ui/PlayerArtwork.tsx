@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { useState } from 'react'
 import { useMotionPolicy } from '../components/reactbits/policy.ts'
 import { duration, ease } from '../motion/tokens.ts'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
@@ -16,13 +17,16 @@ export function PlayerArtwork({
   visible: boolean
 }) {
   const { reduced, pageVisible } = useMotionPolicy()
+  const [sharedEntrance] = useState(
+    () => document.documentElement.dataset.artworkDestination === 'player',
+  )
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
           className="player-artwork-hero"
           aria-hidden="true"
-          initial={{ opacity: 0 }}
+          initial={sharedEntrance ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{
             opacity: 0,
@@ -35,13 +39,14 @@ export function PlayerArtwork({
         >
           <div
             className="player-artwork-camera"
-            data-motion={reduced ? 'reduced' : 'full'}
+            data-motion={reduced || sharedEntrance ? 'reduced' : 'full'}
             style={{ animationPlayState: pageVisible ? 'running' : 'paused' }}
           >
             <MediaArtwork
               source={source}
               session={session}
               width={3840}
+              reveal="shared"
               eager
               className="player-artwork"
             />

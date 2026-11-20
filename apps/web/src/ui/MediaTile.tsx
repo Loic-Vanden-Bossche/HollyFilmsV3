@@ -16,7 +16,10 @@ import { useI18n } from '../i18n/I18nProvider.tsx'
 import { localizeText } from '../i18n/messages.ts'
 import { ArtworkPreview } from './ArtworkPreview.tsx'
 import { ArtworkWatermark } from './ArtworkWatermark.tsx'
-import { artworkIdentity } from './artwork-hero-context.ts'
+import {
+  artworkIdentity,
+  useArtworkNavigation,
+} from './artwork-hero-context.ts'
 import { CardVideoPreview } from './CardVideoPreview.tsx'
 import { AudioLanguages } from './AudioLanguages.tsx'
 import { MediaArtwork } from './MediaArtwork.tsx'
@@ -48,6 +51,7 @@ export function MediaTile({
   onWatched?: (item: MediaItem, watched: boolean) => Promise<boolean>
 }) {
   const { t } = useI18n()
+  const navigateArtwork = useArtworkNavigation()
   const [pending, setPending] = useState<'favorite' | 'watched'>()
   const [error, setError] = useState(false)
   const [failedCover, setFailedCover] = useState<string>()
@@ -144,7 +148,11 @@ export function MediaTile({
       }
       previewImage={{
         source: previewCover,
+        matchesCover: previewCover === cover,
         compactWidth: previewCover === cover ? coverWidth : 640,
+        includesTitle: ranked && hasTitledCover,
+        onUnavailable:
+          ranked && hasTitledCover ? onCoverUnavailable : undefined,
       }}
     >
       {(onPlay || onFavorite || onWatched || footerAction) && (
@@ -159,7 +167,11 @@ export function MediaTile({
               className="media-card-play"
               data-artwork-open="player"
               aria-label={playLabel + ' ' + accessibleTitle}
-              onClick={() => onPlay(item, true)}
+              onClick={(event) =>
+                navigateArtwork(event.currentTarget, 'player', () =>
+                  onPlay(item, true),
+                )
+              }
             >
               <Play size={16} fill="currentColor" aria-hidden="true" />
               {playLabel}

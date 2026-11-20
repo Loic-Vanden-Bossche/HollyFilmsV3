@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, fireEvent, fn, mocked, waitFor } from 'storybook/test'
-import { getHeroPreview } from '@hollyfilms/shared/library'
+import { getHeroPreview, getItemPreviewClip } from '@hollyfilms/shared/library'
 import type { MediaItem } from '@hollyfilms/shared/library'
 import { HomeCarousel } from './HomeCarousel.tsx'
 import { homeItems } from '../home-fixtures.ts'
@@ -10,6 +10,10 @@ import { PerformanceProvider } from '../performance/PerformanceProvider.tsx'
 import { PerformanceController } from '../performance/profiles.ts'
 import previewVideo from '../assets/hero-preview.webm?url'
 import '../home.css'
+
+const excerptUrl = previewVideo + '#t=0.2,1.6'
+const reducedMotion = () =>
+  matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const meta = {
   title: 'UI/Carrousel cinéma',
@@ -24,14 +28,9 @@ const meta = {
     ),
   },
   decorators: [
-    (Story, { args }) => {
+    (Story) => {
       const [client] = useState(() => new QueryClient())
-      const [performance] = useState(() => {
-        const controller = new PerformanceController()
-        controller.setAdmin(true)
-        controller.select(args.session ? 'high' : 'balanced', 0)
-        return controller
-      })
+      const [performance] = useState(() => new PerformanceController())
       return (
         <QueryClientProvider client={client}>
           <PerformanceProvider controller={performance} measure={false}>
@@ -45,6 +44,7 @@ const meta = {
   ],
   beforeEach: () => {
     mocked(getHeroPreview).mockReset().mockResolvedValue(null)
+    mocked(getItemPreviewClip).mockReset().mockReturnValue(null)
   },
   render: function Render(args) {
     const [items, setItems] = useState(args.items)
@@ -107,12 +107,27 @@ export const VideoPreview: Story = {
       kind: 'video',
       url: previewVideo,
     })
+    mocked(getItemPreviewClip).mockReturnValue({
+      kind: 'video',
+      url: excerptUrl,
+    })
   },
   play: async ({ canvas, canvasElement, userEvent }) => {
+    if (reducedMotion()) {
+      await waitFor(() =>
+        expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+      )
+      await expect(canvasElement.querySelector('video')).toBeNull()
+      await expect(getHeroPreview).not.toHaveBeenCalled()
+      return
+    }
     const unmute = await canvas.findByRole('button', {
       name: 'Activer le son de l’aperçu',
     })
     const video = canvasElement.querySelector('video')!
+    await waitFor(() => expect(canvas.getByText('BANDE-ANNONCE')).toBeVisible())
+    await expect(video.getAttribute('src')).toBe(previewVideo)
+    await waitFor(() => expect(video.currentTime).toBeGreaterThan(0))
     await expect(video).toHaveProperty('muted', true)
     await expect(video).toHaveProperty('controls', false)
     await userEvent.click(unmute)
@@ -123,54 +138,87 @@ export const VideoPreview: Story = {
   },
 }
 export const ExternalTrailerOnly: Story = {
-  name: 'Décor pour une bande-annonce externe',
+  name: 'Extrait du film en l’absence de bande-annonce locale',
   args: {
     ...VideoPreview.args,
     items: [
       {
         ...homeItems[0],
+        kind: 'Film',
         trailers: [
           { url: 'https://www.youtube.com/watch?v=abcdefghijk', name: 'VF' },
         ],
       },
     ],
   },
+  beforeEach: () => {
+    mocked(getItemPreviewClip).mockReturnValue({
+      kind: 'video',
+      url: excerptUrl,
+    })
+  },
+  play: async ({ canvas, canvasElement, args }) => {
+    if (reducedMotion()) {
+      await waitFor(() =>
+        expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+      )
+      await expect(canvasElement.querySelector('video')).toBeNull()
+      await expect(getHeroPreview).not.toHaveBeenCalled()
+      return
+    }
+    await waitFor(() => expect(canvas.getByText('EXTRAIT')).toBeVisible())
+    const video = canvasElement.querySelector('video')!
+    await waitFor(() => expect(video.currentTime).toBeGreaterThan(0.2))
+    await expect(video.getAttribute('src')).toBe(excerptUrl)
+    await expect(video.muted).toBe(true)
+    await expect(canvasElement.querySelector('iframe')).toBeNull()
+    await waitFor(() => expect(video).not.toBeInTheDocument(), {
+      timeout: 5000,
+    })
+    await expect(canvas.getByText('LA SÉLECTION HOLLYFILMS')).toBeVisible()
+    await expect(args.onPlay).not.toHaveBeenCalled()
+  },
+}
+export const FailedNativePreview: Story = {
+  name: 'Extrait de secours après une bande-annonce illisible',
+  args: ExternalTrailerOnly.args,
+  beforeEach: VideoPreview.beforeEach,
   play: async ({ canvas, canvasElement }) => {
-    await waitFor(() => expect(getHeroPreview).toHaveBeenCalledTimes(1))
-    await expect(
-      canvas.getByText('LA SÉLECTION HOLLYFILMS'),
-    ).toBeInTheDocument()
+    if (reducedMotion()) return
+    await canvas.findByText('BANDE-ANNONCE')
+    fireEvent.error(canvasElement.querySelector('video')!)
+    await waitFor(() => expect(canvas.getByText('EXTRAIT')).toBeVisible())
+    const clip = canvasElement.querySelector('video')!
+    await expect(clip.getAttribute('src')).toBe(excerptUrl)
+    await waitFor(() => expect(clip.currentTime).toBeGreaterThan(0.2))
+    fireEvent.error(clip)
+    await waitFor(() => expect(canvasElement.querySelector('video')).toBeNull())
     await waitFor(() =>
-      expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+      expect(canvas.getByText('LA SÉLECTION HOLLYFILMS')).toBeVisible(),
     )
-    await expect(canvasElement.querySelector('video, iframe')).toBeNull()
     await expect(
       canvas.queryByRole('button', { name: /son de l’aperçu/ }),
     ).toBeNull()
   },
 }
-export const FailedNativePreview: Story = {
-  name: 'Retour au décor si la vidéo locale échoue',
-  args: VideoPreview.args,
-  beforeEach: VideoPreview.beforeEach,
+export const PreviewUnavailable: Story = {
+  args: {
+    ...VideoPreview.args,
+    items: [{ ...homeItems[0], previewSource: null }],
+  },
+  beforeEach: () => {
+    mocked(getHeroPreview).mockRejectedValue(new Error('Preview unavailable'))
+  },
   play: async ({ canvas, canvasElement }) => {
-    const audio = await canvas.findByRole('button', {
-      name: 'Activer le son de l’aperçu',
-    })
-    fireEvent.error(canvasElement.querySelector('video')!)
-    await waitFor(() => expect(audio).not.toBeInTheDocument())
-    await expect(
-      canvas.getByText('LA SÉLECTION HOLLYFILMS'),
-    ).toBeInTheDocument()
+    if (!reducedMotion())
+      await waitFor(() => expect(getHeroPreview).toHaveBeenCalled())
     await waitFor(() =>
       expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
     )
-  },
-}
-export const PreviewUnavailable: Story = {
-  args: VideoPreview.args,
-  beforeEach: () => {
-    mocked(getHeroPreview).mockRejectedValue(new Error('Preview unavailable'))
+    await waitFor(() =>
+      expect(canvas.getByText('LA SÉLECTION HOLLYFILMS')).toBeVisible(),
+    )
+    await expect(canvasElement.querySelector('video, iframe')).toBeNull()
   },
 }
 export const MissingArtwork: Story = {
@@ -211,6 +259,14 @@ export const FavoriteFailure: Story = {
 }
 export const Suspended: Story = {
   args: { ...VideoPreview.args, active: false },
+  beforeEach: VideoPreview.beforeEach,
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.hero-backdrop img')).toBeVisible(),
+    )
+    await expect(canvasElement.querySelector('video')).toBeNull()
+    await expect(getHeroPreview).not.toHaveBeenCalled()
+  },
 }
 export const TwentyTitles: Story = {
   name: '20 titres — pagination sur une ligne',

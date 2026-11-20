@@ -37,6 +37,7 @@ import {
 
 export function PlayerControls({
   media,
+  visible = true,
   seekPosition,
   fullscreen,
   pip,
@@ -58,6 +59,7 @@ export function PlayerControls({
   onPreview,
   loadPreview,
 }: {
+  visible?: boolean
   media: {
     position: number
     seeking?: boolean
@@ -94,6 +96,7 @@ export function PlayerControls({
   return (
     <div className="player-controls" data-motion={reduced ? 'reduced' : 'full'}>
       <PlayerTimeline
+        visible={visible}
         media={media}
         seekPosition={seekPosition}
         markers={markers}
@@ -242,6 +245,7 @@ export function PlayerControls({
 // Pointer previews only re-render the timeline, not every playback control.
 function PlayerTimeline({
   media,
+  visible = true,
   seekPosition,
   markers = [],
   onSeek,
@@ -249,7 +253,13 @@ function PlayerTimeline({
   loadPreview,
 }: Pick<
   Parameters<typeof PlayerControls>[0],
-  'media' | 'seekPosition' | 'markers' | 'onSeek' | 'onPreview' | 'loadPreview'
+  | 'media'
+  | 'visible'
+  | 'seekPosition'
+  | 'markers'
+  | 'onSeek'
+  | 'onPreview'
+  | 'loadPreview'
 >) {
   const { t } = useI18n()
   const reduced = useReducedMotion()
@@ -296,8 +306,11 @@ function PlayerTimeline({
   }, [])
   const measure = (node: HTMLInputElement) =>
     (bounds.current ??= node.getBoundingClientRect())
+  const wasVisible = useRef(visible)
   useLayoutEffect(() => {
     if (
+      !visible ||
+      !wasVisible.current ||
       reduced ||
       dragging.current ||
       media.seeking ||
@@ -305,7 +318,15 @@ function PlayerTimeline({
     )
       displayedProgress.jump(progress)
     else displayedProgress.set(progress)
-  }, [progress, reduced, displayedProgress, media.seeking, seekPosition])
+    wasVisible.current = visible
+  }, [
+    progress,
+    visible,
+    reduced,
+    displayedProgress,
+    media.seeking,
+    seekPosition,
+  ])
   const preview = previewKey ? onPreview?.(previewPosition.get()) : undefined
   const image = useTimelineImage(preview?.url, loadPreview)
   const showPreview = (position: number) => {

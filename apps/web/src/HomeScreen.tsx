@@ -1,7 +1,7 @@
 import { useI18n } from './i18n/I18nProvider.tsx'
 import { DiscoveryResults } from './ui/DiscoveryResults.tsx'
 import type { InfiniteData } from '@tanstack/react-query'
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import {
   useInfiniteQuery,
   useQuery,
@@ -22,7 +22,6 @@ import type {
 } from '@hollyfilms/shared/library'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import { getMediaDetails } from '@hollyfilms/shared/media-details'
-import { PlaybackPlayer } from './PlaybackPlayer.tsx'
 import { PlaybackRouteStatus } from './ui/PlaybackRouteStatus.tsx'
 import { HomePage } from './HomePage.tsx'
 import { useProfile } from './use-profile.ts'
@@ -32,6 +31,11 @@ import type { RemoteControlMessage } from './playback/remote-commands.ts'
 import type { PlaybackTarget, StreamOptions } from './playback/playback-api.ts'
 import { navigateApp, useAppRoute } from './use-app-route.ts'
 import type { AppRoute } from './app-route.ts'
+
+const loadPlayer = () => import('./PlaybackPlayer.tsx')
+const PlaybackPlayer = lazy(() =>
+  loadPlayer().then((module) => ({ default: module.PlaybackPlayer })),
+)
 
 function savePlaybackLocation(location: Partial<AppRoute>, previousId: string) {
   // A queued player update must not reopen a player closed through browser Back.
@@ -84,6 +88,10 @@ export function HomeScreen({
   const { t } = useI18n()
   const client = useQueryClient()
   const route = useAppRoute(routeOpenedAt)
+  useEffect(() => {
+    // On a direct link the player's code and the film metadata can arrive together.
+    if (route.play) void loadPlayer().catch(() => {})
+  }, [route.play])
   // Keep an existing catalogue and its scroll position. A direct player link
   // only needs the catalogue after the viewer returns to it.
   const [libraryMounted, setLibraryMounted] = useState(!route.play)
@@ -420,46 +428,7 @@ export function HomeScreen({
         : visibleQuery.isError && !visibleQuery.data
           ? 'error'
           : 'ready'
-  const player = playback ? (
-    <PlaybackPlayer
-      key={JSON.stringify([
-        route.play,
-        route.time,
-        route.source,
-        route.audio,
-        route.subtitle,
-        route.secondarySubtitle,
-        route.paused,
-        playback.openedAt,
-      ])}
-      item={playback.item}
-      openedAt={playback.openedAt ?? route.openedAt}
-      userId={user.id}
-      resume={playback.resume}
-      initialPaused={route.paused}
-      initialSecondarySubtitle={route.secondarySubtitle}
-      onLocationChange={savePlaybackLocation}
-      session={session}
-      initialOptions={playback.options}
-      initialQueue={playback.queue}
-      queuedNext={playback.queuedNext}
-      queuedLast={playback.queuedLast}
-      remoteCommand={remoteCommand}
-      onClose={() => {
-        setRemoteCommand(undefined)
-        setPlayback(null)
-        navigateApp({ play: undefined })
-        void client.invalidateQueries({ queryKey: ['library'] })
-        void client.invalidateQueries({ queryKey: ['library-resume'] })
-        void client.invalidateQueries({
-          queryKey: ['home-shelf', session.deviceId, user.id],
-        })
-        void client.invalidateQueries({
-          queryKey: ['jellyfin', 'current-user'],
-        })
-      }}
-    />
-  ) : route.play ? (
+  const openingPlayer = route.play ? (
     <PlaybackRouteStatus
       openedAt={route.openedAt}
       onRestartOpening={route.restartOpening}
@@ -480,6 +449,50 @@ export function HomeScreen({
       }
     />
   ) : null
+  const player = playback ? (
+    <Suspense fallback={openingPlayer}>
+      <PlaybackPlayer
+        key={JSON.stringify([
+          route.play,
+          route.time,
+          route.source,
+          route.audio,
+          route.subtitle,
+          route.secondarySubtitle,
+          route.paused,
+          playback.openedAt,
+        ])}
+        item={playback.item}
+        openedAt={playback.openedAt ?? route.openedAt}
+        userId={user.id}
+        resume={playback.resume}
+        initialPaused={route.paused}
+        initialSecondarySubtitle={route.secondarySubtitle}
+        onLocationChange={savePlaybackLocation}
+        session={session}
+        initialOptions={playback.options}
+        initialQueue={playback.queue}
+        queuedNext={playback.queuedNext}
+        queuedLast={playback.queuedLast}
+        remoteCommand={remoteCommand}
+        onClose={() => {
+          setRemoteCommand(undefined)
+          setPlayback(null)
+          navigateApp({ play: undefined })
+          void client.invalidateQueries({ queryKey: ['library'] })
+          void client.invalidateQueries({ queryKey: ['library-resume'] })
+          void client.invalidateQueries({
+            queryKey: ['home-shelf', session.deviceId, user.id],
+          })
+          void client.invalidateQueries({
+            queryKey: ['jellyfin', 'current-user'],
+          })
+        }}
+      />
+    </Suspense>
+  ) : (
+    openingPlayer
+  )
 
   if (!libraryMounted) return player
   return (

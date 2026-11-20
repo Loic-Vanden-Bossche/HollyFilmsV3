@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, waitFor } from 'storybook/test'
 import { ArtworkHeroProvider } from './ArtworkHero.tsx'
+import { HomeCarousel } from './HomeCarousel.tsx'
 import { MediaTile } from './MediaTile.tsx'
 import { MediaDetails } from './MediaDetails.tsx'
 import { PlayerShell } from './PlayerShell.tsx'
@@ -91,6 +92,36 @@ function Demo({
   )
 }
 
+function DecoratedHeroDemo() {
+  const [details, setDetails] = useState(false)
+  return (
+    <div
+      className="home-page hero-treatment-demo"
+      style={{ minHeight: '100vh' }}
+    >
+      <style>{`
+        .hero-treatment-demo .hero-backdrop img {
+          filter: saturate(0.4) brightness(0.72);
+          object-position: 72% 35%;
+        }
+        .hero-treatment-demo .detail-art-reveal img {
+          filter: saturate(1.25);
+          object-position: 35% 65%;
+        }
+      `}</style>
+      <HomeCarousel
+        items={[homeItems[0]]}
+        active={false}
+        skipEntrance
+        onSelect={() => setDetails(true)}
+      />
+      {details && (
+        <MediaDetails item={homeItems[0]} onClose={() => setDetails(false)} />
+      )}
+    </div>
+  )
+}
+
 const meta = {
   title: 'UI/Transitions des images',
   component: ArtworkHeroProvider,
@@ -112,8 +143,31 @@ const afterPaint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   )
-const reducedMotion = () =>
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const canShareArtwork = () =>
+  typeof document.startViewTransition === 'function' &&
+  !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const expectPaintedTransition = async (
+  destination: 'details' | 'player' | 'catalogue',
+) => {
+  if (!canShareArtwork()) {
+    await expect(document.querySelector('[data-artwork-flight]')).toBeNull()
+    return
+  }
+  await waitFor(() => {
+    expect(
+      document.querySelector(`[data-artwork-destination="${destination}"]`),
+    ).toBeInTheDocument()
+    const activeLayers = document
+      .getAnimations()
+      .map(
+        (animation) =>
+          (animation.effect as KeyframeEffect | null)?.pseudoElement,
+      )
+    // A raw image overlay would lose the grade, crop, logo and controls.
+    expect(activeLayers).toContain('::view-transition-old(hollyfilms-artwork)')
+    expect(activeLayers).toContain('::view-transition-new(hollyfilms-artwork)')
+  })
+}
 const waitForDialogReveal = async (dialog: HTMLElement) => {
   await waitFor(() => {
     if (getComputedStyle(dialog).opacity === '0')
@@ -134,9 +188,25 @@ export const SharedArtwork: Story = {
     for (const card of canvas.getAllByRole('button', {
       name: /Voir la fiche de/,
     })) {
-      await userEvent.click(card)
+      const wide = card.closest<HTMLElement>(
+        '.artwork-preview[data-wide="true"]',
+      )
+      if (wide) {
+        await userEvent.hover(wide)
+        await waitFor(() => {
+          const panel = wide.querySelector<HTMLElement>(
+            '.artwork-preview-panel',
+          )
+          expect(panel?.style.getPropertyValue('--preview-progress')).toBe('1')
+        })
+        await userEvent.click(
+          wide.querySelector<HTMLElement>('.artwork-preview-open')!,
+        )
+      } else {
+        await userEvent.click(card)
+      }
       const dialog = await canvas.findByRole('dialog')
-      if (!reducedMotion())
+      if (canShareArtwork())
         await waitFor(() =>
           expect(
             document.querySelector('[data-artwork-destination="details"]'),
@@ -144,7 +214,7 @@ export const SharedArtwork: Story = {
         )
       await expect(dialog).toHaveAttribute('open')
       await userEvent.keyboard('{Escape}')
-      if (!reducedMotion())
+      if (canShareArtwork())
         await waitFor(() =>
           expect(
             document.querySelector('[data-artwork-destination="catalogue"]'),
@@ -153,13 +223,61 @@ export const SharedArtwork: Story = {
       await waitFor(() =>
         expect(canvas.queryByRole('dialog')).not.toBeInTheDocument(),
       )
-      await expect(card).toHaveFocus()
       await waitFor(() =>
         expect(
           document.querySelector('[data-artwork-flight]'),
         ).not.toBeInTheDocument(),
       )
+      await afterPaint()
+      await expect(card).toHaveFocus()
+      await expect(card).toHaveAttribute('aria-expanded', 'false')
     }
+  },
+}
+
+export const DecoratedHero: Story = {
+  name: 'Du visuel habillé à la fiche et retour',
+  args: { children: <DecoratedHeroDemo /> },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const trigger = canvas.getByRole('button', { name: 'Voir la fiche' })
+    const source =
+      canvasElement.querySelector<HTMLImageElement>('.hero-backdrop img')!
+    await waitFor(() => expect(source.naturalWidth).toBeGreaterThan(0))
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector<HTMLImageElement>('.hero-logo img')
+          ?.naturalWidth,
+      ).toBeGreaterThan(0),
+    )
+    const backdrop = source.closest('.hero-backdrop')!
+    await waitFor(() => expect(getComputedStyle(backdrop).opacity).toBe('1'))
+    const sourceFilter = getComputedStyle(source).filter
+    const sourcePosition = getComputedStyle(source).objectPosition
+    await userEvent.click(trigger)
+    const dialog = await canvas.findByRole('dialog')
+    await expectPaintedTransition('details')
+    await waitFor(() => {
+      const target = dialog.querySelector<HTMLImageElement>(
+        '.detail-art-reveal img',
+      )!
+      expect(target.naturalWidth).toBeGreaterThan(0)
+      expect(getComputedStyle(target).filter).not.toBe(sourceFilter)
+      expect(getComputedStyle(target).objectPosition).not.toBe(sourcePosition)
+    })
+    await waitFor(() =>
+      expect(document.querySelector('[data-artwork-flight]')).toBeNull(),
+    )
+    await userEvent.keyboard('{Escape}')
+    await expectPaintedTransition('catalogue')
+    await waitFor(() => {
+      expect(canvas.queryByRole('dialog')).toBeNull()
+      expect(document.querySelector('[data-artwork-flight]')).toBeNull()
+    })
+    await expect(trigger).toHaveFocus()
+    await expect(
+      canvas.getByRole('heading', { name: homeItems[0].title }),
+    ).toBeVisible()
+    await expect(getComputedStyle(source).filter).toBe(sourceFilter)
   },
 }
 export const FastPlayback: Story = {
@@ -182,8 +300,10 @@ export const FastPlayback: Story = {
         'playing',
       ),
     )
-    const flight = document.querySelector('[data-artwork-destination="player"]')
-    if (flight) await expect(flight).not.toBeVisible()
+    await afterPaint()
+    await expect(
+      document.querySelector('[data-artwork-destination="player"]'),
+    ).toBeNull()
     await waitFor(
       () =>
         expect(
@@ -218,12 +338,7 @@ export const PlayerRoundTrip: Story = {
       ).toBeGreaterThan(0),
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Lire la série' }))
-    if (!reducedMotion())
-      await waitFor(() =>
-        expect(
-          document.querySelector('[data-artwork-destination="player"]'),
-        ).toBeInTheDocument(),
-      )
+    await expectPaintedTransition('player')
     await waitFor(
       () =>
         expect(
@@ -241,9 +356,7 @@ export const PlayerRoundTrip: Story = {
       canvas.getByRole('button', { name: 'Retour au catalogue' }),
     )
     await afterPaint()
-    await expect(
-      document.querySelector('[data-artwork-destination="artwork"]'),
-    ).not.toBeInTheDocument()
+    await expect(canvasElement.querySelector('.player-viewport')).toBeNull()
     await waitFor(
       () =>
         expect(
@@ -268,12 +381,7 @@ export const HomepageToPlayer: Story = {
     await userEvent.hover(card)
     await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
     await userEvent.click(canvas.getByRole('button', { name: /^Lire / }))
-    if (!reducedMotion())
-      await waitFor(() =>
-        expect(
-          document.querySelector('[data-artwork-destination="player"]'),
-        ).toBeInTheDocument(),
-      )
+    await expectPaintedTransition('player')
     await waitFor(
       () =>
         expect(

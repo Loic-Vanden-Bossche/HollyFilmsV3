@@ -15,6 +15,7 @@ import type {
   DeviceAction,
   DevicePushState,
 } from '../pwa/use-device-preferences.ts'
+import { allowPageScrollInterruption } from './page-scroll.ts'
 import '../profile.css'
 
 export type DeviceSettingsProps = {
@@ -69,10 +70,15 @@ export function DeviceSettings({
   const [installing, setInstalling] = useState(false)
   const [installNotice, setInstallNotice] = useState<Message>()
   useEffect(() => {
-    if (window.location.hash === '#device-notifications') {
-      heading.current?.closest('section')?.scrollIntoView()
+    const followAnchor = () => {
+      if (window.location.hash !== '#device-notifications') return
       heading.current?.focus({ preventScroll: true })
+      allowPageScrollInterruption()
+      heading.current?.closest('section')?.scrollIntoView({ block: 'start' })
     }
+    followAnchor()
+    window.addEventListener('hashchange', followAnchor)
+    return () => window.removeEventListener('hashchange', followAnchor)
   }, [])
   async function promptInstall() {
     if (installing) return

@@ -347,6 +347,7 @@ test(
       HTMLMediaElement.prototype.play = function () {
         if (
           this instanceof HTMLVideoElement &&
+          this.closest('.player-shell') &&
           sessionStorage.getItem('blockAutoplayOnce')
         ) {
           sessionStorage.removeItem('blockAutoplayOnce')
@@ -1821,6 +1822,7 @@ test(
     await page
       .getByRole('button', { name: /Voir la fiche de Orbit Test/ })
       .click()
+    await page.waitForURL((url) => url.searchParams.has('media'))
     const seriesId = new URL(page.url()).searchParams.get('media')
     assert(seriesId)
     await page.reload()

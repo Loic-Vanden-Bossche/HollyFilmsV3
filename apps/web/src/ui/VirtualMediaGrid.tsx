@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -101,9 +102,15 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
       window.removeEventListener('resize', schedule)
     }
   }, [])
-  const focusedIndex = items.findIndex((item) => item.id === focusedId)
+  // Scroll changes the mounted rows far more often than the library order.
+  // Both focus retention and the reorder animation use the same index.
+  const indices = useMemo(
+    () => new Map(items.map((item, index) => [item.id, index])),
+    [items],
+  )
+  const focusedIndex = focusedId == null ? undefined : indices.get(focusedId)
   const focusedRow =
-    focusedIndex < 0 ? -1 : Math.floor(focusedIndex / layout.columns)
+    focusedIndex == null ? -1 : Math.floor(focusedIndex / layout.columns)
   const rangeExtractor = useCallback(
     (range: Range) => {
       const rows = defaultRangeExtractor(range)
@@ -112,9 +119,11 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
         focusedRow >= 0 &&
         focusedRow < range.count &&
         !rows.includes(focusedRow)
-      )
+      ) {
         rows.push(focusedRow)
-      return rows.sort((a, b) => a - b)
+        rows.sort((a, b) => a - b)
+      }
+      return rows
     },
     [focusedRow],
   )
@@ -140,9 +149,8 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
     null,
   )
   useLayoutEffect(() => {
-    const ids = new Map(items.map((item, index) => [item.id, index]))
     const previous = lastOrder.current
-    lastOrder.current = { ids, width: layout.width }
+    lastOrder.current = { ids: indices, width: layout.width }
     if (reduced) {
       root.current
         ?.querySelectorAll('[data-grid-item]')
@@ -153,6 +161,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
     }
     if (
       !previous ||
+      previous.ids === indices ||
       previous.width !== layout.width ||
       !layout.width ||
       document.hidden
@@ -168,7 +177,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
     )) {
       const id = cell.dataset.gridItem!
       const from = previous.ids.get(id)
-      const to = ids.get(id)
+      const to = indices.get(id)
       if (from === undefined || to === undefined || from === to) continue
       const rows =
         Math.floor(from / layout.columns) - Math.floor(to / layout.columns)
@@ -195,7 +204,7 @@ export const VirtualMediaGrid = memo(function VirtualMediaGrid({
         },
       )
     }
-  }, [items, layout, reduced])
+  }, [indices, layout, reduced])
 
   return (
     <div

@@ -57,19 +57,37 @@ export const ClippedRail: Story = {
     const trigger = canvas.getByRole('button', { name: 'NEON' })
     const neighbor = canvas.getByRole('button', { name: 'SIGNAL' })
     const before = neighbor.getBoundingClientRect()
+    const surface = trigger.closest('.artwork-preview-surface')
+    const artwork = trigger.querySelector('img')!
+    const resting = artwork.getBoundingClientRect()
     await expect(canvas.queryByRole('heading')).not.toBeInTheDocument()
     await userEvent.hover(trigger)
     const panel = await canvas.findByRole('group', { name: 'NEON' })
-    await expect(within(panel).getByRole('heading')).toBeVisible()
-    const bounds = panel.getBoundingClientRect()
-    await expect(bounds.width).toBeGreaterThan(
-      trigger.getBoundingClientRect().width,
+    await waitFor(() =>
+      expect(within(panel).getByRole('heading')).toBeVisible(),
     )
-    await expect(bounds.right).toBeLessThanOrEqual(
-      document.documentElement.clientWidth,
-    )
+    await expect(panel.querySelector('.artwork-preview-surface')).toBe(surface)
+    await expect(surface).toContainElement(artwork)
+    await waitFor(() => {
+      expect(artwork.getBoundingClientRect().width).toBeGreaterThan(
+        resting.width + 1,
+      )
+      expect(panel.getBoundingClientRect().right).toBeLessThanOrEqual(
+        document.documentElement.clientWidth + 1,
+      )
+    })
     await expect(neighbor.getBoundingClientRect().x).toEqual(before.x)
     await expect(neighbor.getBoundingClientRect().height).toEqual(before.height)
+    await userEvent.unhover(trigger)
+    await waitFor(() =>
+      expect(canvas.queryByRole('group', { name: 'NEON' })).toBeNull(),
+    )
+    await expect(trigger.querySelector('img')).toBe(artwork)
+    await expect(trigger.closest('.artwork-preview-surface')).toBe(surface)
+    const returned = artwork.getBoundingClientRect()
+    await expect(returned.width).toBeCloseTo(resting.width, 0)
+    await expect(returned.x).toBeCloseTo(resting.x, 0)
+    await expect(returned.y).toBeCloseTo(resting.y, 0)
   },
 }
 

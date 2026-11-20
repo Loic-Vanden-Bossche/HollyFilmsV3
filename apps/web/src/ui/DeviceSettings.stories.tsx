@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import { DeviceSettings } from './DeviceSettings.tsx'
 
 const meta = {
@@ -30,6 +30,41 @@ const meta = {
 } satisfies Meta<typeof DeviceSettings>
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const NotificationShortcut: Story = {
+  name: 'Accéder aux réglages des alertes',
+  beforeEach: () => {
+    const { href } = location
+    history.replaceState(history.state, '', href.split('#')[0])
+    return () => history.replaceState(history.state, '', href)
+  },
+  render: (args) => (
+    <>
+      <div style={{ minHeight: '110vh' }}>
+        <a href="#device-notifications" target="_self">
+          Réglages des alertes
+        </a>
+      </div>
+      <DeviceSettings {...args} />
+      <div aria-hidden="true" style={{ height: '100vh' }} />
+    </>
+  ),
+  play: async ({ canvas, userEvent }) => {
+    const link = canvas.getByRole('link', { name: 'Réglages des alertes' })
+    const heading = canvas.getByRole('heading', { name: 'Sur cet appareil' })
+    const section = canvas.getByRole('region', { name: 'Sur cet appareil' })
+    await userEvent.click(link)
+    await waitFor(() => {
+      expect(heading).toHaveFocus()
+      expect(
+        Math.abs(
+          section.getBoundingClientRect().top -
+            parseFloat(getComputedStyle(section).scrollMarginTop),
+        ),
+      ).toBeLessThan(2)
+    })
+  },
+}
 
 export const InstallAndEnable: Story = {
   play: async ({ canvas, args }) => {

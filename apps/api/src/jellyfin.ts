@@ -140,10 +140,20 @@ export function jellyfinAccounts(config: ServerConfig) {
       if (account.Name === username) return
       if (!account.Configuration || account.Id !== id)
         throw new Error('Compte Jellyfin incomplet')
-      await management.updateUser(
-        { userId: id, userDto: { ...account, Name: username } },
-        options,
-      )
+      try {
+        await management.updateUser(
+          { userId: id, userDto: { ...account, Name: username } },
+          options,
+        )
+      } catch (error) {
+        // A lost response can follow a successful update. Confirm the name
+        // on the same account before its caller rolls back the reservation.
+        const response = await management
+          .getUserById({ userId: id }, options)
+          .catch(() => undefined)
+        if (response?.data.Id !== id || response.data.Name !== username)
+          throw error
+      }
     },
 
     async setPassword(id: string, password: string) {

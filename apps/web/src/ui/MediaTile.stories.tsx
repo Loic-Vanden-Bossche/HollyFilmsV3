@@ -121,9 +121,17 @@ export const CoverProgressContrast: Story = {
   ),
   play: async ({ canvas }) => {
     for (const now of [4, 78]) {
+      const bar = canvas.getByRole('progressbar', { value: { now } })
+      await expect(bar).toBeVisible()
+      const cover = bar.closest('.media-card-cover')!.getBoundingClientRect()
+      const track = bar.getBoundingClientRect()
+      const fill = bar.firstElementChild!.getBoundingClientRect()
+      await expect(Math.abs(track.left - cover.left)).toBeLessThan(1)
+      await expect(Math.abs(track.right - cover.right)).toBeLessThan(1)
+      await expect(Math.abs(track.bottom - cover.bottom)).toBeLessThan(1)
       await expect(
-        canvas.getByRole('progressbar', { value: { now } }),
-      ).toBeVisible()
+        Math.abs(fill.width - (cover.width * now) / 100),
+      ).toBeLessThan(1)
     }
     await expect(canvas.queryByRole('heading')).not.toBeInTheDocument()
   },
@@ -394,10 +402,9 @@ export const ExpandedDetails: Story = {
     const watermark = hero.querySelector('.artwork-watermark')!
     await expect(watermark).toBeVisible()
     await expect(watermark.closest('[aria-hidden="true"]')).not.toBeNull()
-    await expect(hero.querySelector('img')).toHaveAttribute(
-      'src',
-      args.item.backdrop,
-    )
+    await expect(
+      hero.querySelector('.artwork-preview-backdrop img'),
+    ).toHaveAttribute('src', args.item.backdrop)
     const play = canvas.getByRole('button', { name: 'Lire ' + args.item.title })
     const artBounds = hero.getBoundingClientRect()
     for (const overlay of [heading, play, watermark]) {
@@ -669,11 +676,13 @@ export const ExpandedLandscapeRail: Story = {
       await userEvent.keyboard('{Escape}')
     } else {
       expect(bounds.right).toBeLessThanOrEqual(arrow.left + 1)
-      const hit = next.ownerDocument.elementFromPoint(
-        arrow.x + arrow.width / 2,
-        arrow.y + arrow.height / 2,
-      )
-      expect(next.contains(hit)).toBe(true)
+      await waitFor(() => {
+        const hit = next.ownerDocument.elementFromPoint(
+          arrow.x + arrow.width / 2,
+          arrow.y + arrow.height / 2,
+        )
+        expect(next.contains(hit)).toBe(true)
+      })
     }
     await userEvent.click(next)
     await waitFor(() => expect(track.scrollLeft).toBeGreaterThan(pageStart))

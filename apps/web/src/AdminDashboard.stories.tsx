@@ -2,10 +2,14 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, mocked, waitFor, within } from 'storybook/test'
-import type { AdminUser } from '@hollyfilms/shared/accounts'
+import type {
+  AdminUser,
+  RegistrationSummary,
+} from '@hollyfilms/shared/accounts'
 import { getJellyfinServerInfo } from '@hollyfilms/shared/jellyfin'
 import { AdminDashboard } from './AdminDashboard.tsx'
 import {
+  decideRegistration,
   getAdminUser,
   listAdminUsers,
   listRegistrations,
@@ -120,7 +124,44 @@ const meta = {
           user.id === id ? { ...user, disabled } : user,
         )
       })
-    mocked(listRegistrations).mockResolvedValue([])
+    let registration: RegistrationSummary = {
+      id: 'signup',
+      username: 'Google-pending',
+      method: 'GOOGLE',
+      status: 'PENDING',
+      createdAt: '2026-01-12T10:00:00Z',
+      decidedAt: null,
+      decidedBy: null,
+      googleName: 'Charlie Morel',
+      googleEmail: 'charlie@example.com',
+      lastError: null,
+    }
+    mocked(listRegistrations).mockImplementation(async () => [registration])
+    mocked(decideRegistration).mockImplementation(
+      async (_session, id, action) => {
+        if (id !== registration.id || registration.status !== 'PENDING')
+          throw new Error('Unknown pending Storybook registration')
+        registration = {
+          ...registration,
+          status: action === 'approve' ? 'ACTIVE' : 'REJECTED',
+          decidedAt: '2026-01-12T11:00:00Z',
+          decidedBy: 'Alex',
+        }
+        if (action === 'approve')
+          users = [
+            ...users,
+            {
+              ...account,
+              id: 'new-member',
+              username: registration.username,
+              displayName: registration.googleName ?? registration.username,
+              registrationMethod: 'GOOGLE',
+              hidden: true,
+              lastActivityAt: null,
+            },
+          ]
+      },
+    )
     mocked(getRequestOptions).mockResolvedValue(adminRequestServices)
     mocked(getMediaRequests).mockResolvedValue({
       items: requestFixtures,
@@ -141,7 +182,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Users: Story = {
-  name: 'Tous les utilisateurs',
+  name: 'Inscriptions et utilisateurs',
 }
 
 export const ManageAccess: Story = {
@@ -229,10 +270,33 @@ export const Navigate: Story = {
     await expect(
       await within(service).findByText('Connexion établie'),
     ).toBeVisible()
-    await userEvent.click(nav.getByRole('link', { name: 'Inscriptions' }))
+    await expect(nav.getAllByRole('link')).toHaveLength(3)
     await expect(
-      await canvas.findByText('Aucune demande pour le moment.'),
+      nav.getByRole('link', { name: 'Utilisateurs' }),
+    ).toHaveAttribute('aria-current', 'page')
+    const inbox = within(
+      canvas.getByRole('region', { name: 'Demandes d’inscription' }),
+    )
+    await expect(await inbox.findByText('Charlie Morel')).toBeVisible()
+    await expect(
+      await canvas.findByRole('button', { name: 'Gérer Camille' }),
     ).toBeVisible()
+    await expect(
+      canvas.queryByRole('button', { name: 'Gérer Charlie Morel' }),
+    ).toBeNull()
+    await userEvent.click(inbox.getByRole('button', { name: 'Approuver' }))
+    const manage = await canvas.findByRole('button', {
+      name: 'Gérer Charlie Morel',
+    })
+    await waitFor(() => expect(inbox.queryByText('Charlie Morel')).toBeNull())
+    await userEvent.click(inbox.getByRole('button', { name: /^Approuvées/ }))
+    await expect(await inbox.findByText('Charlie Morel')).toBeVisible()
+    await userEvent.click(manage)
+    const editor = await canvas.findByRole('dialog', { name: 'Charlie Morel' })
+    await userEvent.click(
+      within(editor).getByRole('button', { name: 'Fermer' }),
+    )
+    await waitFor(() => expect(manage).toHaveFocus())
     await userEvent.click(nav.getByRole('link', { name: 'Demandes de médias' }))
     await expect(
       await canvas.findByRole('heading', { name: 'ORBITAL' }),

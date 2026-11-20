@@ -180,8 +180,6 @@ export function adminUserService(
     try {
       await jellyfin.rename(account.Id, account, username)
     } catch (error) {
-      const current = await readAccount(account.Id).catch(() => undefined)
-      if (current?.Name === username) return
       if (isStatus(error, 400, 409)) throw unavailableName()
       throw error
     }

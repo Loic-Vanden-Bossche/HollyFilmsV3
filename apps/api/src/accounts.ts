@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import type { FastifyBaseLogger } from 'fastify'
 import { hash, verify } from '@node-rs/argon2'
 import pg from 'pg'
 import type { AuthResult } from '@hollyfilms/shared/accounts'
@@ -10,6 +11,7 @@ import { jellyfinAccounts } from './jellyfin.ts'
 import { adminUserService } from './admin-users.ts'
 import { decryptPassword, encryptPassword } from './passwords.ts'
 import { googlePictureUrl } from '@hollyfilms/shared/profile'
+import { linkedUsername, syncGoogleUsername } from './google-username.ts'
 
 export type GoogleIdentity = {
   issuer: string
@@ -41,7 +43,11 @@ const unavailable = () =>
     'Ce nom d’utilisateur est indisponible.',
   )
 
-export function accountService(db: PrismaClient, config: ServerConfig) {
+export function accountService(
+  db: PrismaClient,
+  config: ServerConfig,
+  log: FastifyBaseLogger,
+) {
   const jellyfin = jellyfinAccounts(config)
 
   async function locked<T>(id: string, work: () => Promise<T>): Promise<T> {
@@ -123,7 +129,7 @@ export function accountService(db: PrismaClient, config: ServerConfig) {
       id =
         users.find((user) => user.Name === registration.technicalName)?.Id ??
         (await jellyfin.create(registration.technicalName, password))
-      await db.registration.update({
+      registration = await db.registration.update({
         where: { id: registration.id },
         data: { jellyfinId: id },
       })
@@ -131,11 +137,12 @@ export function accountService(db: PrismaClient, config: ServerConfig) {
 
     const account = await jellyfin.account(id)
     await jellyfin.setPolicy(id, account, true, true)
-    if (registration.method === 'GOOGLE')
-      await jellyfin.setPassword(id, password)
-    await jellyfin.rename(id, account, registration.username)
     if (registration.method === 'GOOGLE') {
+      await jellyfin.setPassword(id, password)
+      await syncGoogleUsername(db, jellyfin, registration, account)
       await jellyfin.setPolicy(id, await jellyfin.account(id), false, true)
+    } else {
+      await jellyfin.rename(id, account, registration.username)
     }
 
     await db.registration.update({
@@ -225,13 +232,33 @@ export function accountService(db: PrismaClient, config: ServerConfig) {
         googleKey(),
         id,
       )
+      const jellyfinId = registration.jellyfinId
+      // A management API outage should not prevent an otherwise valid login.
+      const account = await jellyfin.account(jellyfinId).catch(() => undefined)
+      let username = account
+        ? linkedUsername(account, jellyfinId)
+        : registration.username
+      if (account && !account.Policy?.IsDisabled) {
+        try {
+          username = await syncGoogleUsername(
+            db,
+            jellyfin,
+            registration,
+            account,
+          )
+        } catch {
+          // A name change is optional for authentication. If the response was
+          // lost after Jellyfin applied it, read the current name by linked ID.
+          log.warn({ registrationId: id }, 'Google username sync deferred')
+          const latest = await jellyfin
+            .account(jellyfinId)
+            .catch(() => undefined)
+          if (latest) username = linkedUsername(latest, jellyfinId)
+        }
+      }
       return {
         status: 'authenticated',
-        session: await jellyfin.signIn(
-          registration.username,
-          password,
-          registration.jellyfinId,
-        ),
+        session: await jellyfin.signIn(username, password, jellyfinId),
       }
     },
 

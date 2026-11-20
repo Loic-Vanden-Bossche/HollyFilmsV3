@@ -46,6 +46,9 @@ export const EdgeArrows: Story = {
     const track = next.ownerDocument.getElementById(
       next.getAttribute('aria-controls')!,
     )!
+    await expect(getComputedStyle(track).scrollBehavior).toBe(
+      getComputedStyle(document.documentElement).scrollBehavior,
+    )
     next.focus()
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(track.scrollLeft).toBeGreaterThan(50))

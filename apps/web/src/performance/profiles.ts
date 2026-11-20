@@ -30,7 +30,7 @@ export const performanceProfiles = [
     ambient: true,
     shaders: false,
     pointer: true,
-    trailers: false,
+    trailers: true,
     blur: 8,
     dpr: 0.75,
     overscan: 2,

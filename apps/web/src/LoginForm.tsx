@@ -18,7 +18,7 @@ import type { AuthOptions } from '@hollyfilms/shared/accounts'
 import { registerAccount } from './account-api.ts'
 import { TextInput } from './ui/TextInput.tsx'
 import { Wordmark } from './ui/Wordmark.tsx'
-import googleLogo from './assets/logos/google-gradient.png'
+import googleLogo from './assets/logos/google-gradient-96.png'
 import { rememberAppReturn } from './use-app-route.ts'
 import {
   BlurText,
@@ -275,15 +275,13 @@ export function LoginForm({
                         }
                         transition={transition}
                       >
-                        <svg
+                        <img
+                          src={googleLogo}
+                          alt=""
                           width={20}
                           height={20}
-                          viewBox="940 940 940 940"
-                          aria-hidden="true"
-                          focusable="false"
-                        >
-                          <image href={googleLogo} width={2820} height={2820} />
-                        </svg>
+                          className="shrink-0"
+                        />
                         {t('Continuer avec Google')}
                         <ArrowRight size={16} aria-hidden="true" />
                       </motion.a>

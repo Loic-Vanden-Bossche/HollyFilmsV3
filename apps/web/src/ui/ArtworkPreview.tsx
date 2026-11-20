@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { animate, motion, stagger } from 'motion/react'
+import { animate, stagger } from 'motion/react'
 import { X } from 'lucide-react'
 import type { JellyfinSession } from '@hollyfilms/shared/accounts'
 import type { LibraryImage } from '@hollyfilms/shared/library'
@@ -14,6 +14,12 @@ import { useI18n } from '../i18n/I18nProvider.tsx'
 import { usePerformanceReducedMotion } from '../performance/PerformanceProvider.tsx'
 import { distance, duration, ease } from '../motion/tokens.ts'
 import { MediaArtwork } from './MediaArtwork.tsx'
+import {
+  artworkActivated,
+  restoringArtworkFocus,
+  useArtworkNavigation,
+} from './artwork-hero-context.ts'
+import { useArtworkMorph } from './use-artwork-morph.ts'
 import './artwork-preview.css'
 
 const previewOpened = 'hollyfilms:artwork-preview'
@@ -102,12 +108,8 @@ function placement(
     split,
     insetY,
     maxHeight: viewportHeight - 2 * insetY,
-    scale: Math.min(
-      1,
-      Math.max(rect.width / pictureWidth, rect.height / minHeight),
-    ),
+    slotHeight: rect.height,
     centerY: rect.top + rect.height / 2,
-    centerX: clamp(rect.left + rect.width / 2 - left, 0, width),
   }
 }
 
@@ -157,7 +159,13 @@ export function ArtworkPreview({
   session?: JellyfinSession
   artwork: ReactNode
   previewArtwork?: ReactNode
-  previewImage?: { source?: LibraryImage | string; compactWidth: number }
+  previewImage?: {
+    source?: LibraryImage | string
+    compactWidth: number
+    matchesCover?: boolean
+    includesTitle?: boolean
+    onUnavailable?: () => void
+  }
   hoverVideo?: ReactNode
   onSelect?: () => void
   selectLabel?: string
@@ -169,6 +177,7 @@ export function ArtworkPreview({
   children: ReactNode
 }) {
   const { t } = useI18n()
+  const navigateArtwork = useArtworkNavigation()
   const reduced = usePerformanceReducedMotion()
   const id = useId()
   const root = useRef<HTMLElement>(null)
@@ -185,7 +194,17 @@ export function ArtworkPreview({
   const [retracting, setRetracting] = useState(false)
   const open = Boolean(frame)
   const staged = Boolean(cinematic && frame?.fromHover && !reduced)
+  const imageWidth =
+    frame && previewImage
+      ? previewImageWidth(frame.pictureWidth, previewImage.compactWidth)
+      : 0
+  const alternateImage =
+    previewImage?.source &&
+    (!previewImage.matchesCover ||
+      (typeof previewImage.source !== 'string' &&
+        imageWidth > previewImage.compactWidth))
   const Heading = `h${headingLevel}` as const
+  const titleOnImage = presentation === 'landscape' || presentation === 'ranked'
   const previewTitle = frame && cinematic && (
     <Heading className="artwork-preview-title" aria-label={title}>
       {titleLogo ? (
@@ -195,7 +214,7 @@ export function ArtworkPreview({
           source={titleLogo}
           session={session}
           width={640}
-          eager
+          eager={!previewImage?.includesTitle}
           fallback={<span>{title}</span>}
         />
       ) : (
@@ -207,8 +226,12 @@ export function ArtworkPreview({
   function show(fromHover = false) {
     clearTimeout(timer.current)
     setRetracting(false)
-    const anchor = trigger.current
-    if (!anchor || open) return
+    const anchor = root.current
+    if (!anchor || !trigger.current || open) return
+    anchor.style.setProperty(
+      '--preview-origin-radius',
+      getComputedStyle(trigger.current).borderTopLeftRadius,
+    )
     anchor.ownerDocument.dispatchEvent(new Event(previewOpened))
     setFrame({ ...placement(anchor, cinematic, presentation), fromHover })
   }
@@ -228,9 +251,22 @@ export function ArtworkPreview({
     restoreFocus()
     hide()
   }
-  function select() {
-    restoreThenHide()
-    onSelect?.()
+  function dismiss() {
+    restoreFocus()
+    if (reduced) hide()
+    else setRetracting(true)
+  }
+  function select(control: HTMLButtonElement) {
+    if (!onSelect) return
+    if (mediaId) {
+      navigateArtwork(control, 'details', () => {
+        if (!open) restoreFocus()
+        onSelect()
+      })
+    } else {
+      restoreThenHide()
+      onSelect()
+    }
   }
 
   useEffect(
@@ -245,11 +281,14 @@ export function ArtworkPreview({
     const anchor = root.current
     const button = trigger.current
     if (!frame || !surface || !anchor || !button) return
-    // Keep the panel in its card's DOM and keyboard order, including in native
-    // dialogs. The browser's top layer escapes clipping and transformed rows.
+    // Lift the existing card out of the rail's clipping area. Its slot stays
+    // in flow and remains the reference for all viewport measurements.
     surface.showPopover?.()
     const position = () => {
-      const current = placement(button, cinematic, presentation)
+      const current = placement(anchor, cinematic, presentation)
+      const slot = anchor.getBoundingClientRect()
+      surface.style.setProperty('--preview-origin-width', slot.width + 'px')
+      surface.style.setProperty('--preview-origin-height', slot.height + 'px')
       surface.style.left = current.left + 'px'
       surface.style.width = current.width + 'px'
       surface.style.setProperty(
@@ -277,15 +316,11 @@ export function ArtworkPreview({
           current.insetY,
       )
       surface.style.top = top + 'px'
-      surface.style.setProperty(
-        '--preview-origin-y',
-        clamp(current.centerY - top, 0, surface.offsetHeight) + 'px',
-      )
     }
     position()
     const observer = new ResizeObserver(position)
     observer.observe(surface)
-    observer.observe(button)
+    observer.observe(anchor)
     const outside = (event: Event) => {
       if (event.target instanceof Node && !anchor.contains(event.target)) hide()
     }
@@ -354,8 +389,8 @@ export function ArtworkPreview({
       if (panningDialog) return
       // Only scrolling an ancestor can move this card. A neighboring rail
       // settling into its snap position must not dismiss an active preview.
-      if (event.target instanceof Node && !event.target.contains(button)) return
-      const rect = button.getBoundingClientRect()
+      if (event.target instanceof Node && !event.target.contains(anchor)) return
+      const rect = anchor.getBoundingClientRect()
       if (
         anchor.contains(document.activeElement) &&
         rect.bottom > 0 &&
@@ -374,7 +409,7 @@ export function ArtworkPreview({
       ) {
         event.preventDefault()
         event.stopPropagation()
-        hide()
+        setRetracting(true)
       }
     }
     if (dialog) {
@@ -384,6 +419,9 @@ export function ArtworkPreview({
       surface.addEventListener('touchend', endPan)
       surface.addEventListener('touchcancel', endPan)
     }
+    // Navigation sends this after the browser has captured the visible card,
+    // before the next screen records its focus-return target.
+    anchor.addEventListener(artworkActivated, restoreThenHide)
     document.addEventListener(previewOpened, hide)
     document.addEventListener('pointerdown', outside, true)
     document.addEventListener('focusin', outside, true)
@@ -394,11 +432,20 @@ export function ArtworkPreview({
     window.addEventListener('blur', hide)
     return () => {
       observer.disconnect()
+      // React returns this same element to normal flow on close. Inline
+      // viewport positioning and a partially scrolled surface are transient.
+      surface.removeAttribute('data-split')
+      surface.style.removeProperty('left')
+      surface.style.removeProperty('top')
+      surface.style.removeProperty('width')
+      surface.style.removeProperty('visibility')
+      content.scrollTo({ top: 0, behavior: 'instant' })
       surface.removeEventListener('wheel', scrollDialog)
       surface.removeEventListener('touchstart', startPan)
       surface.removeEventListener('touchmove', panDialog)
       surface.removeEventListener('touchend', endPan)
       surface.removeEventListener('touchcancel', endPan)
+      anchor.removeEventListener(artworkActivated, restoreThenHide)
       document.removeEventListener(previewOpened, hide)
       document.removeEventListener('pointerdown', outside, true)
       document.removeEventListener('focusin', outside, true)
@@ -409,6 +456,16 @@ export function ArtworkPreview({
       window.removeEventListener('blur', hide)
     }
   }, [frame, wide, cinematic, presentation])
+
+  useArtworkMorph({
+    slot: root,
+    panel,
+    trigger,
+    open,
+    retracting,
+    reduced,
+    onRetracted: hide,
+  })
 
   useLayoutEffect(() => {
     const surface = panel.current
@@ -456,10 +513,11 @@ export function ArtworkPreview({
       data-presentation={presentation}
       data-media-id={mediaId}
       data-active={open}
+      style={frame ? { height: frame.slotHeight } : undefined}
       aria-label={title}
       onPointerEnter={(event) => {
-        if (event.pointerType !== 'mouse') return
-        touch.current = false
+        touch.current = event.pointerType !== 'mouse'
+        if (touch.current) return
         clearTimeout(timer.current)
         if (retracting) setRetracting(false)
         if (!open) timer.current = setTimeout(() => show(true), 220)
@@ -482,8 +540,9 @@ export function ArtworkPreview({
         if (event.pointerType !== 'mouse') return
         clearTimeout(timer.current)
         clearTimeout(videoTimer.current)
-        setHoveringVideo(false)
-        if (open && !root.current?.matches(':has(:focus-visible)'))
+        if (root.current?.matches(':has(:focus-visible)'))
+          setHoveringVideo(false)
+        else if (open)
           timer.current = setTimeout(() => {
             if (reduced) hide()
             else setRetracting(true)
@@ -498,178 +557,174 @@ export function ArtworkPreview({
         if (menu) {
           menu.open = false
           menu.querySelector('summary')?.focus()
-        } else restoreThenHide()
+        } else dismiss()
       }}
     >
-      <button
-        ref={trigger}
-        type="button"
-        className={'artwork-preview-trigger ' + triggerClassName}
-        aria-label={selectLabel ?? title}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        data-artwork-open={mediaId ? 'details' : undefined}
-        onPointerDown={(event) => {
-          touch.current = event.pointerType !== 'mouse'
-        }}
-        onFocus={(event) => {
+      <div
+        ref={panel}
+        popover={open ? 'manual' : undefined}
+        role={open ? 'group' : undefined}
+        aria-label={open ? title : undefined}
+        className={
+          open
+            ? 'artwork-preview-shell artwork-preview-panel'
+            : 'artwork-preview-shell'
+        }
+        data-presentation={presentation}
+        data-branded={watermark ? true : undefined}
+        data-retracting={retracting || undefined}
+        data-reduced-motion={reduced || undefined}
+        onClickCapture={(event) => {
           if (
-            !restoringFocus.current &&
-            !touch.current &&
-            event.target.matches(':focus-visible')
+            !open ||
+            !(event.target instanceof Element) ||
+            trigger.current?.contains(event.target)
           )
-            show()
-        }}
-        onKeyDown={() => {
-          touch.current = false
+            return
+          if (event.target.closest('[data-preview-select]')) restoreFocus()
         }}
         onClick={(event) => {
-          const tapped = touch.current && event.detail !== 0
-          touch.current = false
-          if (!open && (tapped || !onSelect)) show()
-          else if (onSelect) select()
-          else if (open) restoreThenHide()
+          if (
+            !open ||
+            !(event.target instanceof Element) ||
+            trigger.current?.contains(event.target)
+          )
+            return
+          if (event.target.closest('[data-preview-select]')) hide()
         }}
       >
-        {artwork}
-      </button>
-      {triggerOverlay}
-      {frame && (
-        <div
-          ref={panel}
-          id={id}
-          popover="manual"
-          role="group"
-          aria-label={title}
-          className="artwork-preview-panel"
-          data-presentation={presentation}
-          data-branded={watermark ? true : undefined}
-          style={{ left: frame.left, width: frame.width }}
-          onClickCapture={(event) => {
-            if (
-              event.target instanceof Element &&
-              event.target.closest('[data-preview-select], [data-artwork-open]')
-            )
-              restoreFocus()
-          }}
-          onClick={(event) => {
-            if (
-              event.target instanceof Element &&
-              event.target.closest('[data-preview-select], [data-artwork-open]')
-            )
-              hide()
-          }}
-        >
-          <motion.div
-            className="artwork-preview-surface"
-            style={{
-              transformOrigin: frame.centerX + 'px var(--preview-origin-y)',
-            }}
-            initial={
-              reduced || (cinematic && !staged)
-                ? false
-                : { scale: frame.scale, opacity: 0.84 }
+        <div className="artwork-preview-surface">
+          <div
+            className={
+              'artwork-preview-layout' +
+              (open
+                ? cinematic
+                  ? ' artwork-preview-stage'
+                  : ' artwork-preview-stack'
+                : '')
             }
-            animate={
-              retracting
-                ? { scale: frame.scale, opacity: 0 }
-                : { scale: 1, opacity: 1 }
-            }
-            onAnimationComplete={() => {
-              if (retracting) hide()
-            }}
-            transition={{
-              duration: reduced
-                ? 0
-                : staged && !retracting
-                  ? duration.scene
-                  : duration.micro,
-              ease: ease.out,
-            }}
           >
             <div
-              className={
-                cinematic ? 'artwork-preview-stage' : 'artwork-preview-stack'
-              }
-            >
-              <div
-                className="artwork-preview-hero"
-                data-contain={
+              className="artwork-preview-hero"
+              data-titled-image={previewImage?.includesTitle || undefined}
+              data-contain={
+                (open &&
                   !cinematic &&
                   !wide &&
                   !previewArtwork &&
-                  !previewImage?.source
-                }
-              >
-                <motion.div
-                  className="artwork-preview-backdrop"
-                  initial={
-                    staged
-                      ? { scale: presentation === 'ranked' ? 1.025 : 1.075 }
-                      : false
-                  }
-                  animate={{ scale: 1 }}
-                  transition={{
-                    duration: staged ? duration.feature : 0,
-                    ease: ease.out,
+                  !previewImage?.source) ||
+                undefined
+              }
+            >
+              <div className="artwork-preview-cover">
+                <button
+                  ref={trigger}
+                  type="button"
+                  className={'artwork-preview-trigger ' + triggerClassName}
+                  aria-label={selectLabel ?? title}
+                  aria-expanded={open}
+                  aria-controls={open ? id : undefined}
+                  data-artwork-open={mediaId ? 'details' : undefined}
+                  onPointerDown={(event) => {
+                    touch.current = event.pointerType !== 'mouse'
+                  }}
+                  onFocus={(event) => {
+                    // Restoring focus from a dialog must leave the returning
+                    // card at the same size as its destination snapshot.
+                    if (
+                      !restoringFocus.current &&
+                      !touch.current &&
+                      !restoringArtworkFocus.has(event.currentTarget) &&
+                      event.target.matches(':focus-visible')
+                    )
+                      show()
+                  }}
+                  onKeyDown={() => {
+                    touch.current = false
+                  }}
+                  onClick={(event) => {
+                    // When a shelf mounts under an active finger, the browser
+                    // can deliver the click here after pointerdown hit its slot.
+                    const pointerType =
+                      'pointerType' in event.nativeEvent &&
+                      event.nativeEvent.pointerType
+                    const tapped =
+                      event.detail !== 0 &&
+                      (touch.current ||
+                        pointerType === 'touch' ||
+                        pointerType === 'pen')
+                    touch.current = false
+                    if (!open && (tapped || !onSelect)) show()
+                    else if (onSelect) select(event.currentTarget)
+                    else if (open) restoreThenHide()
                   }}
                 >
-                  {previewImage?.source ? (
-                    <MediaArtwork
-                      source={previewImage.source}
-                      session={session}
-                      width={previewImageWidth(
-                        frame.pictureWidth,
-                        previewImage.compactWidth,
-                      )}
-                      eager
-                    />
-                  ) : (
-                    (previewArtwork ?? artwork)
-                  )}
-                </motion.div>
-                {hoveringVideo && !reduced && hoverVideo}
-                {cinematic && (
-                  <motion.div
-                    aria-hidden="true"
-                    className="artwork-preview-scrim"
-                    initial={staged ? { opacity: 0.45 } : false}
-                    animate={{ opacity: 1 }}
-                    transition={{
-                      duration: staged ? duration.scene : 0,
-                      ease: ease.out,
-                    }}
-                  />
+                  {artwork}
+                </button>
+                {triggerOverlay && (
+                  <div aria-hidden={open || undefined}>{triggerOverlay}</div>
                 )}
-                {onSelect && (
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    className="artwork-preview-open"
-                    aria-label={t('Ouvrir {title}', { title })}
-                    data-artwork-open={mediaId ? 'details' : undefined}
-                    onClick={select}
-                  />
-                )}
-                {presentation === 'landscape' && previewTitle}
-                {watermark}
               </div>
-              <div className="artwork-preview-content">
-                {presentation !== 'landscape' && previewTitle}
+              {frame && (
+                <>
+                  {(alternateImage || previewArtwork) && (
+                    <div
+                      className="artwork-preview-backdrop"
+                      data-ready={previewArtwork ? true : undefined}
+                    >
+                      {alternateImage && previewImage ? (
+                        <MediaArtwork
+                          source={previewImage.source}
+                          onUnavailable={previewImage.onUnavailable}
+                          session={session}
+                          width={imageWidth}
+                          eager
+                        />
+                      ) : (
+                        previewArtwork
+                      )}
+                    </div>
+                  )}
+                  {hoveringVideo && !reduced && hoverVideo}
+                  {cinematic && (
+                    <div aria-hidden="true" className="artwork-preview-scrim" />
+                  )}
+                  {onSelect && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="artwork-preview-open"
+                      aria-label={t('Ouvrir {title}', { title })}
+                      data-artwork-open={mediaId ? 'details' : undefined}
+                      onClick={(event) => select(event.currentTarget)}
+                    />
+                  )}
+                  {titleOnImage &&
+                    (!previewImage?.includesTitle || hoveringVideo) &&
+                    previewTitle}
+                  {watermark}
+                </>
+              )}
+            </div>
+            {open && (
+              <div id={id} className="artwork-preview-content">
+                {!titleOnImage && previewTitle}
                 {children}
               </div>
-            </div>
+            )}
+          </div>
+          {open && (
             <button
               type="button"
               className="artwork-preview-close"
               aria-label={t('Fermer l’aperçu')}
-              onClick={restoreThenHide}
+              onClick={dismiss}
             >
               <X aria-hidden="true" size={18} />
             </button>
-          </motion.div>
+          )}
         </div>
-      )}
+      </div>
     </article>
   )
 }

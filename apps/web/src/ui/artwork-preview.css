@@ -7,6 +7,9 @@
   align-self: start;
 }
 
+.artwork-preview-cover {
+  position: relative;
+}
 .artwork-preview-trigger {
   @apply bg-card text-foreground;
   display: block;
@@ -19,17 +22,17 @@
   padding: 0;
   cursor: pointer;
 }
-.artwork-preview[data-wide='true'] > .artwork-preview-trigger,
-.artwork-preview-hero {
+.artwork-preview[data-wide='true'] .artwork-preview-trigger,
+.artwork-preview-panel .artwork-preview-hero {
   aspect-ratio: 16 / 9;
 }
 .artwork-preview-trigger:focus-visible,
 .artwork-preview-panel button:focus-visible {
   @apply outline-2 outline-offset-2 outline-ring;
 }
-.artwork-preview:has(> .artwork-preview-trigger:focus-visible)
+.artwork-preview-panel:has(.artwork-preview-trigger:focus-visible)
   .artwork-preview-surface {
-  @apply outline-2 outline-ring;
+  @apply outline-2 -outline-offset-2 outline-ring;
 }
 .artwork-preview-trigger > img,
 .artwork-preview-backdrop > img {
@@ -40,6 +43,7 @@
 }
 
 .artwork-preview-panel {
+  --preview-progress: 0;
   position: fixed;
   inset: auto;
   z-index: 40;
@@ -51,22 +55,47 @@
   background: transparent;
   color: inherit;
   overflow: visible;
+  pointer-events: none;
 }
-.artwork-preview-surface {
-  @apply bg-popover text-popover-foreground;
-  position: relative;
-  max-height: var(--preview-max-height, calc(100dvh - 16px));
-  overflow: auto;
-  scrollbar-width: thin;
+/* An outer shadow follows the visible crop. A shadow on the clipped surface
+   would only become visible on the last frame, when its clip-path is reset. */
+.artwork-preview-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   border-radius: 0.8rem;
+  transform-origin: 0 0;
+  transform: var(--preview-shadow-transform, none);
+  opacity: var(--preview-progress);
   box-shadow:
     0 16px 38px rgb(0 0 0 / 55%),
     0 0 0 1px rgb(255 255 255 / 14%);
 }
-.artwork-preview-hero {
+.artwork-preview-panel > .artwork-preview-surface {
+  @apply bg-popover text-popover-foreground;
+  position: relative;
+  pointer-events: auto;
+  max-height: var(--preview-max-height, calc(100dvh - 16px));
+  overflow: auto;
+  scrollbar-width: thin;
+  border-radius: 0.8rem;
+}
+.artwork-preview-panel .artwork-preview-hero {
   position: relative;
   width: 100%;
   overflow: hidden;
+}
+.artwork-preview-panel .artwork-preview-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--preview-origin-width);
+  height: var(--preview-origin-height);
+  transform-origin: 0 0;
+}
+.artwork-preview-panel .artwork-preview-trigger {
+  height: 100%;
+  border-radius: 0;
 }
 .artwork-preview-stack {
   display: grid;
@@ -82,9 +111,23 @@
 .artwork-preview-backdrop {
   position: absolute;
   inset: 0;
+  opacity: 0;
+  pointer-events: none;
   transform-origin: 60% 40%;
 }
-.artwork-preview-hero[data-contain='true'] img {
+.artwork-preview-backdrop:is(
+  [data-ready],
+  :has(> .media-artwork[data-decoded])
+) {
+  opacity: var(--preview-progress);
+}
+.artwork-preview-backdrop > .media-artwork {
+  background: transparent;
+}
+.artwork-preview-backdrop .media-artwork-fallback {
+  visibility: hidden;
+}
+.artwork-preview-hero[data-contain='true'] .artwork-preview-backdrop img {
   object-fit: contain;
 }
 .artwork-preview-open {
@@ -209,6 +252,27 @@
   cursor: pointer;
 }
 
+/* Composite both designs with the same progress that places the picture.
+   This also reverses the blend immediately when the pointer comes back. */
+.artwork-preview-panel
+  :is(
+    .artwork-preview-scrim,
+    .card-video-preview,
+    .artwork-preview-hero > .artwork-preview-title,
+    .artwork-preview-content,
+    .artwork-preview-close
+  ) {
+  opacity: var(--preview-progress);
+}
+.artwork-preview-panel .artwork-preview-hero > .artwork-watermark {
+  opacity: calc(0.85 * var(--preview-progress));
+}
+.artwork-preview-panel[data-presentation='ranked']
+  .artwork-preview-hero
+  > .artwork-watermark {
+  opacity: clamp(0, calc(0.85 * (2 * var(--preview-progress) - 1)), 0.85);
+}
+
 /* A portrait unfolds into a single picture. Leave the right side clear for
    faces and keep the title, primary action and synopsis on the readable side. */
 [data-presentation='cinema']
@@ -290,13 +354,35 @@
   -webkit-line-clamp: 2;
 }
 
-.artwork-preview-panel[data-presentation='landscape'] .artwork-preview-title {
+.artwork-preview-hero > .artwork-preview-title {
   position: absolute;
   inset-inline: clamp(0.875rem, 3cqw, 1.5rem);
   bottom: clamp(0.875rem, 3cqw, 1.5rem);
   max-width: calc(100% - 3rem);
   width: auto;
   user-select: none;
+}
+.artwork-preview-panel[data-presentation='ranked'] .artwork-preview-title {
+  /* Leave the lower-right corner clear for the HollyFilms watermark. */
+  inset-inline-end: clamp(4.25rem, 30%, 7.5rem);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.artwork-preview-panel[data-presentation='ranked'] .artwork-preview-logo {
+  max-width: 100%;
+}
+/* The still has its own title. Composite the overlay at the same opacity as
+   the actual video, including while the entire preview is retracting. */
+.artwork-preview-panel
+  .artwork-preview-hero[data-titled-image]
+  > .artwork-preview-title {
+  opacity: calc(var(--preview-progress) * var(--preview-video-opacity, 0));
+}
+.artwork-preview-hero[data-titled-image]:not(:has(.hero-video[data-playing]))
+  > .artwork-preview-title {
+  visibility: hidden;
 }
 .artwork-preview-panel[data-presentation='landscape'] .artwork-preview-scrim {
   background: linear-gradient(to top, rgb(4 8 14 / 78%), transparent 62%);

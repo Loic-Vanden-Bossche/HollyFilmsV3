@@ -30,12 +30,14 @@ const meta = {
   },
   render: function Render({ item, session, userId }, { parameters }) {
     const [client] = useState(() => new QueryClient())
-    const wide = parameters.resumeRow === true
+    const ranked = parameters.rankedRow === true
+    const wide = ranked || parameters.resumeRow === true
     return (
       <QueryClientProvider client={client}>
         <div style={{ width: wide ? 320 : 260, maxWidth: '100%', margin: 28 }}>
           <MediaTile
             wide={wide}
+            ranked={ranked}
             item={item}
             session={session}
             userId={userId}
@@ -114,6 +116,43 @@ export const WithoutTrailer: Story = {
     await expect(
       canvas.getByRole('button', { name: 'Lire ' + args.item.title }),
     ).toBeEnabled()
+  },
+}
+
+export const RankedTrailer: Story = {
+  name: 'Le logo accompagne le fondu de la bande-annonce',
+  args: { item: { ...homeResume[0], progress: 0 } },
+  parameters: { rankedRow: true },
+  beforeEach: HoverTrailer.beforeEach,
+  play: async ({ canvas, userEvent }) => {
+    const card = canvas.getByRole('article')
+    await userEvent.hover(card)
+    const hero = card.querySelector<HTMLElement>('.artwork-preview-hero')!
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      await waitFor(() => expect(card).toHaveAttribute('data-active', 'true'))
+      await expect(
+        hero.querySelector('video, .artwork-preview-title'),
+      ).toBeNull()
+      return
+    }
+    await waitFor(
+      () => {
+        const video = hero.querySelector<HTMLElement>('.hero-video')!
+        const logo = hero.querySelector<HTMLElement>('.artwork-preview-title')!
+        const blend = Number(getComputedStyle(video).opacity)
+        expect(blend).toBeGreaterThan(0.02)
+        expect(blend).toBeLessThan(0.98)
+        expect(Number(getComputedStyle(logo).opacity)).toBeCloseTo(blend, 3)
+      },
+      { timeout: 5000 },
+    )
+    await waitFor(
+      () =>
+        expect(hero.querySelector('.artwork-preview-title')).toHaveStyle({
+          opacity: '1',
+        }),
+      { timeout: 2000 },
+    )
   },
 }
 

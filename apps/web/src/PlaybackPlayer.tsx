@@ -28,6 +28,7 @@ import {
   type PlayerMenu,
 } from './ui/PlayerSettingsPanel.tsx'
 import {
+  memo,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -94,6 +95,13 @@ const qualities = [
   [720_000, '720 kb/s'],
   [420_000, '420 kb/s'],
 ] as const
+
+// Keep the controls mounted for their fade and focus restoration. Once inert,
+// ticks only need to update the player, not its sliders, tooltips and icons.
+const PlaybackControls = memo(
+  PlayerControls,
+  (previous, next) => previous.visible === false && next.visible === false,
+)
 
 function SegmentPrompt({
   label,
@@ -581,6 +589,14 @@ export function PlaybackPlayer({
     onError: setSubtitleProblem,
   })
   const chapters = details.data?.Chapters ?? []
+  const chapterMarkers = useMemo(
+    () =>
+      details.data?.Chapters?.map((chapter) => ({
+        position: (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
+        label: chapter.Name ?? t('Chapitre'),
+      })),
+    [details.data?.Chapters, t],
+  )
   const activeSegment = segments.data?.find(
     (segment) =>
       segment.Type &&
@@ -1140,7 +1156,7 @@ export function PlaybackPlayer({
             value={editor.draft}
             initial={editor.initial}
             service={services[editor.slot]}
-            cues={captions.cues[editor.slot]}
+            cues={captions.getCues[editor.slot]?.()}
             trackLabel={
               (editor.slot === 'primary' ? primaryTrack : secondaryTrack)
                 ?.DisplayTitle ?? t('Sous-titres')
@@ -1321,7 +1337,8 @@ export function PlaybackPlayer({
             data-visible={showControls}
             inert={!showControls}
           >
-            <PlayerControls
+            <PlaybackControls
+              visible={showControls}
               media={media}
               seekPosition={seekPosition}
               fullscreen={fullscreen}
@@ -1362,10 +1379,7 @@ export function PlaybackPlayer({
               onSettings={(trigger) => toggleMenu('settings', trigger)}
               onPreview={trickplay}
               loadPreview={api.previewImage}
-              markers={chapters.map((chapter) => ({
-                position: (chapter.StartPositionTicks ?? 0) / ticksPerSecond,
-                label: chapter.Name ?? t('Chapitre'),
-              }))}
+              markers={chapterMarkers}
             />
           </motion.div>
         )}

@@ -3,6 +3,16 @@ import { appRouteUrl, readAppRoute, type AppRoute } from './app-route.ts'
 
 const routeEvent = 'hollyfilms:navigate'
 const authReturnKey = 'hollyfilms-auth-return'
+const deferredHistory = new WeakSet<Event>()
+
+/** Let the browser capture the outgoing dialog before route subscribers render Back. */
+export function deferHistoryRender(
+  event: PopStateEvent,
+  transition: (render: () => void) => void,
+) {
+  deferredHistory.add(event)
+  transition(() => window.dispatchEvent(new Event(routeEvent)))
+}
 
 export function rememberAppReturn() {
   try {
@@ -73,7 +83,9 @@ export function useAppRoute(initialOpenedAt?: number) {
     readLocation(undefined, initialOpenedAt),
   )
   useEffect(() => {
-    const update = () => setRoute(readLocation)
+    const update = (event: Event) => {
+      if (!deferredHistory.has(event)) setRoute(readLocation)
+    }
     window.addEventListener('popstate', update)
     window.addEventListener(routeEvent, update)
     return () => {
